@@ -1,0 +1,40 @@
+export const PERMISSIONS = {
+  TASK_CREATE: 'task:create',
+  TASK_READ_ALL: 'task:read:all',
+  TASK_READ_OWN: 'task:read:own',
+  TASK_UPDATE_ALL: 'task:update:all',
+  TASK_UPDATE_STATUS: 'task:update:status',
+  TASK_DELETE: 'task:delete',
+  TASK_ASSIGN: 'task:assign',
+  TASK_REASSIGN: 'task:reassign',
+  TASK_BULK_OPS: 'task:bulk',
+  USER_CREATE: 'user:create',
+  USER_READ: 'user:read',
+  USER_UPDATE: 'user:update',
+  USER_DEACTIVATE: 'user:deactivate',
+  DEPT_MANAGE: 'dept:manage',
+  REPORT_VIEW: 'report:view',
+  REPORT_DOWNLOAD: 'report:download',
+  SYSTEM_CONFIG: 'system:config',
+  AUDIT_VIEW: 'audit:view',
+} as const;
+
+export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
+
+export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
+  SUPER_ADMIN: Object.values(PERMISSIONS),
+  ADMIN: [
+    PERMISSIONS.TASK_CREATE,
+    PERMISSIONS.TASK_READ_ALL,
+    PERMISSIONS.TASK_UPDATE_ALL,
+    PERMISSIONS.TASK_ASSIGN,
+    PERMISSIONS.TASK_REASSIGN,
+    PERMISSIONS.TASK_BULK_OPS,
+    PERMISSIONS.USER_CREATE,
+    PERMISSIONS.USER_READ,
+    PERMISSIONS.USER_UPDATE,
+    PERMISSIONS.REPORT_VIEW,
+    PERMISSIONS.REPORT_DOWNLOAD,
+  ],
+  EMPLOYEE: [PERMISSIONS.TASK_READ_OWN, PERMISSIONS.TASK_UPDATE_STATUS],
+};

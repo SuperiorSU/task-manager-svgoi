@@ -1,0 +1,288 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUMS ──────────────────────────────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  EMPLOYEE
+}
+
+enum TaskStatus {
+  PENDING
+  ACCEPTED
+  IN_PROGRESS
+  UNDER_REVIEW
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum NotificationType {
+  TASK_ASSIGNED
+  TASK_STATUS_CHANGED
+  TASK_DUE_SOON
+  TASK_OVERDUE
+  COMMENT_ADDED
+  CLARIFICATION_REQUESTED
+  CLARIFICATION_RESPONDED
+  TASK_COMPLETED
+  TASK_REASSIGNED
+}
+
+enum AuditAction {
+  CREATE
+  READ
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  LOGIN_FAILED
+  PASSWORD_CHANGED
+  ROLE_CHANGED
+  STATUS_CHANGED
+  ASSIGNED
+  REASSIGNED
+}
+
+// ─── CORE MODELS ────────────────────────────────────────────────────
+
+model Department {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  code        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  head        User?    @relation("DeptHead", fields: [headId], references: [id])
+  headId      String?
+  users       User[]   @relation("DeptMembers")
+  tasks       Task[]
+
+  @@index([code])
+}
+
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  passwordHash      String
+  name              String
+  employeeId        String?   @unique
+  phone             String?
+  avatarUrl         String?
+  designation       String?
+  role              Role      @default(EMPLOYEE)
+  isActive          Boolean   @default(true)
+  lastLoginAt       DateTime?
+  passwordChangedAt DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  department     Department? @relation("DeptMembers", fields: [departmentId], references: [id])
+  departmentId   String?
+  headOfDept     Department? @relation("DeptHead")
+
+  manager        User?   @relation("Reports", fields: [managerId], references: [id])
+  managerId      String?
+  reports        User[]  @relation("Reports")
+
+  assignedTasks  Task[]         @relation("TaskAssignee")
+  createdTasks   Task[]         @relation("TaskCreator")
+  taskComments   Comment[]
+  notifications  Notification[]
+  pushTokens     PushToken[]
+  auditLogs      AuditLog[]
+  taskActivities TaskActivity[]
+  permissions    UserPermission[]
+
+  @@index([email])
+  @@index([departmentId])
+  @@index([role])
+}
+
+model UserPermission {
+  id         String @id @default(cuid())
+  user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  permission String
+
+  @@unique([userId, permission])
+  @@index([userId])
+}
+
+model Task {
+  id              String       @id @default(cuid())
+  title           String
+  description     String?
+  status          TaskStatus   @default(PENDING)
+  priority        TaskPriority @default(MEDIUM)
+  dueDate         DateTime
+  isRecurring     Boolean      @default(false)
+  recurringConfig Json?
+  parentTaskId    String?
+  isDeleted       Boolean      @default(false)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  acceptedAt      DateTime?
+  completedAt     DateTime?
+
+  creator      User        @relation("TaskCreator", fields: [creatorId], references: [id])
+  creatorId    String
+  assignee     User        @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  assigneeId   String
+  department   Department? @relation(fields: [departmentId], references: [id])
+  departmentId String?
+
+  comments      Comment[]
+  attachments   FileAttachment[]
+  activities    TaskActivity[]
+  notifications Notification[]
+
+  @@index([assigneeId])
+  @@index([creatorId])
+  @@index([departmentId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([priority])
+  @@index([assigneeId, status])
+  @@index([departmentId, status])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  isEdited  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId    String
+  author    User     @relation(fields: [authorId], references: [id])
+  authorId  String
+  parent    Comment? @relation("Replies", fields: [parentId], references: [id])
+  parentId  String?
+  replies   Comment[] @relation("Replies")
+  mentions  CommentMention[]
+
+  @@index([taskId])
+}
+
+model CommentMention {
+  id        String  @id @default(cuid())
+  comment   Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  commentId String
+  userId    String
+
+  @@unique([commentId, userId])
+}
+
+model FileAttachment {
+  id            String   @id @default(cuid())
+  fileName      String
+  fileSize      Int
+  mimeType      String
+  storageKey    String
+  isProof       Boolean  @default(false)
+  downloadCount Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  task       Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId     String
+  uploadedBy String
+
+  @@index([taskId])
+}
+
+model TaskActivity {
+  id          String      @id @default(cuid())
+  action      AuditAction
+  description String
+  metadata    Json?
+  createdAt   DateTime    @default(now())
+
+  task    Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId  String
+  actor   User   @relation(fields: [actorId], references: [id])
+  actorId String
+
+  @@index([taskId])
+  @@index([createdAt])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  type      NotificationType
+  title     String
+  body      String
+  data      Json?
+  isRead    Boolean          @default(false)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  task   Task?   @relation(fields: [taskId], references: [id])
+  taskId String?
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+}
+
+model PushToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  platform  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  @@index([userId])
+}
+
+model AuditLog {
+  id          String      @id @default(cuid())
+  action      AuditAction
+  entityType  String
+  entityId    String
+  description String
+  ipAddress   String?
+  userAgent   String?
+  metadata    Json?
+  createdAt   DateTime    @default(now())
+
+  actor   User?   @relation(fields: [actorId], references: [id])
+  actorId String?
+
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  @@index([userId])
+  @@index([token])
+}
