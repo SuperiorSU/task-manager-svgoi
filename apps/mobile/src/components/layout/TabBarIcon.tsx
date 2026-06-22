@@ -1,0 +1,40 @@
+import React from 'react';
+import { View, StyleSheet } from 'react-native';
+import { Feather } from '@expo/vector-icons';
+
+import { Colors } from '../../constants/colors';
+import { useNotificationStore } from '../../stores/notification.store';
+
+type Props = {
+  name: keyof typeof Feather.glyphMap;
+  focused: boolean;
+  showBadge?: boolean;
+};
+
+export const TabBarIcon = ({ name, focused, showBadge }: Props) => {
+  const unreadCount = useNotificationStore((s) => s.unreadCount);
+  const showDot = showBadge && unreadCount > 0;
+
+  return (
+    <View>
+      <Feather
+        name={name}
+        size={22}
+        color={focused ? Colors.brand.primary : Colors.text.tertiary}
+      />
+      {showDot && <View style={styles.badge} />}
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  badge: {
+    position: 'absolute',
+    top: -2,
+    right: -4,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.semantic.error,
+  },
+});

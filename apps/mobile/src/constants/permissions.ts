@@ -1,0 +1,16 @@
+export const PERMISSIONS = {
+  TASK_CREATE: 'task:create',
+  TASK_READ_ALL: 'task:read:all',
+  TASK_READ_OWN: 'task:read:own',
+  TASK_UPDATE_ALL: 'task:update:all',
+  TASK_UPDATE_STATUS: 'task:update:status',
+  TASK_DELETE: 'task:delete',
+  TASK_ASSIGN: 'task:assign',
+  TASK_REASSIGN: 'task:reassign',
+  TASK_BULK_OPS: 'task:bulk',
+  USER_CREATE: 'user:create',
+  USER_READ: 'user:read',
+  DEPT_MANAGE: 'dept:manage',
+  REPORT_VIEW: 'report:view',
+  AUDIT_VIEW: 'audit:view',
+} as const;
