@@ -2,14 +2,28 @@ import Redis from 'ioredis';
 
 import { env } from './env.js';
 
+// rediss:// scheme enables TLS automatically in ioredis
 export const redis = new Redis(env.REDIS_URL, {
   maxRetriesPerRequest: 3,
   retryStrategy: (times) => Math.min(times * 100, 3000),
   lazyConnect: true,
+  // Required for Redis Cloud TLS (rejects invalid/self-signed certs in prod)
+  tls: env.REDIS_URL.startsWith('rediss://') ? { rejectUnauthorized: true } : undefined,
+  enableAutoPipelining: true,
+  connectTimeout: 10_000,
+  commandTimeout: 5_000,
 });
 
 redis.on('error', (err) => {
-  console.error('Redis connection error:', err);
+  console.error('[Redis] connection error:', err);
+});
+
+redis.on('connect', () => {
+  console.log('[Redis] connected');
+});
+
+redis.on('reconnecting', () => {
+  console.warn('[Redis] reconnecting...');
 });
 
 export const cache = {
