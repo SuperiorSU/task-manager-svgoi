@@ -1,0 +1,14 @@
+{
+  "extends": "./base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "jsx": "react-native",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@godigitify/types": ["../../packages/types/src"],
+      "@godigitify/utils": ["../../packages/utils/src"],
+      "@godigitify/ui": ["../../packages/ui/src"],
+      "@godigitify/api-client": ["../../packages/api-client/src"]
+    }
+  }
+}

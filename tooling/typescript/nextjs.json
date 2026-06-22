@@ -1,0 +1,14 @@
+{
+  "extends": "./base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "preserve",
+    "plugins": [{ "name": "next" }],
+    "paths": {
+      "@/*": ["./src/*"],
+      "@godigitify/types": ["../../packages/types/src"],
+      "@godigitify/utils": ["../../packages/utils/src"],
+      "@godigitify/api-client": ["../../packages/api-client/src"]
+    }
+  }
+}

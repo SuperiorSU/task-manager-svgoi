@@ -1,0 +1,15 @@
+{
+  "name": "@godigitify/utils",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "main": "./src/index.ts",
+  "dependencies": {
+    "dayjs": "^1.11.0"
+  }
+}

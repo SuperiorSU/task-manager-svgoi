@@ -1,0 +1,15 @@
+{
+  "name": "@godigitify/types",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "main": "./src/index.ts",
+  "dependencies": {
+    "zod": "^3.23.0"
+  }
+}
