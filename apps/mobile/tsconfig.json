@@ -2,11 +2,27 @@
   "extends": "../../tooling/typescript/react-native.json",
   "compilerOptions": {
     "paths": {
-      "@/*": ["./src/*"],
-      "@godigitify/types": ["../../packages/types/src"],
-      "@godigitify/utils": ["../../packages/utils/src"],
-      "@godigitify/api-client": ["../../packages/api-client/src"]
+      "@/*": [
+        "./src/*"
+      ],
+      "@godigitify/types": [
+        "../../packages/types/src"
+      ],
+      "@godigitify/utils": [
+        "../../packages/utils/src"
+      ],
+      "@godigitify/api-client": [
+        "../../packages/api-client/src"
+      ]
     }
   },
-  "include": ["src", "app.json", "babel.config.js", "metro.config.js"]
+  "include": [
+    "src",
+    "app",
+    "app.json",
+    "babel.config.js",
+    "metro.config.js",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
+  ]
 }

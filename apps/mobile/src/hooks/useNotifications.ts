@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notificationsApi } from '@godigitify/api-client';
 
@@ -13,15 +14,20 @@ export const useNotificationList = () =>
 
 export const useUnreadCount = () => {
   const { setUnreadCount } = useNotificationStore();
-  return useQuery({
+
+  const query = useQuery({
     queryKey: queryKeys.notifications.unreadCount(),
     queryFn: () => notificationsApi.getUnreadCount(),
-    select: (res) => {
-      setUnreadCount(res.data.count);
-      return res.data.count;
-    },
+    select: (res) => res.data.count, // pure transform only — no side effects in select
     refetchInterval: 60_000,
   });
+
+  // Sync to store AFTER render, not during select (which runs inside React's render phase)
+  useEffect(() => {
+    if (query.data !== undefined) setUnreadCount(query.data);
+  }, [query.data, setUnreadCount]);
+
+  return query;
 };
 
 export const useMarkRead = () => {

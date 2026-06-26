@@ -52,4 +52,20 @@ export const tasksRoutes = async (app: FastifyInstance): Promise<void> => {
     schema: { body: bulkStatusBodySchema },
     handler: tasksController.bulkStatus,
   });
+
+  app.get('/:id/comments', {
+    preHandler: [requireAuth],
+    handler: tasksController.getComments,
+  });
+
+  app.post('/:id/comments', {
+    preHandler: [requireAuth],
+    schema: { body: { type: 'object', required: ['content'], properties: { content: { type: 'string', minLength: 1, maxLength: 2000 }, parentId: { type: 'string' } } } },
+    handler: tasksController.addComment,
+  });
+
+  app.get('/:id/activity', {
+    preHandler: [requireAuth],
+    handler: tasksController.getActivity,
+  });
 };

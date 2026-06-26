@@ -51,12 +51,12 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
       if (userJson && refreshToken) {
         const user = JSON.parse(userJson) as User;
-        // Access token will be fetched fresh on first API call via interceptor
-        set({ user, isAuthenticated: true });
+        // Single atomic update — avoids two render cycles (isLoading + user)
+        set({ user, isAuthenticated: true, isLoading: false });
+        return;
       }
-    } finally {
-      set({ isLoading: false });
-    }
+    } catch {}
+    set({ isLoading: false });
   },
 
   hasPermission: (permission) => {

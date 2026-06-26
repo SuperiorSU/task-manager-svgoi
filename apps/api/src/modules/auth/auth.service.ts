@@ -41,12 +41,18 @@ export const authService = {
     const lockKey = `login_lockout:${employeeId}`;
     const attemptsKey = `login_attempts:${employeeId}`;
 
-    const isLocked = await redis.exists(lockKey);
-    if (isLocked) {
-      throw Object.assign(new Error('Too many failed attempts. Try again in 15 minutes.'), {
-        statusCode: 429,
-        code: 'RATE_LIMITED',
-      });
+    // Redis lockout check — skip gracefully if Redis is unavailable
+    try {
+      const isLocked = await redis.exists(lockKey);
+      if (isLocked) {
+        throw Object.assign(new Error('Too many failed attempts. Try again in 15 minutes.'), {
+          statusCode: 429,
+          code: 'RATE_LIMITED',
+        });
+      }
+    } catch (err: unknown) {
+      if ((err as { code?: string }).code === 'RATE_LIMITED') throw err;
+      // Redis unavailable — log and continue without lockout check
     }
 
     const user = await prisma.user.findFirst({
@@ -55,12 +61,15 @@ export const authService = {
     });
 
     if (!user || !(await verifyPassword(password, user.passwordHash))) {
-      const attempts = await redis.incr(attemptsKey);
-      if (attempts === 1) await redis.expire(attemptsKey, LOCKOUT_TTL);
-      if (attempts >= LOCKOUT_ATTEMPTS) {
-        await redis.setex(lockKey, LOCKOUT_TTL, '1');
-        await redis.del(attemptsKey);
-      }
+      // Track failed attempts — fire-and-forget if Redis is down
+      void redis.incr(attemptsKey).then(async (attempts) => {
+        if (attempts === 1) await redis.expire(attemptsKey, LOCKOUT_TTL);
+        if (attempts >= LOCKOUT_ATTEMPTS) {
+          await redis.setex(lockKey, LOCKOUT_TTL, '1');
+          await redis.del(attemptsKey);
+        }
+      }).catch(() => { /* Redis unavailable — skip lockout tracking */ });
+
       await writeAuditLog({
         action: 'LOGIN_FAILED',
         entityType: 'User',
@@ -79,7 +88,8 @@ export const authService = {
       });
     }
 
-    await redis.del(attemptsKey, lockKey);
+    // Clear lockout counters — fire-and-forget
+    void redis.del(attemptsKey, lockKey).catch(() => {});
 
     const sessionId = generateSessionId();
     const accessToken = app.jwt.sign(

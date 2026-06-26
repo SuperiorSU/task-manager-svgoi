@@ -1,9 +1,14 @@
+import { config } from 'dotenv';
 import { z } from 'zod';
+
+config({ path: '.env' });
+config({ path: '.env.local', override: true });
 
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'staging', 'production']).default('development'),
   PORT: z.coerce.number().default(3001),
   DATABASE_URL: z.string().url(),
+  DIRECT_URL: z.string().url(),
   REDIS_URL: z.string().url(),
   JWT_ACCESS_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),

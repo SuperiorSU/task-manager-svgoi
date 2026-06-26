@@ -14,9 +14,13 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: Colors.surface.card,
           borderTopColor: Colors.surface.border,
-          height: 64,
-          paddingBottom: 8,
+          borderTopWidth: 1,
+          // No fixed height — React Navigation auto-adds insets.bottom so the
+          // bar never overlaps the home indicator / gesture nav bar.
+        },
+        tabBarItemStyle: {
           paddingTop: 8,
+          paddingBottom: 4,
         },
         tabBarLabelStyle: { fontFamily: 'Inter-Medium', fontSize: 11 },
       }}

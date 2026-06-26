@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, type TextInputProps } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, Platform, type TextInputProps } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
 import { Colors } from '../../constants/colors';
@@ -7,8 +7,8 @@ import { Typography } from '../../constants/typography';
 import { Spacing, Layout } from '../../constants/spacing';
 
 type Props = TextInputProps & {
-  label?: string;
-  error?: string;
+  label?: string | undefined;
+  error?: string | undefined;
   secureToggle?: boolean;
 };
 
@@ -59,7 +59,7 @@ Input.displayName = 'Input';
 
 const styles = StyleSheet.create({
   container: { gap: Spacing[2] },
-  label: { ...Typography.labelMd, fontFamily: 'Inter-Medium', color: Colors.text.secondary },
+  label: { ...Typography.labelMd, fontFamily: 'Inter-SemiBold', color: Colors.text.secondary },
   inputWrapper: {
     height: 52,
     flexDirection: 'row',
@@ -77,7 +77,20 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     color: Colors.text.primary,
   },
-  inputFocused: { borderColor: Colors.brand.primary },
+  inputFocused: {
+    borderColor: Colors.brand.primary,
+    // iOS: soft glow ring — safe, no native layer change
+    // Android: skip elevation entirely — toggling elevation detaches the child
+    // TextInput from the Android view hierarchy (fires onBlur, dismisses keyboard)
+    ...Platform.select({
+      ios: {
+        shadowColor: Colors.brand.primary,
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.15,
+        shadowRadius: 6,
+      },
+    }),
+  },
   inputError: { borderColor: Colors.semantic.error },
   errorRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   errorText: { ...Typography.caption, fontFamily: 'Inter-Regular', color: Colors.semantic.error },

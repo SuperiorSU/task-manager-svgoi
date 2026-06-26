@@ -1,4 +1,5 @@
-import { Redirect, Stack } from 'expo-router';
+import { useEffect } from 'react';
+import { Stack, useRouter } from 'expo-router';
 
 import { useAuthStore } from '../../src/stores/auth.store';
 import { useSocket } from '../../src/hooks/useSocket';
@@ -10,14 +11,15 @@ function SocketInitializer() {
 
 export default function AppLayout() {
   const user = useAuthStore((s) => s.user);
+  const router = useRouter();
 
-  if (!user) {
-    return <Redirect href="/(auth)/login" />;
-  }
+  useEffect(() => {
+    if (!user) router.replace('/(auth)/login');
+  }, [user]);
 
   return (
     <>
-      <SocketInitializer />
+      {user && <SocketInitializer />}
       <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="tasks/[id]" />

@@ -46,11 +46,11 @@ export const Colors = {
     errorBg: '#FEF2F2',
     infoBg: '#EFF6FF',
   },
-  dark: {
-    background: '#0F172A',
-    card: '#1E293B',
-    border: '#334155',
-    textPrimary: '#F8FAFC',
-    textSecondary: '#94A3B8',
-  },
 } as const;
+
+export type AppColors = typeof Colors;
+
+/** Always returns the light palette — dark mode is not supported by design. */
+export function useColors(): AppColors {
+  return Colors;
+}

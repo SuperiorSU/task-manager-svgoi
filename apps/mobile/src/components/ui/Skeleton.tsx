@@ -1,12 +1,5 @@
-import React, { useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
-  interpolate,
-} from 'react-native-reanimated';
+import React, { useEffect, useRef } from 'react';
+import { Animated, View, StyleSheet } from 'react-native';
 
 import { Colors } from '../../constants/colors';
 
@@ -18,22 +11,24 @@ type Props = {
 };
 
 export const Skeleton = ({ width = '100%', height = 16, borderRadius = 8, style }: Props) => {
-  const opacity = useSharedValue(1);
+  const opacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    opacity.value = withRepeat(withTiming(0.4, { duration: 800 }), -1, true);
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.4, duration: 800, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 800, useNativeDriver: true }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
   }, [opacity]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(opacity.value, [0.4, 1], [0.4, 1]),
-  }));
 
   return (
     <Animated.View
       style={[
         styles.skeleton,
-        { width, height, borderRadius },
-        animatedStyle,
+        { width, height, borderRadius, opacity },
         style,
       ]}
     />

@@ -9,7 +9,8 @@ export const authApi = {
       password,
     }),
 
-  logout: () => getApiClient().post<void>('/auth/logout'),
+  logout: (refreshToken: string) =>
+    getApiClient().post<void>('/auth/logout', { refreshToken }),
 
   refresh: (refreshToken: string) =>
     getApiClient().post<AuthTokens>('/auth/refresh', { refreshToken }),

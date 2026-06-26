@@ -8,15 +8,23 @@ export const requireAuth = async (
   request: FastifyRequest,
   reply: FastifyReply
 ): Promise<void> => {
+  // Step 1: Verify JWT signature and expiry — 401 on failure
   try {
     await request.jwtVerify();
+  } catch {
+    return sendError(reply, 401, ErrorCodes.UNAUTHORIZED, 'Invalid or expired token');
+  }
 
-    const payload = request.user as unknown as {
-      sub: string;
-      role: string;
-      sid: string;
-    };
+  const payload = request.user as unknown as {
+    sub: string;
+    role: string;
+    sid: string;
+  };
 
+  // Step 2: Load user from DB — 503 on DB errors, 401 if user not found/inactive
+  // Keeping these separate means a transient Prisma error returns 503 (not 401),
+  // so the mobile client does NOT trigger logout for a temporary server issue.
+  try {
     const user = await prisma.user.findUnique({
       where: { id: payload.sub, isActive: true },
       select: {
@@ -43,6 +51,6 @@ export const requireAuth = async (
       permissions: allPerms,
     };
   } catch {
-    return sendError(reply, 401, ErrorCodes.UNAUTHORIZED, 'Invalid or expired token');
+    return sendError(reply, 503, ErrorCodes.INTERNAL_ERROR, 'Service temporarily unavailable');
   }
 };

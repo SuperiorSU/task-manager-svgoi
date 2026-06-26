@@ -13,7 +13,8 @@ export const dashboardRoutes = async (app: FastifyInstance): Promise<void> => {
       const { user } = req;
       const cacheKey = `dashboard:stats:${user.id}:${period}`;
 
-      const cached = await cache.get<unknown>(cacheKey);
+      // Cache is best-effort — a Redis hiccup should not break the dashboard
+      const cached = await cache.get<unknown>(cacheKey).catch(() => null);
       if (cached) return sendSuccess(reply, cached);
 
       const baseWhere: Record<string, unknown> = { isDeleted: false };
@@ -36,7 +37,8 @@ export const dashboardRoutes = async (app: FastifyInstance): Promise<void> => {
       ]);
 
       const stats = { total, pending, inProgress, completed, overdue };
-      await cache.set(cacheKey, stats, 300);
+      // Fire-and-forget cache write — don't await, don't fail the request if Redis is down
+      void cache.set(cacheKey, stats, 300).catch(() => {});
       return sendSuccess(reply, stats);
     },
   });

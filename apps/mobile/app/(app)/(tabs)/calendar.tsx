@@ -105,9 +105,9 @@ const styles = StyleSheet.create({
   dayName: { ...Typography.caption, fontFamily: 'Inter-Medium', color: Colors.text.tertiary },
   dayNameSelected: { color: Colors.text.inverse },
   dayNum: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  dayNumToday: { backgroundColor: Colors.brand.primaryLight },
+  dayNumToday: { backgroundColor: Colors.brand.primaryDark },
   dayNumText: { ...Typography.labelMd, fontFamily: 'Inter-SemiBold', color: Colors.text.primary },
-  dayNumTextToday: { color: Colors.brand.primary },
+  dayNumTextToday: { color: Colors.brand.primaryLight },
   list: { padding: Spacing[4], gap: Spacing[3], paddingBottom: Spacing[8] },
   dateLabel: { ...Typography.h4, fontFamily: 'Inter-SemiBold', color: Colors.text.primary, marginBottom: Spacing[2] },
 });

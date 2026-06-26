@@ -65,4 +65,40 @@ export const tasksController = {
     await tasksService.bulkUpdateStatus(ids, status as never, request.user.id);
     return sendSuccess(reply, null);
   },
+
+  async getComments(request: FastifyRequest, reply: FastifyReply) {
+    const { id } = request.params as { id: string };
+    const comments = await tasksService.getComments(
+      id,
+      request.user.id,
+      request.user.role,
+      request.user.departmentId
+    );
+    return sendSuccess(reply, comments);
+  },
+
+  async addComment(request: FastifyRequest, reply: FastifyReply) {
+    const { id } = request.params as { id: string };
+    const { content, parentId } = request.body as { content: string; parentId?: string };
+    const comment = await tasksService.addComment(
+      id,
+      request.user.id,
+      content,
+      parentId,
+      request.user.role,
+      request.user.departmentId
+    );
+    return sendSuccess(reply, comment, 201);
+  },
+
+  async getActivity(request: FastifyRequest, reply: FastifyReply) {
+    const { id } = request.params as { id: string };
+    const activity = await tasksService.getActivity(
+      id,
+      request.user.id,
+      request.user.role,
+      request.user.departmentId
+    );
+    return sendSuccess(reply, activity);
+  },
 };

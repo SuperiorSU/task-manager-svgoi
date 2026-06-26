@@ -294,4 +294,73 @@ export const tasksService = {
     await prisma.taskActivity.createMany({ data: activities as never });
     await cache.delPattern('dashboard:stats:*');
   },
+
+  async getComments(taskId: string, viewerId: string, viewerRole: string, viewerDeptId?: string) {
+    // Verify viewer has access to this task (reuse getById for the access check)
+    await tasksService.getById(taskId, viewerId, viewerRole, viewerDeptId);
+
+    return prisma.taskComment.findMany({
+      where: { taskId, isDeleted: false },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        content: true,
+        parentId: true,
+        createdAt: true,
+        updatedAt: true,
+        author: { select: { id: true, name: true, avatarUrl: true } },
+      },
+    });
+  },
+
+  async addComment(
+    taskId: string,
+    authorId: string,
+    content: string,
+    parentId?: string,
+    viewerRole?: string,
+    viewerDeptId?: string
+  ) {
+    await tasksService.getById(taskId, authorId, viewerRole ?? 'EMPLOYEE', viewerDeptId);
+
+    const comment = await prisma.taskComment.create({
+      data: { taskId, authorId, content, parentId },
+      select: {
+        id: true,
+        content: true,
+        parentId: true,
+        createdAt: true,
+        author: { select: { id: true, name: true, avatarUrl: true } },
+      },
+    });
+
+    await prisma.taskActivity.create({
+      data: {
+        taskId,
+        actorId: authorId,
+        action: 'COMMENT_ADDED',
+        description: `Comment added`,
+      },
+    });
+
+    return comment;
+  },
+
+  async getActivity(taskId: string, viewerId: string, viewerRole: string, viewerDeptId?: string) {
+    await tasksService.getById(taskId, viewerId, viewerRole, viewerDeptId);
+
+    return prisma.taskActivity.findMany({
+      where: { taskId },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      select: {
+        id: true,
+        action: true,
+        description: true,
+        metadata: true,
+        createdAt: true,
+        actor: { select: { id: true, name: true, avatarUrl: true } },
+      },
+    });
+  },
 };

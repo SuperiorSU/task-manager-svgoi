@@ -1,10 +1,17 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import * as Font from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
+import {
+  useFonts,
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+} from '@expo-google-fonts/inter';
 
 import { queryClient } from '../src/utils/queryClient';
 import { initApi } from '../src/services/api.service';
@@ -20,11 +27,11 @@ const Root = () => {
   const isHydrated = !useAuthStore((s) => s.isLoading);
   useNetworkState();
 
-  const [fontsLoaded] = Font.useFonts({
-    'Inter-Regular':   require('../assets/fonts/Inter-Regular.ttf'),
-    'Inter-Medium':    require('../assets/fonts/Inter-Medium.ttf'),
-    'Inter-SemiBold':  require('../assets/fonts/Inter-SemiBold.ttf'),
-    'Inter-Bold':      require('../assets/fonts/Inter-Bold.ttf'),
+  const [fontsLoaded] = useFonts({
+    'Inter-Regular': Inter_400Regular,
+    'Inter-Medium': Inter_500Medium,
+    'Inter-SemiBold': Inter_600SemiBold,
+    'Inter-Bold': Inter_700Bold,
   });
 
   useEffect(() => {
@@ -41,6 +48,7 @@ const Root = () => {
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="index" />
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(app)" />
       <Stack.Screen name="+not-found" />
@@ -52,6 +60,13 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
+        {/*
+          The app is always light mode (white backgrounds). Force dark icons so
+          the time/battery/notifications are always visible against the white header,
+          even when the device OS is in dark mode.
+          translucent + transparent lets the header colour show through on Android.
+        */}
+        <StatusBar style="dark" translucent backgroundColor="transparent" />
         <QueryClientProvider client={queryClient}>
           <Root />
         </QueryClientProvider>

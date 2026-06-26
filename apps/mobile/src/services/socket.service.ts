@@ -1,17 +1,13 @@
-import Constants from 'expo-constants';
 import { io, type Socket } from 'socket.io-client';
 
-const BASE_URL =
-  Constants.expoConfig?.extra?.apiUrl ??
-  process.env['EXPO_PUBLIC_API_URL'] ??
-  'http://localhost:3001';
+import { getApiBaseUrl } from './api.service';
 
 let socket: Socket | null = null;
 
 export const connectSocket = (token: string): Socket => {
   if (socket?.connected) return socket;
 
-  socket = io(BASE_URL, {
+  socket = io(getApiBaseUrl(), {
     auth: { token },
     transports: ['websocket'],
     reconnection: true,
@@ -20,7 +16,7 @@ export const connectSocket = (token: string): Socket => {
   });
 
   socket.on('connect_error', (err) => {
-    console.error('Socket error:', err.message);
+    console.warn('[Socket] connect error:', err.message);
   });
 
   return socket;

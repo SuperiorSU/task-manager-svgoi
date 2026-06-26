@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ─── ENUMS ──────────────────────────────────────────────────────────
@@ -70,7 +71,7 @@ model Department {
   updatedAt   DateTime @updatedAt
 
   head        User?    @relation("DeptHead", fields: [headId], references: [id])
-  headId      String?
+  headId      String?  @unique
   users       User[]   @relation("DeptMembers")
   tasks       Task[]
 
