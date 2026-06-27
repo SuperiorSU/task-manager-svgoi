@@ -1,113 +1,320 @@
-import React, { useState } from 'react';
-import { View, Text, FlatList, StyleSheet } from 'react-native';
+import React, { useCallback, useMemo } from 'react';
+import {
+  View,
+  Text,
+  FlatList,
+  StyleSheet,
+  RefreshControl,
+  Platform,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { Feather } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 
-import type { TaskStatus } from '@godigitify/types';
+import type { CalendarTask } from '../../../src/data/calendar.mock';
+import {
+  useCalendarTasks,
+  useCalendarState,
+} from '../../../src/hooks/useCalendar';
 
 import { Colors } from '../../../src/constants/colors';
 import { Typography } from '../../../src/constants/typography';
-import { Spacing } from '../../../src/constants/spacing';
-import { ScreenHeader } from '../../../src/components/layout/ScreenHeader';
-import { SafeScreen } from '../../../src/components/layout/SafeScreen';
-import { TaskCard } from '../../../src/components/task/TaskCard';
-import { EmptyState } from '../../../src/components/ui/EmptyState';
-import { useTasks } from '../../../src/hooks/useTasks';
+import { Spacing, Layout } from '../../../src/constants/spacing';
+
+import { CalendarHeader } from '../../../src/components/calendar/CalendarHeader';
+import { CalendarLegend } from '../../../src/components/calendar/CalendarLegend';
+import { CalendarDayTaskCard } from '../../../src/components/calendar/CalendarDayTaskCard';
+import { MonthGrid } from '../../../src/components/calendar/MonthGrid';
+import { WeekStrip } from '../../../src/components/calendar/WeekStrip';
+import { WeekTimeGrid } from '../../../src/components/calendar/WeekTimeGrid';
+import { DayTimeline } from '../../../src/components/calendar/DayTimeline';
+import { Skeleton } from '../../../src/components/ui/Skeleton';
+
+// ─── Empty State ──────────────────────────────────────────────────────────────
+
+const CalendarEmptyState = ({ date }: { date: string }) => (
+  <View style={empty.wrap}>
+    <View style={empty.iconWrap}>
+      <Feather name="calendar" size={32} color={Colors.text.tertiary} />
+    </View>
+    <Text style={empty.title}>No tasks on this day</Text>
+    <Text style={empty.sub}>{dayjs(date).format('dddd, MMMM D')}</Text>
+  </View>
+);
+
+const empty = StyleSheet.create({
+  wrap: {
+    alignItems: 'center',
+    gap: Spacing[2],
+    paddingVertical: Spacing[10],
+    paddingHorizontal: Spacing[8],
+  },
+  iconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: Colors.surface.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing[2],
+  },
+  title: {
+    ...Typography.h4,
+    fontFamily: 'Inter-SemiBold',
+    color: Colors.text.primary,
+    textAlign: 'center',
+  },
+  sub: {
+    ...Typography.bodyMd,
+    fontFamily: 'Inter-Regular',
+    color: Colors.text.tertiary,
+    textAlign: 'center',
+  },
+});
+
+// ─── Task list section header ─────────────────────────────────────────────────
+
+const TaskListHeader = ({ date, count }: { date: string; count: number }) => (
+  <View style={listHead.row}>
+    <Text style={listHead.text}>
+      {dayjs(date).format('dddd, D MMMM')}
+    </Text>
+    <View style={listHead.badge}>
+      <Text style={listHead.badgeText}>
+        {count} task{count !== 1 ? 's' : ''}
+      </Text>
+    </View>
+  </View>
+);
+
+const listHead = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[3],
+    paddingTop: Spacing[4],
+    paddingBottom: Spacing[2],
+  },
+  text: {
+    ...Typography.labelMd,
+    fontFamily: 'Inter-SemiBold',
+    color: Colors.text.secondary,
+    flex: 1,
+  },
+  badge: {
+    backgroundColor: Colors.brand.primaryLight,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+  },
+  badgeText: {
+    ...Typography.labelSm,
+    fontFamily: 'Inter-SemiBold',
+    color: Colors.brand.primary,
+  },
+});
+
+// ─── Loading skeleton ─────────────────────────────────────────────────────────
+
+const CalendarSkeleton = () => (
+  <View style={sk.wrap}>
+    <Skeleton height={180} borderRadius={0} />
+    <View style={sk.rows}>
+      {[1, 2, 3].map((i) => (
+        <Skeleton key={i} height={72} borderRadius={Layout.cardRadius} />
+      ))}
+    </View>
+  </View>
+);
+
+const sk = StyleSheet.create({
+  wrap: { flex: 1, backgroundColor: Colors.surface.background },
+  rows: { gap: Spacing[3], padding: Spacing[4] },
+});
+
+// ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function CalendarScreen() {
-  const [selectedDate, setSelectedDate] = useState(dayjs().format('YYYY-MM-DD'));
-  const { data } = useTasks({});
+  const insets = useSafeAreaInsets();
 
-  const tasks = data as Array<{
-    id: string;
-    title: string;
-    status: TaskStatus;
-    priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
-    dueDate: string;
-    assignee?: { name: string };
-    department?: { name: string } | null;
-  }> ?? [];
+  const { data: taskMap = new Map<string, CalendarTask[]>(), isLoading, refetch } = useCalendarTasks();
 
-  const dueTodayTasks = tasks.filter((t) =>
-    dayjs(t.dueDate).format('YYYY-MM-DD') === selectedDate
+  const {
+    view,
+    switchView,
+    selectedDate,
+    selectDate,
+    periodAnchor,
+    goNext,
+    goPrev,
+    today,
+    getMondayOf,
+  } = useCalendarState();
+
+  const selectedDateStr = selectedDate.format('YYYY-MM-DD');
+
+  const selectedTasks = useMemo(
+    () =>
+      (taskMap.get(selectedDateStr) ?? []).sort(
+        (a, b) => dayjs(a.dueDate).valueOf() - dayjs(b.dueDate).valueOf(),
+      ),
+    [taskMap, selectedDateStr],
   );
 
-  return (
-    <SafeScreen>
-      <ScreenHeader title="Calendar" />
+  const router = useRouter();
 
-      {/* Week strip */}
-      <View style={styles.weekStrip}>
-        {Array.from({ length: 7 }).map((_, i) => {
-          const d = dayjs().startOf('week').add(i, 'day');
-          const iso = d.format('YYYY-MM-DD');
-          const isSelected = iso === selectedDate;
-          const isToday = iso === dayjs().format('YYYY-MM-DD');
-          return (
-            <View
-              key={iso}
-              style={[styles.dayCell, isSelected && styles.daySelected]}
-              onTouchEnd={() => setSelectedDate(iso)}
-            >
-              <Text style={[styles.dayName, isSelected && styles.dayNameSelected]}>
-                {d.format('ddd').toUpperCase()}
-              </Text>
-              <View style={[styles.dayNum, isToday && styles.dayNumToday]}>
-                <Text style={[styles.dayNumText, isToday && styles.dayNumTextToday, isSelected && { color: Colors.text.inverse }]}>
-                  {d.format('D')}
-                </Text>
-              </View>
-            </View>
-          );
-        })}
+  const handleTaskPress = useCallback((task: CalendarTask) => {
+    router.push(`/(app)/tasks/${task.id}`);
+  }, [router]);
+
+  const handleSelectDate = useCallback(
+    (date: Parameters<typeof selectDate>[0]) => selectDate(date),
+    [selectDate],
+  );
+
+  // ── Loading state ──────────────────────────────────────────────────────────
+  if (isLoading) {
+    return (
+      <View style={[styles.screen, { paddingTop: insets.top }]}>
+        <View style={styles.skHeader}>
+          <Skeleton height={22} width={160} borderRadius={6} />
+          <View style={styles.skToggle}>
+            {[0, 1, 2].map((i) => (
+              <Skeleton key={i} height={32} width={72} borderRadius={8} />
+            ))}
+          </View>
+        </View>
+        <CalendarSkeleton />
       </View>
+    );
+  }
 
-      <FlatList
-        data={dueTodayTasks}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        ItemSeparatorComponent={() => <View style={{ height: Spacing[3] }} />}
-        ListHeaderComponent={
-          <Text style={styles.dateLabel}>
-            {dayjs(selectedDate).format('dddd, MMMM D')}
-          </Text>
-        }
-        ListEmptyComponent={
-          <EmptyState
-            icon="calendar"
-            title="No tasks due"
-            subtitle="Nothing scheduled for this day"
-          />
-        }
-        renderItem={({ item }) => <TaskCard task={item} />}
-        showsVerticalScrollIndicator={false}
+  // ── Reusable task FlatList (month + day selected-day list) ─────────────────
+  const renderTask = ({ item }: { item: CalendarTask }) => (
+    <CalendarDayTaskCard task={item} onPress={handleTaskPress} />
+  );
+
+  // ── Month view ─────────────────────────────────────────────────────────────
+  if (view === 'Month') {
+    return (
+      <View style={[styles.screen, { paddingTop: insets.top }]}>
+        <CalendarHeader
+          view={view}
+          periodAnchor={periodAnchor}
+          onPrev={goPrev}
+          onNext={goNext}
+          onViewChange={switchView}
+        />
+        <FlatList
+          data={selectedTasks}
+          keyExtractor={(t) => t.id}
+          renderItem={renderTask}
+          ItemSeparatorComponent={() => <View style={{ height: Spacing[2] }} />}
+          contentContainerStyle={[
+            styles.taskList,
+            { paddingBottom: insets.bottom + Spacing[8] },
+          ]}
+          refreshControl={
+            <RefreshControl
+              refreshing={false}
+              onRefresh={refetch}
+              tintColor={Colors.brand.primary}
+            />
+          }
+          ListHeaderComponent={
+            <View>
+              <MonthGrid
+                monthAnchor={periodAnchor}
+                today={today}
+                selectedDate={selectedDate}
+                taskMap={taskMap}
+                onSelectDate={handleSelectDate}
+              />
+              <CalendarLegend />
+              <TaskListHeader date={selectedDateStr} count={selectedTasks.length} />
+            </View>
+          }
+          ListEmptyComponent={<CalendarEmptyState date={selectedDateStr} />}
+          showsVerticalScrollIndicator={false}
+        />
+      </View>
+    );
+  }
+
+  // ── Week view ──────────────────────────────────────────────────────────────
+  if (view === 'Week') {
+    const weekStart = getMondayOf(periodAnchor);
+    return (
+      <View style={[styles.screen, { paddingTop: insets.top }]}>
+        <CalendarHeader
+          view={view}
+          periodAnchor={weekStart}
+          onPrev={goPrev}
+          onNext={goNext}
+          onViewChange={switchView}
+        />
+        <WeekStrip
+          weekStart={weekStart}
+          today={today}
+          selectedDate={selectedDate}
+          taskMap={taskMap}
+          onSelectDate={handleSelectDate}
+        />
+        <WeekTimeGrid
+          weekStart={weekStart}
+          today={today}
+          selectedDate={selectedDate}
+          taskMap={taskMap}
+          onSelectDate={handleSelectDate}
+          onTaskPress={handleTaskPress}
+        />
+      </View>
+    );
+  }
+
+  // ── Day view ───────────────────────────────────────────────────────────────
+  return (
+    <View style={[styles.screen, { paddingTop: insets.top }]}>
+      <CalendarHeader
+        view={view}
+        periodAnchor={periodAnchor}
+        onPrev={goPrev}
+        onNext={goNext}
+        onViewChange={switchView}
       />
-    </SafeScreen>
+      <DayTimeline
+        date={periodAnchor}
+        today={today}
+        taskMap={taskMap}
+        onTaskPress={handleTaskPress}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  weekStrip: {
-    flexDirection: 'row',
+  screen: {
+    flex: 1,
+    backgroundColor: Colors.surface.background,
+    ...Platform.select({
+      ios: {},
+      android: {},
+    }),
+  },
+  skHeader: {
     backgroundColor: Colors.surface.card,
+    padding: Spacing[5],
+    gap: Spacing[3],
     borderBottomWidth: 1,
     borderBottomColor: Colors.surface.border,
-    paddingVertical: Spacing[3],
-    paddingHorizontal: Spacing[2],
   },
-  dayCell: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 4,
-    borderRadius: 10,
-    paddingVertical: 6,
+  skToggle: {
+    flexDirection: 'row',
+    gap: Spacing[2],
   },
-  daySelected: { backgroundColor: Colors.brand.primary },
-  dayName: { ...Typography.caption, fontFamily: 'Inter-Medium', color: Colors.text.tertiary },
-  dayNameSelected: { color: Colors.text.inverse },
-  dayNum: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  dayNumToday: { backgroundColor: Colors.brand.primaryDark },
-  dayNumText: { ...Typography.labelMd, fontFamily: 'Inter-SemiBold', color: Colors.text.primary },
-  dayNumTextToday: { color: Colors.brand.primaryLight },
-  list: { padding: Spacing[4], gap: Spacing[3], paddingBottom: Spacing[8] },
-  dateLabel: { ...Typography.h4, fontFamily: 'Inter-SemiBold', color: Colors.text.primary, marginBottom: Spacing[2] },
+  taskList: {
+    paddingHorizontal: Spacing[4],
+    paddingBottom: Spacing[8],
+  },
 });

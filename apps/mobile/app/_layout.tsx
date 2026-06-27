@@ -16,7 +16,9 @@ import {
 import { queryClient } from '../src/utils/queryClient';
 import { initApi } from '../src/services/api.service';
 import { useAuthStore } from '../src/stores/auth.store';
+import { useThemeStore } from '../src/stores/theme.store';
 import { useNetworkState } from '../src/hooks/useNetworkState';
+import { useIsDark } from '../src/constants/colors';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -25,6 +27,9 @@ initApi();
 const Root = () => {
   const hydrateFromStorage = useAuthStore((s) => s.hydrateFromStorage);
   const isHydrated = !useAuthStore((s) => s.isLoading);
+  const hydrateTheme = useThemeStore((s) => s.hydrate);
+  const themeHydrated = useThemeStore((s) => s.hydrated);
+  const isDark = useIsDark();
   useNetworkState();
 
   const [fontsLoaded] = useFonts({
@@ -36,23 +41,28 @@ const Root = () => {
 
   useEffect(() => {
     hydrateFromStorage();
-  }, [hydrateFromStorage]);
+    hydrateTheme();
+  }, [hydrateFromStorage, hydrateTheme]);
 
   useEffect(() => {
-    if (fontsLoaded && isHydrated) {
+    if (fontsLoaded && isHydrated && themeHydrated) {
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded, isHydrated]);
+  }, [fontsLoaded, isHydrated, themeHydrated]);
 
-  if (!fontsLoaded || !isHydrated) return null;
+  if (!fontsLoaded || !isHydrated || !themeHydrated) return null;
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen name="(app)" />
-      <Stack.Screen name="+not-found" />
-    </Stack>
+    <>
+      {/* StatusBar icon style flips between dark (light bg) and light (dark bg) */}
+      <StatusBar style={isDark ? 'light' : 'dark'} translucent backgroundColor="transparent" />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(app)" />
+        <Stack.Screen name="+not-found" />
+      </Stack>
+    </>
   );
 };
 
@@ -60,13 +70,6 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        {/*
-          The app is always light mode (white backgrounds). Force dark icons so
-          the time/battery/notifications are always visible against the white header,
-          even when the device OS is in dark mode.
-          translucent + transparent lets the header colour show through on Android.
-        */}
-        <StatusBar style="dark" translucent backgroundColor="transparent" />
         <QueryClientProvider client={queryClient}>
           <Root />
         </QueryClientProvider>
