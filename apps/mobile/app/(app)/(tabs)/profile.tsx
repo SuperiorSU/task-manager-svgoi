@@ -151,7 +151,7 @@ export default function ProfileScreen() {
             <ProfileSettingsItem
               icon="info"
               label="Help & support"
-              onPress={() => {}}
+              onPress={() => router.push('/(app)/profile/help')}
             />
           </View>
 

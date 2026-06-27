@@ -6,11 +6,10 @@ import dayjs from 'dayjs';
 
 import type { UpcomingTask } from '../../data/dashboard.mock';
 
-import { Colors } from '../../constants/colors';
+import { useColors } from '../../constants/colors';
 import { Typography } from '../../constants/typography';
 import { Spacing } from '../../constants/spacing';
 import { TaskStatusBadge } from '../task/TaskStatusBadge';
-import { priorityStripeColor } from '../task/TaskPriorityIndicator';
 
 type Props = {
   task: UpcomingTask;
@@ -21,7 +20,8 @@ const isDueSoon = (dueDate: string) =>
 
 export const UpcomingTaskItem = React.memo(({ task }: Props) => {
   const router = useRouter();
-  const stripeColor = priorityStripeColor(task.priority);
+  const colors = useColors();
+  const stripeColor = colors.priority[task.priority.toLowerCase() as keyof typeof colors.priority].solid;
   const dueSoon = isDueSoon(task.dueDate);
 
   const handlePress = useCallback(() => {
@@ -33,37 +33,40 @@ export const UpcomingTaskItem = React.memo(({ task }: Props) => {
   return (
     <Pressable
       onPress={handlePress}
-      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.card,
+        { backgroundColor: colors.surface.card },
+        pressed && styles.pressed,
+      ]}
       accessibilityRole="button"
       accessibilityLabel={`Task: ${task.title}`}
     >
-      {/* Signature 4pt priority stripe */}
       <View style={[styles.stripe, { backgroundColor: stripeColor }]} />
 
       <View style={styles.body}>
         <View style={styles.topRow}>
-          <Text style={styles.title} numberOfLines={1}>
+          <Text style={[styles.title, { color: colors.text.primary }]} numberOfLines={1}>
             {task.title}
           </Text>
           <TaskStatusBadge status={task.status} />
         </View>
 
         <View style={styles.metaRow}>
-          <Text style={styles.dept} numberOfLines={1}>
+          <Text style={[styles.dept, { color: colors.text.secondary }]} numberOfLines={1}>
             {task.department}
           </Text>
-          <Text style={styles.dot}>·</Text>
+          <Text style={[styles.dot, { color: colors.text.tertiary }]}>·</Text>
           <Feather
             name="clock"
             size={11}
-            color={dueSoon ? Colors.semantic.error : Colors.text.tertiary}
+            color={dueSoon ? colors.semantic.error : colors.text.tertiary}
           />
           <Text
-            style={[styles.due, dueSoon && styles.dueSoonText]}
+            style={[styles.due, { color: dueSoon ? colors.semantic.error : colors.text.secondary },
+              dueSoon && { fontFamily: 'Inter-Medium' }]}
             numberOfLines={1}
           >
-            {' '}
-            {dueLabel}
+            {' '}{dueLabel}
           </Text>
         </View>
       </View>
@@ -76,7 +79,6 @@ UpcomingTaskItem.displayName = 'UpcomingTaskItem';
 const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
-    backgroundColor: Colors.surface.card,
     borderRadius: 12,
     overflow: 'hidden',
     minHeight: 72,
@@ -104,7 +106,6 @@ const styles = StyleSheet.create({
   title: {
     ...Typography.bodyMd,
     fontFamily: 'Inter-SemiBold',
-    color: Colors.text.primary,
     flex: 1,
   },
   metaRow: {
@@ -116,19 +117,12 @@ const styles = StyleSheet.create({
   dept: {
     ...Typography.caption,
     fontFamily: 'Inter-Regular',
-    color: Colors.text.secondary,
   },
   dot: {
     ...Typography.caption,
-    color: Colors.text.tertiary,
   },
   due: {
     ...Typography.caption,
     fontFamily: 'Inter-Regular',
-    color: Colors.text.secondary,
-  },
-  dueSoonText: {
-    color: Colors.semantic.error,
-    fontFamily: 'Inter-Medium',
   },
 });

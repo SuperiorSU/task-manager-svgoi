@@ -4,18 +4,9 @@ import dayjs, { type Dayjs } from 'dayjs';
 
 import type { CalendarTask } from '../../data/calendar.mock';
 import { buildDayMeta, type DayMeta } from '../../hooks/useCalendar';
-import { Colors } from '../../constants/colors';
+import { useColors } from '../../constants/colors';
 import { Typography } from '../../constants/typography';
 import { Spacing } from '../../constants/spacing';
-
-// ─── Priority dot colors ──────────────────────────────────────────────────────
-
-const DOT_COLORS: Record<CalendarTask['priority'], string> = {
-  CRITICAL: Colors.priority.critical.solid,
-  HIGH:     Colors.priority.high.solid,
-  MEDIUM:   Colors.priority.medium.solid,
-  LOW:      Colors.priority.low.solid,
-};
 
 // ─── Day cell ─────────────────────────────────────────────────────────────────
 
@@ -27,39 +18,52 @@ type DayCellProps = {
 };
 
 const DayCell = React.memo(({ meta, onPress }: DayCellProps) => {
+  const colors = useColors();
   const { date, isToday, isSelected, isWeekend, isCurrentMonth, isOverdue, dots } = meta;
   const dateNum = date.date();
+  const dotsOnSelected = isSelected || isToday;
 
-  const circleStyle = isSelected || isToday
-    ? [styles.circle, isSelected ? styles.circleSelected : styles.circleToday]
+  const circleColor = isSelected
+    ? colors.brand.secondary
+    : isToday
+    ? colors.brand.primary
     : null;
 
-  const dateTextStyle = [
-    styles.dateNum,
-    isSelected ? styles.dateNumSelected
-      : isToday ? styles.dateNumToday
-      : isOverdue ? styles.dateNumOverdue
-      : isWeekend ? styles.dateNumWeekend
-      : !isCurrentMonth ? styles.dateNumOff
-      : undefined,
-  ];
+  const dateColor = dotsOnSelected
+    ? colors.text.inverse
+    : isOverdue
+    ? colors.status.overdue.text
+    : isWeekend
+    ? colors.text.tertiary
+    : !isCurrentMonth
+    ? colors.text.disabled
+    : colors.text.primary;
 
-  const cellBg = isOverdue && !isSelected && !isToday
-    ? styles.cellOverdue
+  const dateFontFamily = dotsOnSelected
+    ? 'Inter-Bold'
+    : isOverdue
+    ? 'Inter-SemiBold'
+    : 'Inter-Medium';
+
+  const cellOverdueBg = isOverdue && !dotsOnSelected
+    ? { backgroundColor: colors.status.overdue.bg }
     : undefined;
-
-  const dotsOnSelected = isSelected || isToday;
 
   return (
     <Pressable
       onPress={() => onPress(date)}
-      style={[styles.cell, cellBg]}
+      style={[styles.cell, cellOverdueBg]}
       accessibilityRole="button"
       accessibilityLabel={date.format('dddd, D MMMM YYYY')}
       accessibilityState={{ selected: isSelected }}
     >
-      <View style={circleStyle ?? styles.circleNone}>
-        <Text style={dateTextStyle}>{dateNum}</Text>
+      <View style={[
+        styles.circleBase,
+        circleColor ? [styles.circle, { backgroundColor: circleColor }] : styles.circleNone,
+      ]}>
+        <Text style={[styles.dateNum, { color: dateColor, fontFamily: dateFontFamily }]}>
+          {dateNum}
+        </Text>
       </View>
 
       {dots.length > 0 && (
@@ -72,7 +76,7 @@ const DayCell = React.memo(({ meta, onPress }: DayCellProps) => {
                 {
                   backgroundColor: dotsOnSelected
                     ? 'rgba(255,255,255,0.85)'
-                    : DOT_COLORS[priority],
+                    : colors.priority[priority.toLowerCase() as keyof typeof colors.priority].solid,
                 },
               ]}
             />
@@ -99,11 +103,11 @@ type Props = {
 
 export const MonthGrid = React.memo(
   ({ monthAnchor, today, selectedDate, taskMap, onSelectDate }: Props) => {
+    const colors = useColors();
+
     const days = useMemo(() => {
       const firstOfMonth = monthAnchor.startOf('month');
-      // Monday-based: dow 0=Sun mapped to 7
       const startDow = firstOfMonth.day() === 0 ? 7 : firstOfMonth.day();
-      // Start of grid = Monday before (or on) the 1st
       const gridStart = firstOfMonth.subtract(startDow - 1, 'day');
 
       const cells: DayMeta[] = [];
@@ -112,7 +116,6 @@ export const MonthGrid = React.memo(
         cells.push(buildDayMeta(d, today, selectedDate, taskMap, monthAnchor));
       }
 
-      // Trim last row if all off-month
       const trimmed = cells.slice(0, 35);
       const lastRowAllOff = cells.slice(35, 42).every((c) => !c.isCurrentMonth);
       return lastRowAllOff ? trimmed : cells;
@@ -127,17 +130,15 @@ export const MonthGrid = React.memo(
     }, [days]);
 
     return (
-      <View style={styles.grid}>
-        {/* Weekday header */}
+      <View style={[styles.grid, { backgroundColor: colors.surface.card }]}>
         <View style={styles.headerRow}>
           {WEEKDAY_LABELS.map((l, i) => (
             <View key={`${l}-${i}`} style={styles.headerCell}>
-              <Text style={styles.headerLabel}>{l}</Text>
+              <Text style={[styles.headerLabel, { color: colors.text.tertiary }]}>{l}</Text>
             </View>
           ))}
         </View>
 
-        {/* Date rows */}
         {weeks.map((week, wi) => (
           <View key={`week-${wi}`} style={styles.weekRow}>
             {week.map((meta) => (
@@ -154,7 +155,6 @@ MonthGrid.displayName = 'MonthGrid';
 
 const styles = StyleSheet.create({
   grid: {
-    backgroundColor: Colors.surface.card,
     paddingHorizontal: Spacing[4],
     paddingBottom: Spacing[3],
   },
@@ -170,7 +170,6 @@ const styles = StyleSheet.create({
   headerLabel: {
     fontSize: 11,
     fontFamily: 'Inter-SemiBold',
-    color: Colors.text.tertiary,
   },
   weekRow: {
     flexDirection: 'row',
@@ -183,51 +182,21 @@ const styles = StyleSheet.create({
     gap: 3,
     borderRadius: 9,
   },
-  cellOverdue: {
-    backgroundColor: '#FEF2F2',
-    borderRadius: 9,
+  circleBase: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   circleNone: {
     width: 26,
     height: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   circle: {
     width: 26,
     height: 26,
     borderRadius: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  circleToday: {
-    backgroundColor: Colors.brand.primary,
-  },
-  circleSelected: {
-    backgroundColor: Colors.brand.secondary,
   },
   dateNum: {
     fontSize: 13,
-    fontFamily: 'Inter-Medium',
-    color: Colors.text.primary,
-  },
-  dateNumSelected: {
-    color: Colors.text.inverse,
-    fontFamily: 'Inter-Bold',
-  },
-  dateNumToday: {
-    color: Colors.text.inverse,
-    fontFamily: 'Inter-Bold',
-  },
-  dateNumOverdue: {
-    color: '#B91C1C',
-    fontFamily: 'Inter-SemiBold',
-  },
-  dateNumWeekend: {
-    color: Colors.text.tertiary,
-  },
-  dateNumOff: {
-    color: Colors.text.disabled,
   },
   dots: {
     flexDirection: 'row',

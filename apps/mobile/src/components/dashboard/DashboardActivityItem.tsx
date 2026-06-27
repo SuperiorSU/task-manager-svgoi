@@ -9,23 +9,9 @@ dayjs.extend(relativeTime);
 
 import type { ActivityItem, ActivityType } from '../../data/dashboard.mock';
 
-import { Colors } from '../../constants/colors';
+import { useColors } from '../../constants/colors';
 import { Typography } from '../../constants/typography';
 import { Spacing } from '../../constants/spacing';
-
-// ─── Icon + accent color per activity type ───────────────────────────────────
-const ACTIVITY_CONFIG: Record<
-  ActivityType,
-  { icon: keyof typeof Feather.glyphMap; color: string; bg: string }
-> = {
-  ASSIGNED:      { icon: 'user-plus',   color: Colors.brand.primary,   bg: Colors.brand.primaryLight },
-  ACCEPTED:      { icon: 'check-circle',color: Colors.semantic.success, bg: Colors.semantic.successBg },
-  STATUS_CHANGED:{ icon: 'refresh-cw',  color: Colors.status.inProgress.text, bg: Colors.status.inProgress.bg },
-  COMMENT_ADDED: { icon: 'message-circle', color: Colors.status.underReview.text, bg: Colors.status.underReview.bg },
-  COMPLETED:     { icon: 'check-square', color: Colors.semantic.success, bg: Colors.semantic.successBg },
-  SUBMITTED:     { icon: 'upload',       color: Colors.brand.primary,   bg: Colors.brand.primaryLight },
-  REASSIGNED:    { icon: 'corner-up-right', color: Colors.status.accepted.text, bg: Colors.status.accepted.bg },
-};
 
 type Props = {
   item: ActivityItem;
@@ -33,6 +19,21 @@ type Props = {
 
 export const DashboardActivityItem = React.memo(({ item }: Props) => {
   const router = useRouter();
+  const colors = useColors();
+
+  const ACTIVITY_CONFIG: Record<
+    ActivityType,
+    { icon: keyof typeof Feather.glyphMap; color: string; bg: string }
+  > = {
+    ASSIGNED:       { icon: 'user-plus',      color: colors.brand.primary,         bg: colors.brand.primaryLight },
+    ACCEPTED:       { icon: 'check-circle',   color: colors.semantic.success,       bg: colors.semantic.successBg },
+    STATUS_CHANGED: { icon: 'refresh-cw',     color: colors.status.inProgress.text, bg: colors.status.inProgress.bg },
+    COMMENT_ADDED:  { icon: 'message-circle', color: colors.status.underReview.text, bg: colors.status.underReview.bg },
+    COMPLETED:      { icon: 'check-square',   color: colors.semantic.success,       bg: colors.semantic.successBg },
+    SUBMITTED:      { icon: 'upload',         color: colors.brand.primary,         bg: colors.brand.primaryLight },
+    REASSIGNED:     { icon: 'corner-up-right', color: colors.status.accepted.text,  bg: colors.status.accepted.bg },
+  };
+
   const config = ACTIVITY_CONFIG[item.type];
 
   const handlePress = useCallback(() => {
@@ -42,28 +43,30 @@ export const DashboardActivityItem = React.memo(({ item }: Props) => {
   return (
     <Pressable
       onPress={handlePress}
-      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.row,
+        { backgroundColor: colors.surface.card },
+        pressed && styles.pressed,
+      ]}
       accessibilityRole="button"
       accessibilityLabel={`${item.actorName} ${item.description} ${item.taskTitle}`}
     >
-      {/* Accent icon */}
       <View style={[styles.iconWrap, { backgroundColor: config.bg }]}>
         <Feather name={config.icon} size={15} color={config.color} />
       </View>
 
-      {/* Text block */}
       <View style={styles.body}>
-        <Text style={styles.text} numberOfLines={2}>
-          <Text style={styles.actor}>{item.actorName}</Text>
+        <Text style={[styles.text, { color: colors.text.primary }]} numberOfLines={2}>
+          <Text style={[styles.actor, { color: colors.text.primary }]}>{item.actorName}</Text>
           {' '}
-          <Text style={styles.action}>{item.description}</Text>
+          <Text style={[styles.action, { color: colors.text.secondary }]}>{item.description}</Text>
           {' '}
-          <Text style={styles.taskTitle}>"{item.taskTitle}"</Text>
+          <Text style={[styles.taskTitle, { color: colors.text.primary }]}>"{item.taskTitle}"</Text>
         </Text>
-        <Text style={styles.time}>{dayjs(item.createdAt).fromNow()}</Text>
+        <Text style={[styles.time, { color: colors.text.tertiary }]}>{dayjs(item.createdAt).fromNow()}</Text>
       </View>
 
-      <Feather name="chevron-right" size={14} color={Colors.text.tertiary} />
+      <Feather name="chevron-right" size={14} color={colors.text.tertiary} />
     </Pressable>
   );
 });
@@ -75,7 +78,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing[3],
-    backgroundColor: Colors.surface.card,
     borderRadius: 12,
     paddingHorizontal: Spacing[4],
     paddingVertical: Spacing[3],
@@ -93,25 +95,20 @@ const styles = StyleSheet.create({
   text: {
     ...Typography.bodySm,
     fontFamily: 'Inter-Regular',
-    color: Colors.text.primary,
     lineHeight: 20,
   },
   actor: {
     fontFamily: 'Inter-SemiBold',
-    color: Colors.text.primary,
   },
   action: {
     fontFamily: 'Inter-Regular',
-    color: Colors.text.secondary,
   },
   taskTitle: {
     fontFamily: 'Inter-Medium',
-    color: Colors.text.primary,
   },
   time: {
     ...Typography.caption,
     fontFamily: 'Inter-Regular',
-    color: Colors.text.tertiary,
     marginTop: 3,
   },
 });

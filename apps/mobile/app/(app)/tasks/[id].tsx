@@ -146,8 +146,41 @@ export default function TaskDetailScreen() {
     }
   }, [router]);
 
-  if (isLoading || !displayed) {
+  if (isLoading) {
     return <DetailSkeleton insets={insets} />;
+  }
+
+  if (!displayed) {
+    return (
+      <View style={[styles.screen, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <Pressable
+            onPress={handleBack}
+            style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.7 }]}
+            accessibilityLabel="Go back"
+          >
+            <Feather name="arrow-left" size={22} color={Colors.text.primary} />
+          </Pressable>
+          <Text style={styles.headerTitle} numberOfLines={1}>Task Detail</Text>
+          <View style={styles.iconBtn} />
+        </View>
+        <View style={notFound.wrap}>
+          <View style={notFound.iconWrap}>
+            <Feather name="alert-circle" size={36} color={Colors.text.tertiary} />
+          </View>
+          <Text style={notFound.title}>Task Not Found</Text>
+          <Text style={notFound.body}>
+            This task may have been deleted or the link is invalid.
+          </Text>
+          <Pressable
+            onPress={handleBack}
+            style={({ pressed }) => [notFound.btn, pressed && { opacity: 0.75 }]}
+          >
+            <Text style={notFound.btnText}>Go Back</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
   }
 
   const t = displayed;
@@ -431,5 +464,49 @@ const styles = StyleSheet.create({
     ...Typography.labelSm,
     fontFamily: 'Inter-Medium',
     color: Colors.brand.primary,
+  },
+});
+
+const notFound = StyleSheet.create({
+  wrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing[3],
+    paddingHorizontal: Spacing[8],
+  },
+  iconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: Colors.surface.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing[2],
+  },
+  title: {
+    ...Typography.h3,
+    fontFamily: 'Inter-SemiBold',
+    color: Colors.text.primary,
+    textAlign: 'center',
+  },
+  body: {
+    ...Typography.bodyMd,
+    fontFamily: 'Inter-Regular',
+    color: Colors.text.tertiary,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  btn: {
+    marginTop: Spacing[2],
+    backgroundColor: Colors.brand.primary,
+    borderRadius: 10,
+    paddingHorizontal: Spacing[6],
+    paddingVertical: Spacing[3],
+  },
+  btnText: {
+    ...Typography.labelMd,
+    fontFamily: 'Inter-SemiBold',
+    color: '#FFFFFF',
   },
 });

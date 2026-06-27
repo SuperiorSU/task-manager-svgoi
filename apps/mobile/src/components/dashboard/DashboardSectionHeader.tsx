@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
-import { Colors } from '../../constants/colors';
+import { useColors } from '../../constants/colors';
 import { Typography } from '../../constants/typography';
 
 type Props = {
@@ -12,23 +12,27 @@ type Props = {
 };
 
 export const DashboardSectionHeader = React.memo(
-  ({ title, actionLabel, onActionPress }: Props) => (
-    <View style={styles.row}>
-      <Text style={styles.title}>{title}</Text>
-      {actionLabel && onActionPress ? (
-        <Pressable
-          onPress={onActionPress}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          style={styles.action}
-          accessibilityRole="button"
-          accessibilityLabel={actionLabel}
-        >
-          <Text style={styles.actionText}>{actionLabel}</Text>
-          <Feather name="chevron-right" size={14} color={Colors.brand.primary} />
-        </Pressable>
-      ) : null}
-    </View>
-  )
+  ({ title, actionLabel, onActionPress }: Props) => {
+    const colors = useColors();
+
+    return (
+      <View style={styles.row}>
+        <Text style={[styles.title, { color: colors.text.primary }]}>{title}</Text>
+        {actionLabel && onActionPress ? (
+          <Pressable
+            onPress={onActionPress}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={styles.action}
+            accessibilityRole="button"
+            accessibilityLabel={actionLabel}
+          >
+            <Text style={[styles.actionText, { color: colors.brand.primary }]}>{actionLabel}</Text>
+            <Feather name="chevron-right" size={14} color={colors.brand.primary} />
+          </Pressable>
+        ) : null}
+      </View>
+    );
+  }
 );
 
 DashboardSectionHeader.displayName = 'DashboardSectionHeader';
@@ -42,7 +46,6 @@ const styles = StyleSheet.create({
   title: {
     ...Typography.h4,
     fontFamily: 'Inter-SemiBold',
-    color: Colors.text.primary,
   },
   action: {
     flexDirection: 'row',
@@ -52,6 +55,5 @@ const styles = StyleSheet.create({
   actionText: {
     ...Typography.labelMd,
     fontFamily: 'Inter-Medium',
-    color: Colors.brand.primary,
   },
 });

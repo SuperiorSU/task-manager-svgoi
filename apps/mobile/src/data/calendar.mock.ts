@@ -34,7 +34,7 @@ const past = (dayOffset: number, hour = 14, minute = 0) =>
 export const CALENDAR_TASKS: CalendarTask[] = [
   // ── Today ──────────────────────────────────────────────────────────────────
   {
-    id: 'cal_001',
+    id: 'task_001',
     title: 'Emergency Exit Safety Audit',
     status: 'IN_PROGRESS',
     priority: 'CRITICAL',
@@ -43,7 +43,7 @@ export const CALENDAR_TASKS: CalendarTask[] = [
     progress: 35,
   },
   {
-    id: 'cal_002',
+    id: 'task_002',
     title: 'Staff Daily Attendance Report',
     status: 'ACCEPTED',
     priority: 'MEDIUM',
@@ -52,7 +52,7 @@ export const CALENDAR_TASKS: CalendarTask[] = [
     progress: 0,
   },
   {
-    id: 'cal_003',
+    id: 'task_003',
     title: 'Server Backup Verification',
     status: 'PENDING',
     priority: 'HIGH',
@@ -63,7 +63,7 @@ export const CALENDAR_TASKS: CalendarTask[] = [
 
   // ── Tomorrow ────────────────────────────────────────────────────────────────
   {
-    id: 'cal_004',
+    id: 'task_004',
     title: 'Fix Lab Equipment Schedule',
     status: 'IN_PROGRESS',
     priority: 'CRITICAL',
@@ -72,7 +72,7 @@ export const CALENDAR_TASKS: CalendarTask[] = [
     progress: 60,
   },
   {
-    id: 'cal_005',
+    id: 'task_005',
     title: 'Faculty Meeting Notes',
     status: 'PENDING',
     priority: 'LOW',
@@ -83,7 +83,7 @@ export const CALENDAR_TASKS: CalendarTask[] = [
 
   // ── Day after tomorrow ──────────────────────────────────────────────────────
   {
-    id: 'cal_006',
+    id: 'task_006',
     title: 'Lab Safety Report Submission',
     status: 'ACCEPTED',
     priority: 'MEDIUM',
@@ -92,7 +92,7 @@ export const CALENDAR_TASKS: CalendarTask[] = [
     progress: 0,
   },
   {
-    id: 'cal_007',
+    id: 'task_007',
     title: 'Network Switch Firmware Update',
     status: 'PENDING',
     priority: 'HIGH',
@@ -103,7 +103,7 @@ export const CALENDAR_TASKS: CalendarTask[] = [
 
   // ── In 3 days ───────────────────────────────────────────────────────────────
   {
-    id: 'cal_008',
+    id: 'task_008',
     title: 'Student Exam Timetable Prep',
     status: 'IN_PROGRESS',
     priority: 'HIGH',
@@ -114,7 +114,7 @@ export const CALENDAR_TASKS: CalendarTask[] = [
 
   // ── In 4 days ───────────────────────────────────────────────────────────────
   {
-    id: 'cal_009',
+    id: 'task_009',
     title: 'Quarterly Budget Review',
     status: 'PENDING',
     priority: 'CRITICAL',
@@ -123,7 +123,7 @@ export const CALENDAR_TASKS: CalendarTask[] = [
     progress: 0,
   },
   {
-    id: 'cal_010',
+    id: 'task_010',
     title: 'Library Book Procurement',
     status: 'COMPLETED',
     priority: 'LOW',
@@ -134,7 +134,7 @@ export const CALENDAR_TASKS: CalendarTask[] = [
 
   // ── In 5 days ───────────────────────────────────────────────────────────────
   {
-    id: 'cal_011',
+    id: 'task_011',
     title: 'Server Room Access Audit',
     status: 'PENDING',
     priority: 'LOW',
@@ -145,7 +145,7 @@ export const CALENDAR_TASKS: CalendarTask[] = [
 
   // ── In 6 days ───────────────────────────────────────────────────────────────
   {
-    id: 'cal_012',
+    id: 'task_012',
     title: 'Annual Performance Report',
     status: 'PENDING',
     priority: 'HIGH',
@@ -154,7 +154,7 @@ export const CALENDAR_TASKS: CalendarTask[] = [
     progress: 0,
   },
   {
-    id: 'cal_013',
+    id: 'task_001',
     title: 'Staff Training Programme',
     status: 'ACCEPTED',
     priority: 'MEDIUM',
@@ -165,7 +165,7 @@ export const CALENDAR_TASKS: CalendarTask[] = [
 
   // ── In 7 days ───────────────────────────────────────────────────────────────
   {
-    id: 'cal_014',
+    id: 'task_002',
     title: 'Physics Lab Inventory Count',
     status: 'PENDING',
     priority: 'CRITICAL',
@@ -176,7 +176,7 @@ export const CALENDAR_TASKS: CalendarTask[] = [
 
   // ── In 10 days ──────────────────────────────────────────────────────────────
   {
-    id: 'cal_015',
+    id: 'task_003',
     title: 'Student Feedback Survey',
     status: 'PENDING',
     priority: 'MEDIUM',
@@ -185,7 +185,7 @@ export const CALENDAR_TASKS: CalendarTask[] = [
     progress: 0,
   },
   {
-    id: 'cal_016',
+    id: 'task_004',
     title: 'Wireless Infrastructure Review',
     status: 'PENDING',
     priority: 'HIGH',
@@ -196,7 +196,7 @@ export const CALENDAR_TASKS: CalendarTask[] = [
 
   // ── In 14 days ──────────────────────────────────────────────────────────────
   {
-    id: 'cal_017',
+    id: 'task_005',
     title: 'Departmental Budget Q3',
     status: 'PENDING',
     priority: 'CRITICAL',
@@ -207,7 +207,7 @@ export const CALENDAR_TASKS: CalendarTask[] = [
 
   // ── Past (overdue) ──────────────────────────────────────────────────────────
   {
-    id: 'cal_018',
+    id: 'task_006',
     title: 'Budget Proposal Submission',
     status: 'PENDING',
     priority: 'CRITICAL',
@@ -216,7 +216,7 @@ export const CALENDAR_TASKS: CalendarTask[] = [
     progress: 0,
   },
   {
-    id: 'cal_019',
+    id: 'task_007',
     title: 'Network Audit Sign-Off',
     status: 'UNDER_REVIEW',
     priority: 'HIGH',
@@ -225,7 +225,7 @@ export const CALENDAR_TASKS: CalendarTask[] = [
     progress: 90,
   },
   {
-    id: 'cal_020',
+    id: 'task_008',
     title: 'Calibrate Spectrometer Readings',
     status: 'PENDING',
     priority: 'HIGH',
@@ -234,7 +234,7 @@ export const CALENDAR_TASKS: CalendarTask[] = [
     progress: 0,
   },
   {
-    id: 'cal_021',
+    id: 'task_009',
     title: 'Fire Safety Equipment Check',
     status: 'IN_PROGRESS',
     priority: 'MEDIUM',

@@ -2,7 +2,7 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
-import { Colors } from '../../constants/colors';
+import { useColors } from '../../constants/colors';
 import { useNotificationStore } from '../../stores/notification.store';
 
 type Props = {
@@ -12,6 +12,7 @@ type Props = {
 };
 
 export const TabBarIcon = ({ name, focused, showBadge }: Props) => {
+  const colors = useColors();
   const unreadCount = useNotificationStore((s) => s.unreadCount);
   const showDot = showBadge && unreadCount > 0;
 
@@ -20,9 +21,11 @@ export const TabBarIcon = ({ name, focused, showBadge }: Props) => {
       <Feather
         name={name}
         size={22}
-        color={focused ? Colors.brand.primary : Colors.text.tertiary}
+        color={focused ? colors.brand.primary : colors.text.tertiary}
       />
-      {showDot && <View style={styles.badge} />}
+      {showDot && (
+        <View style={[styles.badge, { backgroundColor: colors.semantic.error }]} />
+      )}
     </View>
   );
 };
@@ -35,6 +38,5 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: Colors.semantic.error,
   },
 });

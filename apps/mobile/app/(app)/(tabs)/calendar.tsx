@@ -5,6 +5,7 @@ import {
   FlatList,
   StyleSheet,
   RefreshControl,
+  Pressable,
   Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,7 +19,7 @@ import {
   useCalendarState,
 } from '../../../src/hooks/useCalendar';
 
-import { Colors } from '../../../src/constants/colors';
+import { useColors } from '../../../src/constants/colors';
 import { Typography } from '../../../src/constants/typography';
 import { Spacing, Layout } from '../../../src/constants/spacing';
 
@@ -33,15 +34,18 @@ import { Skeleton } from '../../../src/components/ui/Skeleton';
 
 // ─── Empty State ──────────────────────────────────────────────────────────────
 
-const CalendarEmptyState = ({ date }: { date: string }) => (
-  <View style={empty.wrap}>
-    <View style={empty.iconWrap}>
-      <Feather name="calendar" size={32} color={Colors.text.tertiary} />
+const CalendarEmptyState = ({ date }: { date: string }) => {
+  const colors = useColors();
+  return (
+    <View style={empty.wrap}>
+      <View style={[empty.iconWrap, { backgroundColor: colors.surface.background }]}>
+        <Feather name="calendar" size={32} color={colors.text.tertiary} />
+      </View>
+      <Text style={[empty.title, { color: colors.text.primary }]}>No tasks on this day</Text>
+      <Text style={[empty.sub, { color: colors.text.tertiary }]}>{dayjs(date).format('dddd, MMMM D')}</Text>
     </View>
-    <Text style={empty.title}>No tasks on this day</Text>
-    <Text style={empty.sub}>{dayjs(date).format('dddd, MMMM D')}</Text>
-  </View>
-);
+  );
+};
 
 const empty = StyleSheet.create({
   wrap: {
@@ -54,39 +58,31 @@ const empty = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: Colors.surface.background,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing[2],
   },
-  title: {
-    ...Typography.h4,
-    fontFamily: 'Inter-SemiBold',
-    color: Colors.text.primary,
-    textAlign: 'center',
-  },
-  sub: {
-    ...Typography.bodyMd,
-    fontFamily: 'Inter-Regular',
-    color: Colors.text.tertiary,
-    textAlign: 'center',
-  },
+  title: { ...Typography.h4, fontFamily: 'Inter-SemiBold', textAlign: 'center' },
+  sub: { ...Typography.bodyMd, fontFamily: 'Inter-Regular', textAlign: 'center' },
 });
 
 // ─── Task list section header ─────────────────────────────────────────────────
 
-const TaskListHeader = ({ date, count }: { date: string; count: number }) => (
-  <View style={listHead.row}>
-    <Text style={listHead.text}>
-      {dayjs(date).format('dddd, D MMMM')}
-    </Text>
-    <View style={listHead.badge}>
-      <Text style={listHead.badgeText}>
-        {count} task{count !== 1 ? 's' : ''}
+const TaskListHeader = ({ date, count }: { date: string; count: number }) => {
+  const colors = useColors();
+  return (
+    <View style={listHead.row}>
+      <Text style={[listHead.text, { color: colors.text.secondary }]}>
+        {dayjs(date).format('dddd, D MMMM')}
       </Text>
+      <View style={[listHead.badge, { backgroundColor: colors.brand.primaryLight }]}>
+        <Text style={[listHead.badgeText, { color: colors.brand.primary }]}>
+          {count} task{count !== 1 ? 's' : ''}
+        </Text>
+      </View>
     </View>
-  </View>
-);
+  );
+};
 
 const listHead = StyleSheet.create({
   row: {
@@ -96,40 +92,29 @@ const listHead = StyleSheet.create({
     paddingTop: Spacing[4],
     paddingBottom: Spacing[2],
   },
-  text: {
-    ...Typography.labelMd,
-    fontFamily: 'Inter-SemiBold',
-    color: Colors.text.secondary,
-    flex: 1,
-  },
-  badge: {
-    backgroundColor: Colors.brand.primaryLight,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-  },
-  badgeText: {
-    ...Typography.labelSm,
-    fontFamily: 'Inter-SemiBold',
-    color: Colors.brand.primary,
-  },
+  text: { ...Typography.labelMd, fontFamily: 'Inter-SemiBold', flex: 1 },
+  badge: { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 },
+  badgeText: { ...Typography.labelSm, fontFamily: 'Inter-SemiBold' },
 });
 
 // ─── Loading skeleton ─────────────────────────────────────────────────────────
 
-const CalendarSkeleton = () => (
-  <View style={sk.wrap}>
-    <Skeleton height={180} borderRadius={0} />
-    <View style={sk.rows}>
-      {[1, 2, 3].map((i) => (
-        <Skeleton key={i} height={72} borderRadius={Layout.cardRadius} />
-      ))}
+const CalendarSkeleton = () => {
+  const colors = useColors();
+  return (
+    <View style={[sk.wrap, { backgroundColor: colors.surface.background }]}>
+      <Skeleton height={180} borderRadius={0} />
+      <View style={sk.rows}>
+        {[1, 2, 3].map((i) => (
+          <Skeleton key={i} height={72} borderRadius={Layout.cardRadius} />
+        ))}
+      </View>
     </View>
-  </View>
-);
+  );
+};
 
 const sk = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: Colors.surface.background },
+  wrap: { flex: 1 },
   rows: { gap: Spacing[3], padding: Spacing[4] },
 });
 
@@ -137,6 +122,7 @@ const sk = StyleSheet.create({
 
 export default function CalendarScreen() {
   const insets = useSafeAreaInsets();
+  const colors = useColors();
 
   const { data: taskMap = new Map<string, CalendarTask[]>(), isLoading, refetch } = useCalendarTasks();
 
@@ -173,11 +159,15 @@ export default function CalendarScreen() {
     [selectDate],
   );
 
+  const handleAddTask = useCallback(() => {
+    router.push('/(app)/tasks/create');
+  }, [router]);
+
   // ── Loading state ──────────────────────────────────────────────────────────
   if (isLoading) {
     return (
-      <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <View style={styles.skHeader}>
+      <View style={[styles.screen, { paddingTop: insets.top, backgroundColor: colors.surface.background }]}>
+        <View style={[styles.skHeader, { backgroundColor: colors.surface.card, borderBottomColor: colors.surface.border }]}>
           <Skeleton height={22} width={160} borderRadius={6} />
           <View style={styles.skToggle}>
             {[0, 1, 2].map((i) => (
@@ -190,7 +180,6 @@ export default function CalendarScreen() {
     );
   }
 
-  // ── Reusable task FlatList (month + day selected-day list) ─────────────────
   const renderTask = ({ item }: { item: CalendarTask }) => (
     <CalendarDayTaskCard task={item} onPress={handleTaskPress} />
   );
@@ -198,7 +187,7 @@ export default function CalendarScreen() {
   // ── Month view ─────────────────────────────────────────────────────────────
   if (view === 'Month') {
     return (
-      <View style={[styles.screen, { paddingTop: insets.top }]}>
+      <View style={[styles.screen, { paddingTop: insets.top, backgroundColor: colors.surface.background }]}>
         <CalendarHeader
           view={view}
           periodAnchor={periodAnchor}
@@ -219,7 +208,7 @@ export default function CalendarScreen() {
             <RefreshControl
               refreshing={false}
               onRefresh={refetch}
-              tintColor={Colors.brand.primary}
+              tintColor={colors.brand.primary}
             />
           }
           ListHeaderComponent={
@@ -238,6 +227,17 @@ export default function CalendarScreen() {
           ListEmptyComponent={<CalendarEmptyState date={selectedDateStr} />}
           showsVerticalScrollIndicator={false}
         />
+        <Pressable
+          onPress={handleAddTask}
+          style={({ pressed }) => [
+            styles.fab,
+            { backgroundColor: colors.brand.primary, bottom: insets.bottom + Spacing[6] },
+            pressed && { opacity: 0.85, transform: [{ scale: 0.96 }] },
+          ]}
+          accessibilityLabel="Add task"
+        >
+          <Feather name="plus" size={26} color="#FFFFFF" />
+        </Pressable>
       </View>
     );
   }
@@ -246,7 +246,7 @@ export default function CalendarScreen() {
   if (view === 'Week') {
     const weekStart = getMondayOf(periodAnchor);
     return (
-      <View style={[styles.screen, { paddingTop: insets.top }]}>
+      <View style={[styles.screen, { paddingTop: insets.top, backgroundColor: colors.surface.background }]}>
         <CalendarHeader
           view={view}
           periodAnchor={weekStart}
@@ -269,13 +269,24 @@ export default function CalendarScreen() {
           onSelectDate={handleSelectDate}
           onTaskPress={handleTaskPress}
         />
+        <Pressable
+          onPress={handleAddTask}
+          style={({ pressed }) => [
+            styles.fab,
+            { backgroundColor: colors.brand.primary, bottom: insets.bottom + Spacing[6] },
+            pressed && { opacity: 0.85, transform: [{ scale: 0.96 }] },
+          ]}
+          accessibilityLabel="Add task"
+        >
+          <Feather name="plus" size={26} color="#FFFFFF" />
+        </Pressable>
       </View>
     );
   }
 
   // ── Day view ───────────────────────────────────────────────────────────────
   return (
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
+    <View style={[styles.screen, { paddingTop: insets.top, backgroundColor: colors.surface.background }]}>
       <CalendarHeader
         view={view}
         periodAnchor={periodAnchor}
@@ -289,25 +300,27 @@ export default function CalendarScreen() {
         taskMap={taskMap}
         onTaskPress={handleTaskPress}
       />
+      <Pressable
+        onPress={handleAddTask}
+        style={({ pressed }) => [
+          styles.fab,
+          { backgroundColor: colors.brand.primary, bottom: insets.bottom + Spacing[6] },
+          pressed && { opacity: 0.85, transform: [{ scale: 0.96 }] },
+        ]}
+        accessibilityLabel="Add task"
+      >
+        <Feather name="plus" size={26} color="#FFFFFF" />
+      </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: Colors.surface.background,
-    ...Platform.select({
-      ios: {},
-      android: {},
-    }),
-  },
+  screen: { flex: 1 },
   skHeader: {
-    backgroundColor: Colors.surface.card,
     padding: Spacing[5],
     gap: Spacing[3],
     borderBottomWidth: 1,
-    borderBottomColor: Colors.surface.border,
   },
   skToggle: {
     flexDirection: 'row',
@@ -316,5 +329,18 @@ const styles = StyleSheet.create({
   taskList: {
     paddingHorizontal: Spacing[4],
     paddingBottom: Spacing[8],
+  },
+  fab: {
+    position: 'absolute',
+    right: Spacing[5],
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.22, shadowRadius: 8 },
+      android: { elevation: 6 },
+    }),
   },
 });

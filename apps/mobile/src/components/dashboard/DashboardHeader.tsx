@@ -3,7 +3,7 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 
-import { Colors } from '../../constants/colors';
+import { useColors } from '../../constants/colors';
 import { Typography } from '../../constants/typography';
 import { Spacing } from '../../constants/spacing';
 
@@ -27,30 +27,33 @@ const getInitials = (name: string): string =>
 export const DashboardHeader = React.memo(
   ({ greeting, firstName, userName, dateLabel, unreadCount, onNotificationPress, onProfilePress }: Props) => {
     const insets = useSafeAreaInsets();
+    const colors = useColors();
     const initials = getInitials(userName || firstName);
 
     return (
-      <View style={[styles.header, { paddingTop: insets.top + Spacing[2] }]}>
+      <View style={[
+        styles.header,
+        { paddingTop: insets.top + Spacing[2], backgroundColor: colors.surface.card, borderBottomColor: colors.surface.border },
+      ]}>
         <View style={styles.row}>
           <View style={styles.greetingBlock}>
-            <Text style={styles.greeting} numberOfLines={1}>
+            <Text style={[styles.greeting, { color: colors.text.primary }]} numberOfLines={1}>
               {greeting},{' '}
-              <Text style={styles.name}>{firstName}</Text>
+              <Text style={{ fontFamily: 'Inter-Bold', color: colors.text.primary }}>{firstName}</Text>
             </Text>
-            <Text style={styles.date}>{dateLabel}</Text>
+            <Text style={[styles.date, { color: colors.text.secondary }]}>{dateLabel}</Text>
           </View>
 
           <View style={styles.actions}>
-            {/* Notification bell */}
             <Pressable
               onPress={onNotificationPress}
               style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.75 }]}
               accessibilityRole="button"
               accessibilityLabel={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
             >
-              <Feather name="bell" size={22} color={Colors.brand.primary} />
+              <Feather name="bell" size={22} color={colors.brand.primary} />
               {unreadCount > 0 && (
-                <View style={styles.badge}>
+                <View style={[styles.badge, { backgroundColor: colors.semantic.error, borderColor: colors.surface.card }]}>
                   <Text style={styles.badgeText}>
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </Text>
@@ -58,10 +61,9 @@ export const DashboardHeader = React.memo(
               )}
             </Pressable>
 
-            {/* Profile avatar */}
             <Pressable
               onPress={onProfilePress}
-              style={({ pressed }) => [styles.avatarBtn, pressed && { opacity: 0.8 }]}
+              style={({ pressed }) => [styles.avatarBtn, { backgroundColor: colors.brand.secondary }, pressed && { opacity: 0.8 }]}
               accessibilityRole="button"
               accessibilityLabel="Profile"
             >
@@ -78,9 +80,7 @@ DashboardHeader.displayName = 'DashboardHeader';
 
 const styles = StyleSheet.create({
   header: {
-    backgroundColor: Colors.surface.card,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.surface.border,
     paddingHorizontal: Spacing[4],
     paddingBottom: Spacing[4],
   },
@@ -97,16 +97,10 @@ const styles = StyleSheet.create({
   greeting: {
     ...Typography.h2,
     fontFamily: 'Inter-Regular',
-    color: Colors.text.primary,
-  },
-  name: {
-    fontFamily: 'Inter-Bold',
-    color: Colors.text.primary,
   },
   date: {
     ...Typography.bodyMd,
     fontFamily: 'Inter-Regular',
-    color: Colors.text.secondary,
     marginTop: Spacing[1],
   },
   actions: {
@@ -127,31 +121,28 @@ const styles = StyleSheet.create({
     minWidth: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: Colors.semantic.error,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
     borderWidth: 1.5,
-    borderColor: Colors.surface.card,
   },
   badgeText: {
     fontSize: 10,
     fontFamily: 'Inter-Bold',
-    color: Colors.text.inverse,
+    color: '#FFFFFF',
     lineHeight: 13,
   },
   avatarBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.brand.secondary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
     fontSize: 14,
     fontFamily: 'Inter-Bold',
-    color: Colors.text.inverse,
+    color: '#FFFFFF',
     letterSpacing: 0.5,
   },
 });

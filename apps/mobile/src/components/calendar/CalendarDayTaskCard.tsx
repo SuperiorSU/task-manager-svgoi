@@ -3,11 +3,9 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import dayjs from 'dayjs';
 
 import type { CalendarTask } from '../../data/calendar.mock';
-import { Colors } from '../../constants/colors';
+import { useColors } from '../../constants/colors';
 import { Typography } from '../../constants/typography';
 import { Spacing, Layout } from '../../constants/spacing';
-
-// ─── Status label map ─────────────────────────────────────────────────────────
 
 const STATUS_LABEL: Record<CalendarTask['status'], string> = {
   PENDING:      'Pending',
@@ -18,58 +16,58 @@ const STATUS_LABEL: Record<CalendarTask['status'], string> = {
   CANCELLED:    'Cancelled',
 };
 
-const STATUS_COLOR: Record<CalendarTask['status'], string> = {
-  PENDING:      Colors.status.pending.text,
-  ACCEPTED:     Colors.status.accepted.text,
-  IN_PROGRESS:  Colors.status.inProgress.text,
-  UNDER_REVIEW: Colors.status.underReview.text,
-  COMPLETED:    Colors.status.completed.text,
-  CANCELLED:    Colors.status.cancelled.text,
-};
-
 type Props = {
   task: CalendarTask;
   onPress?: (task: CalendarTask) => void;
 };
 
 export const CalendarDayTaskCard = React.memo(({ task, onPress }: Props) => {
+  const colors = useColors();
   const d = dayjs(task.dueDate);
   const hour = d.format('h');
   const minute = d.minute() !== 0 ? `:${d.format('mm')}` : '';
   const period = d.format('A');
 
-  const priorityKey = task.priority.toLowerCase() as keyof typeof Colors.priority;
-  const stripeColor = Colors.priority[priorityKey].solid;
+  const priorityKey = task.priority.toLowerCase() as keyof typeof colors.priority;
+  const stripeColor = colors.priority[priorityKey].solid;
   const statusLabel = STATUS_LABEL[task.status];
-  const statusColor = STATUS_COLOR[task.status];
+  const STATUS_COLOR_MAP: Record<string, string> = {
+    PENDING:      colors.status.pending.text,
+    ACCEPTED:     colors.status.accepted.text,
+    IN_PROGRESS:  colors.status.inProgress.text,
+    UNDER_REVIEW: colors.status.underReview.text,
+    COMPLETED:    colors.status.completed.text,
+    CANCELLED:    colors.status.cancelled.text,
+  };
+  const statusColor = STATUS_COLOR_MAP[task.status] ?? colors.text.secondary;
 
   return (
     <Pressable
       onPress={() => onPress?.(task)}
-      style={({ pressed }) => [styles.card, pressed && { opacity: 0.82 }]}
+      style={({ pressed }) => [
+        styles.card,
+        { backgroundColor: colors.surface.card },
+        pressed && { opacity: 0.82 },
+      ]}
       accessibilityRole="button"
       accessibilityLabel={`${task.title}, ${statusLabel}`}
     >
-      {/* 4pt priority stripe */}
       <View style={[styles.stripe, { backgroundColor: stripeColor }]} />
 
-      {/* Time column */}
       <View style={styles.timeCol}>
-        <Text style={styles.timeHour}>
+        <Text style={[styles.timeHour, { color: colors.text.primary }]}>
           {hour}{minute}
         </Text>
-        <Text style={styles.timePeriod}>{period}</Text>
+        <Text style={[styles.timePeriod, { color: colors.text.tertiary }]}>{period}</Text>
       </View>
 
-      {/* Divider */}
-      <View style={styles.divider} />
+      <View style={[styles.divider, { backgroundColor: colors.surface.border }]} />
 
-      {/* Content */}
       <View style={styles.content}>
-        <Text style={styles.title} numberOfLines={2}>
+        <Text style={[styles.title, { color: colors.text.primary }]} numberOfLines={2}>
           {task.title}
         </Text>
-        <Text style={styles.meta} numberOfLines={1}>
+        <Text style={[styles.meta, { color: colors.text.tertiary }]} numberOfLines={1}>
           {task.department}
           <Text style={[styles.status, { color: statusColor }]}>
             {'  ·  '}{statusLabel}
@@ -86,7 +84,6 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface.card,
     borderRadius: Layout.cardRadius,
     overflow: 'hidden',
     shadowColor: '#000',
@@ -107,19 +104,16 @@ const styles = StyleSheet.create({
   timeHour: {
     fontSize: 13,
     fontFamily: 'Inter-Bold',
-    color: Colors.text.primary,
     lineHeight: 16,
   },
   timePeriod: {
     fontSize: 10,
     fontFamily: 'Inter-Regular',
-    color: Colors.text.tertiary,
     lineHeight: 14,
   },
   divider: {
     width: 1,
     alignSelf: 'stretch',
-    backgroundColor: Colors.surface.border,
   },
   content: {
     flex: 1,
@@ -130,13 +124,11 @@ const styles = StyleSheet.create({
   title: {
     ...Typography.labelMd,
     fontFamily: 'Inter-SemiBold',
-    color: Colors.text.primary,
     lineHeight: 18,
   },
   meta: {
     ...Typography.caption,
     fontFamily: 'Inter-Regular',
-    color: Colors.text.tertiary,
   },
   status: {
     fontFamily: 'Inter-Medium',

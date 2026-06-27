@@ -30,6 +30,7 @@ export default function AppLayout() {
         <Stack.Screen name="profile/change-password" />
         <Stack.Screen name="profile/notifications" />
         <Stack.Screen name="profile/appearance" />
+        <Stack.Screen name="profile/help" />
       </Stack>
     </>
   );

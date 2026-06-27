@@ -18,7 +18,7 @@ import {
   useTaskFilterState,
 } from '../../../src/hooks/useTasksMock';
 
-import { Colors } from '../../../src/constants/colors';
+import { useColors } from '../../../src/constants/colors';
 import { Spacing, Layout } from '../../../src/constants/spacing';
 import { Typography } from '../../../src/constants/typography';
 
@@ -32,20 +32,25 @@ import { TaskCardSkeleton } from '../../../src/components/ui/Skeleton';
 import { EmptyState } from '../../../src/components/ui/EmptyState';
 
 // ─── Overdue Banner ───────────────────────────────────────────────────────────
+
 const OverdueBanner = ({ count, onPress }: { count: number; onPress: () => void }) => {
+  const colors = useColors();
   if (count === 0) return null;
   return (
-    <Pressable onPress={onPress} style={banner.row}>
+    <Pressable
+      onPress={onPress}
+      style={[banner.row, { backgroundColor: colors.semantic.errorBg, borderColor: colors.status.overdue.solid }]}
+    >
       <View style={banner.iconWrap}>
-        <Feather name="alert-triangle" size={16} color={Colors.semantic.error} />
+        <Feather name="alert-triangle" size={16} color={colors.semantic.error} />
       </View>
       <View style={banner.textBlock}>
-        <Text style={banner.title}>
+        <Text style={[banner.title, { color: colors.semantic.error }]}>
           {count} task{count > 1 ? 's' : ''} overdue
         </Text>
-        <Text style={banner.sub}>Tap to review overdue tasks</Text>
+        <Text style={[banner.sub, { color: colors.status.overdue.text }]}>Tap to review overdue tasks</Text>
       </View>
-      <Feather name="chevron-right" size={16} color={Colors.semantic.error} />
+      <Feather name="chevron-right" size={16} color={colors.semantic.error} />
     </Pressable>
   );
 };
@@ -57,10 +62,8 @@ const banner = StyleSheet.create({
     gap: Spacing[3],
     marginHorizontal: Spacing[4],
     marginBottom: Spacing[3],
-    backgroundColor: Colors.semantic.errorBg,
     borderRadius: Layout.cardRadius,
     borderWidth: 1,
-    borderColor: '#FECACA',
     paddingHorizontal: Spacing[4],
     paddingVertical: Spacing[3],
   },
@@ -68,24 +71,28 @@ const banner = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#FEE2E2',
+    backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   textBlock: { flex: 1 },
-  title: { ...Typography.labelMd, fontFamily: 'Inter-SemiBold', color: Colors.semantic.error },
-  sub: { ...Typography.caption, fontFamily: 'Inter-Regular', color: '#B91C1C' },
+  title: { ...Typography.labelMd, fontFamily: 'Inter-SemiBold' },
+  sub: { ...Typography.caption, fontFamily: 'Inter-Regular' },
 });
 
 // ─── Section Header ───────────────────────────────────────────────────────────
-const SectionHeader = ({ title, count }: { title: string; count: number }) => (
-  <View style={sec.row}>
-    <Text style={sec.title}>{title}</Text>
-    <View style={sec.badge}>
-      <Text style={sec.badgeText}>{count}</Text>
+
+const SectionHeader = ({ title, count }: { title: string; count: number }) => {
+  const colors = useColors();
+  return (
+    <View style={[sec.row, { backgroundColor: colors.surface.background }]}>
+      <Text style={[sec.title, { color: colors.text.secondary }]}>{title}</Text>
+      <View style={[sec.badge, { backgroundColor: colors.brand.primaryLight }]}>
+        <Text style={[sec.badgeText, { color: colors.brand.primary }]}>{count}</Text>
+      </View>
     </View>
-  </View>
-);
+  );
+};
 
 const sec = StyleSheet.create({
   row: {
@@ -95,32 +102,37 @@ const sec = StyleSheet.create({
     paddingHorizontal: Spacing[4],
     paddingTop: Spacing[4],
     paddingBottom: Spacing[2],
-    backgroundColor: Colors.surface.background,
   },
-  title: { ...Typography.labelMd, fontFamily: 'Inter-SemiBold', color: Colors.text.secondary, textTransform: 'uppercase', letterSpacing: 0.6, flex: 1 },
-  badge: { backgroundColor: Colors.brand.primaryLight, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
-  badgeText: { ...Typography.labelSm, fontFamily: 'Inter-Bold', color: Colors.brand.primary },
+  title: { ...Typography.labelMd, fontFamily: 'Inter-SemiBold', textTransform: 'uppercase', letterSpacing: 0.6, flex: 1 },
+  badge: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
+  badgeText: { ...Typography.labelSm, fontFamily: 'Inter-Bold' },
 });
 
 // ─── No Results ───────────────────────────────────────────────────────────────
-const NoResults = ({ search }: { search: string }) => (
-  <View style={noRes.wrap}>
-    <Feather name="search" size={36} color={Colors.text.tertiary} />
-    <Text style={noRes.title}>No results for "{search}"</Text>
-    <Text style={noRes.sub}>Try a different name, department, or task ID</Text>
-  </View>
-);
+
+const NoResults = ({ search }: { search: string }) => {
+  const colors = useColors();
+  return (
+    <View style={noRes.wrap}>
+      <Feather name="search" size={36} color={colors.text.tertiary} />
+      <Text style={[noRes.title, { color: colors.text.primary }]}>No results for "{search}"</Text>
+      <Text style={[noRes.sub, { color: colors.text.tertiary }]}>Try a different name, department, or task ID</Text>
+    </View>
+  );
+};
 
 const noRes = StyleSheet.create({
   wrap: { alignItems: 'center', gap: Spacing[2], paddingTop: 60, paddingHorizontal: Spacing[8] },
-  title: { ...Typography.h4, fontFamily: 'Inter-SemiBold', color: Colors.text.primary, textAlign: 'center' },
-  sub: { ...Typography.bodyMd, fontFamily: 'Inter-Regular', color: Colors.text.tertiary, textAlign: 'center' },
+  title: { ...Typography.h4, fontFamily: 'Inter-SemiBold', textAlign: 'center' },
+  sub: { ...Typography.bodyMd, fontFamily: 'Inter-Regular', textAlign: 'center' },
 });
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
+
 export default function TasksScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const colors = useColors();
 
   const { filters, setStatus, setSearch, applySheet, hasActiveFilters } = useTaskFilterState();
   const [filterSheetVisible, setFilterSheetVisible] = useState(false);
@@ -151,14 +163,12 @@ export default function TasksScreen() {
     }
   }, [router]);
 
-  // Build sections for today vs upcoming when status=ALL
   const showSections = filters.status === 'ALL' && !filters.search;
   const upcomingTasks = useMemo(() => {
     if (!showSections) return tasks;
     return tasks.filter((t) => !todayTasks.some((td) => td.id === t.id));
   }, [tasks, todayTasks, showSections]);
 
-  // ── Render helpers ──
   const renderTask = useCallback(
     ({ item }: { item: MockTask }) => (
       <TaskCard task={item} onPress={handleTaskPress} onMorePress={handleMorePress} />
@@ -172,27 +182,20 @@ export default function TasksScreen() {
     </View>
   );
 
-  // ── Header (sticky) ──
   const ListHeader = (
     <View>
-      {/* Overdue banner */}
       {!isLoading && overdueTasks.length > 0 && filters.status !== 'OVERDUE' && (
         <OverdueBanner count={overdueTasks.length} onPress={() => setStatus('OVERDUE')} />
       )}
-
-      {/* Priority legend */}
       <View style={styles.legendSection}>
         <TaskPriorityLegend />
       </View>
-
-      {/* Today section header (only in grouped view) */}
       {showSections && !isLoading && todayTasks.length > 0 && (
         <SectionHeader title="Today's Tasks" count={todayTasks.length} />
       )}
     </View>
   );
 
-  // ── Today Tasks inlined before main list if showing sections ──
   const todaySection = showSections && todayTasks.length > 0 && !isLoading ? (
     <View>
       {todayTasks.map((task) => (
@@ -210,31 +213,38 @@ export default function TasksScreen() {
   const noResults = !isLoading && tasks.length === 0;
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
+    <View style={[styles.screen, { paddingTop: insets.top, backgroundColor: colors.surface.background }]}>
       {/* ── Custom Header ── */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: colors.surface.card, borderBottomColor: colors.surface.border }]}>
         <View>
-          <Text style={styles.headerTitle}>My Tasks</Text>
-          <Text style={styles.headerSub}>
+          <Text style={[styles.headerTitle, { color: colors.text.primary }]}>My Tasks</Text>
+          <Text style={[styles.headerSub, { color: colors.text.tertiary }]}>
             {isLoading ? 'Loading…' : `${stats.total} total · ${stats.overdue} overdue`}
           </Text>
         </View>
         <Pressable
           onPress={() => setFilterSheetVisible(true)}
-          style={({ pressed }) => [styles.filterBtn, hasActiveFilters && styles.filterBtnActive, pressed && { opacity: 0.8 }]}
+          style={({ pressed }) => [
+            styles.filterBtn,
+            { backgroundColor: colors.surface.background, borderColor: colors.surface.border },
+            hasActiveFilters && { backgroundColor: colors.brand.primary, borderColor: colors.brand.primary },
+            pressed && { opacity: 0.8 },
+          ]}
           accessibilityLabel="Open filters"
         >
           <Feather
             name="sliders"
             size={18}
-            color={hasActiveFilters ? Colors.text.inverse : Colors.text.secondary}
+            color={hasActiveFilters ? colors.text.inverse : colors.text.secondary}
           />
-          {hasActiveFilters && <View style={styles.filterDot} />}
+          {hasActiveFilters && (
+            <View style={[styles.filterDot, { backgroundColor: colors.semantic.error, borderColor: colors.surface.card }]} />
+          )}
         </Pressable>
       </View>
 
       {/* ── Search Bar ── */}
-      <View style={styles.searchWrap}>
+      <View style={[styles.searchWrap, { backgroundColor: colors.surface.card, borderBottomColor: colors.surface.border }]}>
         <TaskSearchBar value={filters.search} onChangeText={setSearch} />
       </View>
 
@@ -252,8 +262,8 @@ export default function TasksScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={Colors.brand.primary}
-            colors={[Colors.brand.primary]}
+            tintColor={colors.brand.primary}
+            colors={[colors.brand.primary]}
           />
         }
         ListHeaderComponent={
@@ -282,7 +292,6 @@ export default function TasksScreen() {
         renderItem={renderTask}
       />
 
-      {/* ── Filter Bottom Sheet ── */}
       <FilterBottomSheet
         visible={filterSheetVisible}
         current={{
@@ -295,7 +304,6 @@ export default function TasksScreen() {
         onClose={() => setFilterSheetVisible(false)}
       />
 
-      {/* ── Overflow Action Sheet ── */}
       <TaskOverflowSheet
         visible={overflowTask !== null}
         task={overflowTask}
@@ -307,10 +315,7 @@ export default function TasksScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: Colors.surface.background,
-  },
+  screen: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -318,34 +323,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing[4],
     paddingTop: Spacing[3],
     paddingBottom: Spacing[3],
-    backgroundColor: Colors.surface.card,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.surface.border,
   },
   headerTitle: {
     ...Typography.h2,
     fontFamily: 'Inter-Bold',
-    color: Colors.text.primary,
   },
   headerSub: {
     ...Typography.caption,
     fontFamily: 'Inter-Regular',
-    color: Colors.text.tertiary,
     marginTop: 2,
   },
   filterBtn: {
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: Colors.surface.background,
     borderWidth: 1,
-    borderColor: Colors.surface.border,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  filterBtnActive: {
-    backgroundColor: Colors.brand.primary,
-    borderColor: Colors.brand.primary,
   },
   filterDot: {
     position: 'absolute',
@@ -354,16 +349,10 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 4,
-    backgroundColor: Colors.semantic.error,
     borderWidth: 1,
-    borderColor: Colors.surface.card,
   },
   searchWrap: {
-    backgroundColor: Colors.surface.card,
-    paddingHorizontal: Spacing[4],
-    paddingBottom: Spacing[3],
     borderBottomWidth: 1,
-    borderBottomColor: Colors.surface.border,
   },
   legendSection: {
     paddingHorizontal: Spacing[4],

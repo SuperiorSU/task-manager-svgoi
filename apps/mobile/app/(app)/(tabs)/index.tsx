@@ -11,7 +11,7 @@ import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 
-import { Colors } from '../../../src/constants/colors';
+import { useColors } from '../../../src/constants/colors';
 import { Typography } from '../../../src/constants/typography';
 import { Spacing, Layout } from '../../../src/constants/spacing';
 
@@ -33,7 +33,6 @@ import { UpcomingTaskItem } from '../../../src/components/dashboard/UpcomingTask
 import { DashboardActivityItem } from '../../../src/components/dashboard/DashboardActivityItem';
 import { Skeleton } from '../../../src/components/ui/Skeleton';
 
-// ─── Greeting helper ──────────────────────────────────────────────────────────
 function buildGreeting(): string {
   const h = dayjs().hour();
   if (h < 12) return 'Good morning';
@@ -41,7 +40,6 @@ function buildGreeting(): string {
   return 'Good evening';
 }
 
-// ─── Skeleton sections ────────────────────────────────────────────────────────
 const StatsSkeleton = () => (
   <View style={styles.statsGrid}>
     <View style={styles.statsRow}>
@@ -63,25 +61,30 @@ const ListSkeleton = ({ rows = 3 }: { rows?: number }) => (
   </View>
 );
 
-// ─── Empty state ──────────────────────────────────────────────────────────────
 const EmptyState = ({
   icon,
   message,
 }: {
   icon: keyof typeof Feather.glyphMap;
   message: string;
-}) => (
-  <View style={styles.emptyWrap}>
-    <View style={styles.emptyIconBg}>
-      <Feather name={icon} size={28} color={Colors.text.tertiary} />
+}) => {
+  const colors = useColors();
+  return (
+    <View style={[
+      styles.emptyWrap,
+      { backgroundColor: colors.surface.card, borderColor: colors.surface.border },
+    ]}>
+      <View style={[styles.emptyIconBg, { backgroundColor: colors.surface.background }]}>
+        <Feather name={icon} size={28} color={colors.text.tertiary} />
+      </View>
+      <Text style={[styles.emptyText, { color: colors.text.tertiary }]}>{message}</Text>
     </View>
-    <Text style={styles.emptyText}>{message}</Text>
-  </View>
-);
+  );
+};
 
-// ─── Screen ───────────────────────────────────────────────────────────────────
 export default function EmployeeDashboardScreen() {
   const router = useRouter();
+  const colors = useColors();
   const user = useAuthStore((s) => s.user);
 
   const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useEmployeeStats();
@@ -98,12 +101,10 @@ export default function EmployeeDashboardScreen() {
   const firstName = user?.name?.split(' ')[0] ?? 'there';
   const greeting = buildGreeting();
   const dateLabel = dayjs().format('dddd, D MMMM');
-
   const overdueCount = stats?.overdue ?? 0;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      {/* ── Custom dashboard header ── */}
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.surface.background }]} edges={['top']}>
       <DashboardHeader
         greeting={greeting}
         firstName={firstName}
@@ -122,12 +123,10 @@ export default function EmployeeDashboardScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={Colors.brand.primary}
+            tintColor={colors.brand.primary}
           />
         }
       >
-
-        {/* ── Overdue alert banner ── */}
         {!statsLoading && overdueCount > 0 && (
           <OverdueAlertBanner
             count={overdueCount}
@@ -140,7 +139,6 @@ export default function EmployeeDashboardScreen() {
           />
         )}
 
-        {/* ── Stats 2×2 grid ── */}
         {statsLoading ? (
           <StatsSkeleton />
         ) : (
@@ -185,14 +183,12 @@ export default function EmployeeDashboardScreen() {
           </View>
         )}
 
-        {/* ── Upcoming tasks section ── */}
         <View style={styles.section}>
           <DashboardSectionHeader
             title="Upcoming"
             actionLabel="See all"
             onActionPress={() => router.push('/(app)/(tabs)/tasks')}
           />
-
           {upcomingLoading ? (
             <ListSkeleton rows={3} />
           ) : upcoming && upcoming.length > 0 ? (
@@ -206,14 +202,12 @@ export default function EmployeeDashboardScreen() {
           )}
         </View>
 
-        {/* ── Recent activity section ── */}
         <View style={styles.section}>
           <DashboardSectionHeader
             title="Recent Activity"
             actionLabel="See all"
             onActionPress={() => router.push('/(app)/(tabs)/tasks')}
           />
-
           {activityLoading ? (
             <ListSkeleton rows={3} />
           ) : activity && activity.length > 0 ? (
@@ -227,64 +221,46 @@ export default function EmployeeDashboardScreen() {
           )}
         </View>
 
-        {/* Bottom breathing room */}
         <View style={styles.bottomPad} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: Colors.surface.background,
-  },
+  safe: { flex: 1 },
   scroll: { flex: 1 },
   content: {
     paddingHorizontal: Layout.screenPaddingH,
     paddingTop: Spacing[4],
     gap: Spacing[5],
   },
-
-  // Stats grid
   statsGrid: { gap: Spacing[3] },
   statsRow: { flexDirection: 'row', gap: Spacing[3] },
   statFlex: { flex: 1 },
-
-  // Skeleton list
   skeletonList: { gap: Spacing[2], marginTop: Spacing[3] },
-
-  // Sections
   section: { gap: Spacing[3] },
   list: { gap: Spacing[2] },
-
-  // Empty state
   emptyWrap: {
     alignItems: 'center',
     paddingVertical: Spacing[6],
     gap: Spacing[3],
-    backgroundColor: Colors.surface.card,
     borderRadius: Layout.cardRadius,
     borderWidth: 1,
-    borderColor: Colors.surface.border,
     borderStyle: 'dashed',
   },
   emptyIconBg: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.surface.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
   emptyText: {
     ...Typography.bodyMd,
     fontFamily: 'Inter-Regular',
-    color: Colors.text.tertiary,
     textAlign: 'center',
     paddingHorizontal: Spacing[6],
   },
-
   bottomPad: { height: Spacing[4] },
 });

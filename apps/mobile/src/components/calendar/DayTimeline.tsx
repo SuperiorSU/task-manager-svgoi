@@ -3,40 +3,13 @@ import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import dayjs, { type Dayjs } from 'dayjs';
 
 import type { CalendarTask } from '../../data/calendar.mock';
-import { Colors } from '../../constants/colors';
+import { useColors } from '../../constants/colors';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const ROW_HEIGHT = 64; // px per hour — matches HTML reference
+const ROW_HEIGHT = 64;
 const TIME_COL_W = 52;
 const HOURS = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21] as const;
 const HOUR_START = 7;
 const HOUR_END = 21;
-
-// ─── Priority colours ─────────────────────────────────────────────────────────
-
-type Priority = CalendarTask['priority'];
-
-const BLOCK_BG: Record<Priority, string> = {
-  CRITICAL: Colors.priority.critical.bg,
-  HIGH:     Colors.priority.high.bg,
-  MEDIUM:   Colors.priority.medium.bg,
-  LOW:      Colors.priority.low.bg,
-};
-
-const BLOCK_BORDER: Record<Priority, string> = {
-  CRITICAL: Colors.priority.critical.solid,
-  HIGH:     Colors.priority.high.solid,
-  MEDIUM:   Colors.priority.medium.solid,
-  LOW:      Colors.priority.low.solid,
-};
-
-const BLOCK_TEXT: Record<Priority, string> = {
-  CRITICAL: Colors.priority.critical.text,
-  HIGH:     Colors.priority.high.text,
-  MEDIUM:   Colors.priority.medium.text,
-  LOW:      Colors.priority.low.text,
-};
 
 // ─── Task event block ─────────────────────────────────────────────────────────
 
@@ -46,7 +19,9 @@ type EventBlockProps = {
 };
 
 const EventBlock = React.memo(({ task, onPress }: EventBlockProps) => {
+  const colors = useColors();
   const p = task.priority;
+  const pk = p.toLowerCase() as keyof typeof colors.priority;
   const d = dayjs(task.dueDate);
   const timeStr = d.format('h:mm A');
 
@@ -55,14 +30,14 @@ const EventBlock = React.memo(({ task, onPress }: EventBlockProps) => {
       onPress={() => onPress?.(task)}
       style={({ pressed }) => [
         styles.block,
-        { backgroundColor: BLOCK_BG[p], borderLeftColor: BLOCK_BORDER[p] },
+        { backgroundColor: colors.priority[pk].bg, borderLeftColor: colors.priority[pk].solid },
         pressed && { opacity: 0.8 },
       ]}
     >
-      <Text style={[styles.blockTitle, { color: BLOCK_TEXT[p] }]} numberOfLines={2}>
+      <Text style={[styles.blockTitle, { color: colors.priority[pk].text }]} numberOfLines={2}>
         {task.title}
       </Text>
-      <Text style={[styles.blockMeta, { color: BLOCK_BORDER[p] }]}>
+      <Text style={[styles.blockMeta, { color: colors.priority[pk].solid }]}>
         {timeStr} · {task.department}
       </Text>
     </Pressable>
@@ -103,6 +78,7 @@ type Props = {
 };
 
 export const DayTimeline = React.memo(({ date, today, taskMap, onTaskPress }: Props) => {
+  const colors = useColors();
   const scrollRef = useRef<ScrollView>(null);
   const now = dayjs();
   const isToday = date.isSame(today, 'day');
@@ -110,7 +86,6 @@ export const DayTimeline = React.memo(({ date, today, taskMap, onTaskPress }: Pr
   const dateStr = date.format('YYYY-MM-DD');
   const dayTasks = taskMap.get(dateStr) ?? [];
 
-  // Map tasks by hour slot
   const tasksByHour = useMemo(() => {
     const m = new Map<number, CalendarTask[]>();
     for (const t of dayTasks) {
@@ -120,7 +95,6 @@ export const DayTimeline = React.memo(({ date, today, taskMap, onTaskPress }: Pr
     return m;
   }, [dayTasks]);
 
-  // Scroll to current time (or 8 AM) on mount
   useEffect(() => {
     const scrollToHour = isToday ? Math.max(now.hour() - 2, HOUR_START) : 8;
     const y = (scrollToHour - HOUR_START) * ROW_HEIGHT;
@@ -131,7 +105,7 @@ export const DayTimeline = React.memo(({ date, today, taskMap, onTaskPress }: Pr
   return (
     <ScrollView
       ref={scrollRef}
-      style={styles.scroll}
+      style={[styles.scroll, { backgroundColor: colors.surface.card }]}
       showsVerticalScrollIndicator={false}
       contentContainerStyle={styles.content}
     >
@@ -148,14 +122,12 @@ export const DayTimeline = React.memo(({ date, today, taskMap, onTaskPress }: Pr
 
           return (
             <View key={hour} style={styles.hourRow}>
-              {/* Time label */}
               <View style={styles.timeCol}>
-                <Text style={styles.timeLabel}>{label}</Text>
+                <Text style={[styles.timeLabel, { color: colors.text.tertiary }]}>{label}</Text>
               </View>
 
-              {/* Content column */}
               <View style={styles.contentCol}>
-                <View style={styles.topBorder} />
+                <View style={[styles.topBorder, { backgroundColor: colors.surface.border }]} />
                 {slotTasks.length > 0 ? (
                   <View style={styles.blocks}>
                     {slotTasks.map((task) => (
@@ -168,7 +140,6 @@ export const DayTimeline = React.memo(({ date, today, taskMap, onTaskPress }: Pr
           );
         })}
 
-        {/* Now indicator overlay */}
         {isToday && (
           <NowLine currentHour={now.hour()} currentMinute={now.minute()} />
         )}
@@ -180,7 +151,7 @@ export const DayTimeline = React.memo(({ date, today, taskMap, onTaskPress }: Pr
 DayTimeline.displayName = 'DayTimeline';
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1, backgroundColor: Colors.surface.card },
+  scroll: { flex: 1 },
   content: { paddingBottom: 40 },
   grid: { position: 'relative' },
   hourRow: {
@@ -195,17 +166,13 @@ const styles = StyleSheet.create({
   timeLabel: {
     fontSize: 11,
     fontFamily: 'Inter-Regular',
-    color: Colors.text.tertiary,
     lineHeight: 14,
   },
   contentCol: {
     flex: 1,
     position: 'relative',
   },
-  topBorder: {
-    height: 1,
-    backgroundColor: '#F1F5F9',
-  },
+  topBorder: { height: 1 },
   blocks: {
     flex: 1,
     padding: 4,
@@ -228,8 +195,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     lineHeight: 14,
   },
-
-  // Now indicator
   nowRow: {
     position: 'absolute',
     left: 0,
