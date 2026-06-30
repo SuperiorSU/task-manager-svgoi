@@ -76,7 +76,7 @@ export type MockTask = {
 
 // ─── Reference data ───────────────────────────────────────────────────────────
 
-export const MOCK_USERS: Record<string, MockUser> = {
+export const MOCK_USERS = {
   rajan: {
     id: 'usr_001',
     name: 'Rajan Sharma',
@@ -113,7 +113,7 @@ export const MOCK_USERS: Record<string, MockUser> = {
     designation: 'Head of CS',
     initials: 'RS',
   },
-};
+} satisfies Record<string, MockUser>;
 
 export const MOCK_DEPARTMENTS: MockDepartment[] = [
   { id: 'dept_01', name: 'Physics' },

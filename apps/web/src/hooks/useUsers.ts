@@ -1,29 +1,58 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api';
 import { queryKeys } from '@/constants/queryKeys';
-import type { CreateUserDto } from '@godigitify/types';
+import { usersService } from '@/services/users.service';
+import type { Role } from '@godigitify/types';
 
-export const useUsers = (filters?: Record<string, unknown>) =>
+export type UserListFilters = {
+  search?: string;
+  role?: Role;
+  departmentId?: string;
+  isActive?: boolean;
+  page?: number;
+  limit?: number;
+};
+
+export const useUsers = (filters?: UserListFilters) =>
   useQuery({
-    queryKey: queryKeys.users.list(filters),
-    queryFn: () => api.get('/users', { params: filters }).then((r) => r.data.data),
+    queryKey: queryKeys.users.list(filters as Record<string, unknown>),
+    queryFn: () => usersService.list(filters),
   });
 
 export const useUser = (id: string) =>
   useQuery({
     queryKey: queryKeys.users.detail(id),
-    queryFn: () => api.get(`/users/${id}`).then((r) => r.data.data),
+    queryFn: () => usersService.get(id),
     enabled: !!id,
   });
 
 export const useCreateUser = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (dto: CreateUserDto) => api.post('/users', dto).then((r) => r.data.data),
+    mutationFn: (dto: {
+      name: string;
+      email: string;
+      employeeId: string;
+      role: Role;
+      departmentId?: string;
+      phone?: string;
+      designation?: string;
+    }) => usersService.create(dto),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.users.all() });
+    },
+  });
+};
+
+export const useUpdateUser = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, dto }: { id: string; dto: Partial<{ name: string; phone: string; designation: string; departmentId: string }> }) =>
+      usersService.update(id, dto),
+    onSuccess: (_, { id }) => {
+      void qc.invalidateQueries({ queryKey: queryKeys.users.all() });
+      void qc.invalidateQueries({ queryKey: queryKeys.users.detail(id) });
     },
   });
 };
@@ -31,7 +60,18 @@ export const useCreateUser = () => {
 export const useDeactivateUser = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api.patch(`/users/${id}/deactivate`),
+    mutationFn: (id: string) => usersService.deactivate(id),
+    onSuccess: (_, id) => {
+      void qc.invalidateQueries({ queryKey: queryKeys.users.all() });
+      void qc.invalidateQueries({ queryKey: queryKeys.users.detail(id) });
+    },
+  });
+};
+
+export const useReactivateUser = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => usersService.reactivate(id),
     onSuccess: (_, id) => {
       void qc.invalidateQueries({ queryKey: queryKeys.users.all() });
       void qc.invalidateQueries({ queryKey: queryKeys.users.detail(id) });

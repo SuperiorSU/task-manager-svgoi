@@ -74,7 +74,7 @@ export default function CommentsScreen() {
         }
         renderItem={({ item }) => (
           <View style={styles.commentCard}>
-            <Avatar name={item.author.name} uri={item.author.avatarUrl} size={36} />
+            <Avatar name={item.author.name} uri={item.author.avatarUrl ?? null} size={36} />
             <View style={styles.commentBody}>
               <View style={styles.commentHeader}>
                 <Text style={styles.authorName}>{item.author.name}</Text>

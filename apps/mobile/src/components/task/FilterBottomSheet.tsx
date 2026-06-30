@@ -6,7 +6,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -15,16 +14,19 @@ import type { TaskPriority } from '@godigitify/types';
 import type { SortBy, TaskFilters } from '../../hooks/useTasksMock';
 import { MOCK_DEPARTMENTS } from '../../data/tasks.mock';
 
-import { Colors } from '../../constants/colors';
+import { useColors } from '../../constants/colors';
 import { Typography } from '../../constants/typography';
 import { Spacing } from '../../constants/spacing';
 import { Button } from '../ui/Button';
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-const SectionLabel = ({ label }: { label: string }) => (
-  <Text style={filterStyles.sectionLabel}>{label}</Text>
-);
+const SectionLabel = ({ label }: { label: string }) => {
+  const colors = useColors();
+  return (
+    <Text style={[s.sectionLabel, { color: colors.text.tertiary }]}>{label}</Text>
+  );
+};
 
 const OptionPill = ({
   label,
@@ -36,27 +38,31 @@ const OptionPill = ({
   active: boolean;
   color?: string;
   onPress: () => void;
-}) => (
-  <Pressable
-    onPress={onPress}
-    style={({ pressed }) => [
-      filterStyles.pill,
-      active && filterStyles.pillActive,
-      active && color ? { backgroundColor: color, borderColor: color } : null,
-      pressed && filterStyles.pillPressed,
-    ]}
-  >
-    {active && !color && (
-      <Feather name="check" size={12} color={Colors.text.inverse} />
-    )}
-    {color && (
-      <View style={[filterStyles.dot, { backgroundColor: active ? Colors.text.inverse : color }]} />
-    )}
-    <Text style={[filterStyles.pillText, active && filterStyles.pillTextActive]}>
-      {label}
-    </Text>
-  </Pressable>
-);
+}) => {
+  const colors = useColors();
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        s.pill,
+        { borderColor: colors.surface.border, backgroundColor: colors.surface.background },
+        active && !color && { backgroundColor: colors.brand.primary, borderColor: colors.brand.primary },
+        active && color ? { backgroundColor: color, borderColor: color } : null,
+        pressed && s.pillPressed,
+      ]}
+    >
+      {active && !color && (
+        <Feather name="check" size={12} color={colors.text.inverse} />
+      )}
+      {color && (
+        <View style={[s.dot, { backgroundColor: active ? colors.text.inverse : color }]} />
+      )}
+      <Text style={[s.pillText, { color: active ? colors.text.inverse : colors.text.secondary }]}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -76,20 +82,20 @@ const SORT_OPTIONS: { label: string; value: SortBy }[] = [
   { label: 'Title (A–Z)',   value: 'title' },
 ];
 
-const PRIORITY_OPTIONS: { label: string; value: TaskPriority; color: string }[] = [
-  { label: 'Critical', value: 'CRITICAL', color: Colors.priority.critical.solid },
-  { label: 'High',     value: 'HIGH',     color: Colors.priority.high.solid },
-  { label: 'Medium',   value: 'MEDIUM',   color: Colors.priority.medium.solid },
-  { label: 'Low',      value: 'LOW',      color: Colors.priority.low.solid },
-];
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export const FilterBottomSheet = ({ visible, current, onApply, onClose }: Props) => {
   const insets = useSafeAreaInsets();
+  const colors = useColors();
+
+  const PRIORITY_OPTIONS: { label: string; value: TaskPriority; color: string }[] = [
+    { label: 'Critical', value: 'CRITICAL', color: colors.priority.critical.solid },
+    { label: 'High',     value: 'HIGH',     color: colors.priority.high.solid },
+    { label: 'Medium',   value: 'MEDIUM',   color: colors.priority.medium.solid },
+    { label: 'Low',      value: 'LOW',      color: colors.priority.low.solid },
+  ];
   const [draft, setDraft] = React.useState<SheetFilters>(current);
 
-  // Sync draft when sheet opens with latest filter state
   React.useEffect(() => {
     if (visible) setDraft(current);
   }, [visible, current]);
@@ -124,23 +130,31 @@ export const FilterBottomSheet = ({ visible, current, onApply, onClose }: Props)
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <Pressable style={filterStyles.backdrop} onPress={onClose}>
-        <Pressable style={[filterStyles.sheet, { paddingBottom: insets.bottom + Spacing[4] }]}>
+      <Pressable
+        style={[s.backdrop, { backgroundColor: colors.surface.overlay }]}
+        onPress={onClose}
+      >
+        <Pressable
+          style={[
+            s.sheet,
+            { backgroundColor: colors.surface.card, paddingBottom: insets.bottom + Spacing[4] },
+          ]}
+        >
           {/* Handle bar */}
-          <View style={filterStyles.handle} />
+          <View style={[s.handle, { backgroundColor: colors.surface.borderStrong }]} />
 
           {/* Header */}
-          <View style={filterStyles.header}>
-            <Text style={filterStyles.title}>Filter & Sort</Text>
+          <View style={[s.header, { borderBottomColor: colors.surface.border }]}>
+            <Text style={[s.title, { color: colors.text.primary }]}>Filter & Sort</Text>
             <Pressable onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Feather name="x" size={22} color={Colors.text.secondary} />
+              <Feather name="x" size={22} color={colors.text.secondary} />
             </Pressable>
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
             {/* ── Sort By ── */}
             <SectionLabel label="Sort By" />
-            <View style={filterStyles.pillRow}>
+            <View style={s.pillRow}>
               {SORT_OPTIONS.map((opt) => (
                 <OptionPill
                   key={opt.value}
@@ -153,7 +167,7 @@ export const FilterBottomSheet = ({ visible, current, onApply, onClose }: Props)
 
             {/* ── Sort Order ── */}
             <SectionLabel label="Order" />
-            <View style={filterStyles.pillRow}>
+            <View style={s.pillRow}>
               <OptionPill
                 label="Ascending"
                 active={draft.sortOrder === 'asc'}
@@ -168,7 +182,7 @@ export const FilterBottomSheet = ({ visible, current, onApply, onClose }: Props)
 
             {/* ── Priority ── */}
             <SectionLabel label="Priority" />
-            <View style={filterStyles.pillRow}>
+            <View style={s.pillRow}>
               {PRIORITY_OPTIONS.map((opt) => (
                 <OptionPill
                   key={opt.value}
@@ -182,7 +196,7 @@ export const FilterBottomSheet = ({ visible, current, onApply, onClose }: Props)
 
             {/* ── Department ── */}
             <SectionLabel label="Department" />
-            <View style={filterStyles.pillRow}>
+            <View style={s.pillRow}>
               {MOCK_DEPARTMENTS.map((dept) => (
                 <OptionPill
                   key={dept.id}
@@ -193,15 +207,15 @@ export const FilterBottomSheet = ({ visible, current, onApply, onClose }: Props)
               ))}
             </View>
 
-            <View style={filterStyles.spacer} />
+            <View style={s.spacer} />
           </ScrollView>
 
           {/* ── Actions ── */}
-          <View style={filterStyles.actions}>
-            <Pressable onPress={handleReset} style={filterStyles.resetBtn}>
-              <Text style={filterStyles.resetText}>Reset All</Text>
+          <View style={[s.actions, { borderTopColor: colors.surface.border }]}>
+            <Pressable onPress={handleReset} style={s.resetBtn}>
+              <Text style={[s.resetText, { color: colors.text.secondary }]}>Reset All</Text>
             </Pressable>
-            <View style={filterStyles.applyWrap}>
+            <View style={s.applyWrap}>
               <Button label="Apply Filters" onPress={handleApply} fullWidth />
             </View>
           </View>
@@ -211,14 +225,12 @@ export const FilterBottomSheet = ({ visible, current, onApply, onClose }: Props)
   );
 };
 
-const filterStyles = StyleSheet.create({
+const s = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: Colors.surface.overlay,
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: Colors.surface.card,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: Spacing[4],
@@ -228,7 +240,6 @@ const filterStyles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.surface.borderStrong,
     alignSelf: 'center',
     marginTop: Spacing[3],
     marginBottom: Spacing[2],
@@ -239,18 +250,15 @@ const filterStyles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: Spacing[3],
     borderBottomWidth: 1,
-    borderBottomColor: Colors.surface.border,
     marginBottom: Spacing[4],
   },
   title: {
     ...Typography.h4,
     fontFamily: 'Inter-SemiBold',
-    color: Colors.text.primary,
   },
   sectionLabel: {
     ...Typography.labelMd,
     fontFamily: 'Inter-SemiBold',
-    color: Colors.text.tertiary,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     marginBottom: Spacing[2],
@@ -269,20 +277,12 @@ const filterStyles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1.5,
-    borderColor: Colors.surface.border,
-    backgroundColor: Colors.surface.background,
-  },
-  pillActive: {
-    backgroundColor: Colors.brand.primary,
-    borderColor: Colors.brand.primary,
   },
   pillPressed: { opacity: 0.8 },
   pillText: {
     ...Typography.labelMd,
     fontFamily: 'Inter-Medium',
-    color: Colors.text.secondary,
   },
-  pillTextActive: { color: Colors.text.inverse },
   dot: { width: 8, height: 8, borderRadius: 4 },
   spacer: { height: Spacing[6] },
   actions: {
@@ -290,7 +290,6 @@ const filterStyles = StyleSheet.create({
     gap: Spacing[3],
     paddingTop: Spacing[4],
     borderTopWidth: 1,
-    borderTopColor: Colors.surface.border,
     alignItems: 'center',
   },
   resetBtn: {
@@ -302,7 +301,6 @@ const filterStyles = StyleSheet.create({
   resetText: {
     ...Typography.labelLg,
     fontFamily: 'Inter-Medium',
-    color: Colors.text.secondary,
   },
   applyWrap: { flex: 1 },
 });

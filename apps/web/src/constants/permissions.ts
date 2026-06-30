@@ -11,6 +11,8 @@ export const PERMISSIONS = {
   USER_UPDATE: 'user:update',
   USER_DEACTIVATE: 'user:deactivate',
   DEPT_MANAGE: 'dept:manage',
+  DEPT_UPDATE: 'dept:update',
+  SETTINGS_UPDATE: 'settings:update',
   REPORT_VIEW: 'report:view',
   REPORT_EXPORT: 'report:export',
   AUDIT_VIEW: 'audit:view',

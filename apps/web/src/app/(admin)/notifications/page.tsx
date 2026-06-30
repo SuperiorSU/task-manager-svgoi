@@ -1,51 +1,62 @@
 'use client';
 
 import React from 'react';
-import { Bell } from 'lucide-react';
+import {
+  Bell,
+  CheckSquare,
+  Clock,
+  AlertCircle,
+  MessageSquare,
+  UserCheck,
+} from 'lucide-react';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api';
-import { queryKeys } from '@/constants/queryKeys';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
+import {
+  useNotifications,
+  useMarkNotificationRead,
+  useMarkAllNotificationsRead,
+} from '@/hooks/useNotifications';
+import type { NotificationType } from '@godigitify/types';
 
 dayjs.extend(relativeTime);
 
-type Notification = {
-  id: string;
-  type: string;
-  message: string;
-  isRead: boolean;
-  createdAt: string;
+const TYPE_META: Record<
+  NotificationType,
+  { icon: React.ElementType; color: string; bg: string }
+> = {
+  TASK_ASSIGNED: { icon: UserCheck, color: 'text-brand-500', bg: 'bg-brand-50' },
+  TASK_STATUS_CHANGED: { icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
+  TASK_COMPLETED: { icon: CheckSquare, color: 'text-green-600', bg: 'bg-green-50' },
+  TASK_OVERDUE: { icon: AlertCircle, color: 'text-red-600', bg: 'bg-red-50' },
+  TASK_DUE_SOON: { icon: Clock, color: 'text-amber-500', bg: 'bg-amber-50' },
+  TASK_REASSIGNED: { icon: UserCheck, color: 'text-purple-600', bg: 'bg-purple-50' },
+  COMMENT_ADDED: { icon: MessageSquare, color: 'text-slate-600', bg: 'bg-slate-100' },
 };
 
+const DEFAULT_META = { icon: Bell, color: 'text-slate-500', bg: 'bg-surface-muted' };
+
 export default function NotificationsPage() {
-  const qc = useQueryClient();
+  const { data: notifications, isLoading } = useNotifications();
+  const { mutate: markRead } = useMarkNotificationRead();
+  const { mutate: markAllRead, isPending } = useMarkAllNotificationsRead();
 
-  const { data, isLoading } = useQuery({
-    queryKey: queryKeys.notifications.list(),
-    queryFn: () => api.get('/notifications').then((r) => r.data.data),
-  });
-
-  const { mutate: markAllRead, isPending } = useMutation({
-    mutationFn: () => api.patch('/notifications/read-all'),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: queryKeys.notifications.list() }),
-  });
-
-  const { mutate: markRead } = useMutation({
-    mutationFn: (id: string) => api.patch(`/notifications/${id}/read`),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: queryKeys.notifications.list() }),
-  });
-
-  const notifications = (data ?? []) as Notification[];
-  const hasUnread = notifications.some((n) => !n.isRead);
+  const items = notifications ?? [];
+  const hasUnread = items.some((n) => !n.isRead);
 
   return (
     <div className="max-w-2xl space-y-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-900">Notifications</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Notifications</h1>
+          {hasUnread && (
+            <p className="text-sm text-slate-500">
+              {items.filter((n) => !n.isRead).length} unread
+            </p>
+          )}
+        </div>
         {hasUnread && (
           <Button variant="ghost" size="sm" onClick={() => markAllRead()} loading={isPending}>
             Mark all as read
@@ -59,36 +70,40 @@ export default function NotificationsPage() {
             <div key={i} className="h-16 animate-pulse rounded-xl bg-slate-200" />
           ))}
         </div>
-      ) : notifications.length === 0 ? (
+      ) : items.length === 0 ? (
         <EmptyState icon={Bell} title="All caught up" description="No notifications to show." />
       ) : (
         <div className="rounded-xl border border-surface-border bg-white shadow-card overflow-hidden divide-y divide-surface-border">
-          {notifications.map((n) => (
-            <button
-              key={n.id}
-              onClick={() => !n.isRead && markRead(n.id)}
-              className={cn(
-                'flex w-full items-start gap-4 px-5 py-4 text-left transition-colors hover:bg-surface-muted',
-                !n.isRead && 'bg-brand-50'
-              )}
-            >
-              <div className={cn(
-                'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
-                !n.isRead ? 'bg-brand-100' : 'bg-surface-subtle'
-              )}>
-                <Bell className={cn('h-4 w-4', !n.isRead ? 'text-brand-500' : 'text-slate-400')} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className={cn('text-sm', !n.isRead ? 'font-medium text-slate-900' : 'text-slate-600')}>
-                  {n.message}
-                </p>
-                <p className="mt-0.5 text-xs text-slate-400">{dayjs(n.createdAt).fromNow()}</p>
-              </div>
-              {!n.isRead && (
-                <div className="mt-2 h-2 w-2 shrink-0 rounded-full bg-brand-500" />
-              )}
-            </button>
-          ))}
+          {items.map((n) => {
+            const meta = TYPE_META[n.type as NotificationType] ?? DEFAULT_META;
+            const Icon = meta.icon;
+            return (
+              <button
+                key={n.id}
+                onClick={() => !n.isRead && markRead(n.id)}
+                className={cn(
+                  'flex w-full items-start gap-4 px-5 py-4 text-left transition-colors hover:bg-surface-muted',
+                  !n.isRead && 'bg-brand-50/60'
+                )}
+              >
+                <div className={cn('mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full', meta.bg)}>
+                  <Icon className={cn('h-4 w-4', meta.color)} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className={cn('text-sm', !n.isRead ? 'font-semibold text-slate-900' : 'text-slate-600')}>
+                    {n.title}
+                  </p>
+                  <p className={cn('text-xs mt-0.5', !n.isRead ? 'text-slate-700' : 'text-slate-500')}>
+                    {n.body}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-400">{dayjs(n.createdAt).fromNow()}</p>
+                </div>
+                {!n.isRead && (
+                  <div className="mt-2 h-2 w-2 shrink-0 rounded-full bg-brand-500" />
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

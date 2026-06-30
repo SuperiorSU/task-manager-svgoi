@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 
-import { Colors } from '../../constants/colors';
+import { useColors } from '../../constants/colors';
 import { Typography } from '../../constants/typography';
 
 type Props = {
@@ -12,6 +12,8 @@ type Props = {
 };
 
 export const Avatar = React.memo(({ name, uri, size = 36 }: Props) => {
+  const colors = useColors();
+
   const initials = name
     .split(' ')
     .slice(0, 2)
@@ -33,26 +35,26 @@ export const Avatar = React.memo(({ name, uri, size = 36 }: Props) => {
   return (
     <View
       style={[
-        styles.fallback,
-        { width: size, height: size, borderRadius: size / 2 },
+        s.fallback,
+        { width: size, height: size, borderRadius: size / 2, backgroundColor: colors.brand.primaryLight },
       ]}
     >
-      <Text style={[styles.initials, { fontSize: size * 0.35 }]}>{initials}</Text>
+      <Text style={[s.initials, { fontSize: size * 0.35, color: colors.brand.primary }]}>
+        {initials}
+      </Text>
     </View>
   );
 });
 
 Avatar.displayName = 'Avatar';
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   fallback: {
-    backgroundColor: Colors.brand.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
   initials: {
     ...Typography.labelMd,
     fontFamily: 'Inter-SemiBold',
-    color: Colors.brand.primary,
   },
 });

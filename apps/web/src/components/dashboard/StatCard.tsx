@@ -7,10 +7,11 @@ type Props = {
   label: string;
   icon: LucideIcon;
   isAlert?: boolean;
+  sublabel?: string;
   trend?: { value: number; label: string };
 };
 
-export const StatCard = ({ value, label, icon: Icon, isAlert, trend }: Props) => (
+export const StatCard = ({ value, label, icon: Icon, isAlert, sublabel, trend }: Props) => (
   <div
     className={cn(
       'rounded-xl border p-5 shadow-card',
@@ -41,6 +42,7 @@ export const StatCard = ({ value, label, icon: Icon, isAlert, trend }: Props) =>
         {value}
       </p>
       <p className="mt-0.5 text-sm text-slate-500">{label}</p>
+      {sublabel && <p className="mt-0.5 text-xs text-slate-400">{sublabel}</p>}
     </div>
     {trend && (
       <p className="mt-2 text-xs text-slate-400">

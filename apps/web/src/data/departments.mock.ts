@@ -1,0 +1,96 @@
+import type { Department } from '@godigitify/types';
+
+export type DepartmentWithStats = Department & {
+  headId: string;
+  head?: { id: string; name: string; avatarUrl?: string | null };
+  _count: { users: number; tasks: number };
+  completionRate: number;
+  overdueTasks: number;
+};
+
+export const MOCK_DEPARTMENTS: DepartmentWithStats[] = [
+  {
+    id: 'dept_cs',
+    name: 'Computer Science',
+    code: 'CS',
+    description: 'Department of Computer Science & Engineering — handles all IT, software development, and digital infrastructure tasks.',
+    isActive: true,
+    headId: 'user_admin_cs',
+    head: { id: 'user_admin_cs', name: 'Dr. Raj Kumar' },
+    _count: { users: 12, tasks: 38 },
+    completionRate: 72,
+    overdueTasks: 3,
+    createdAt: '2024-01-10T09:00:00.000Z',
+    updatedAt: '2024-06-15T10:30:00.000Z',
+  },
+  {
+    id: 'dept_ece',
+    name: 'Electronics & Communication',
+    code: 'ECE',
+    description: 'Department of Electronics & Communication Engineering — manages lab equipment, curriculum, and research coordination.',
+    isActive: true,
+    headId: 'user_admin_ece',
+    head: { id: 'user_admin_ece', name: 'Dr. Priya Sharma' },
+    _count: { users: 10, tasks: 29 },
+    completionRate: 65,
+    overdueTasks: 5,
+    createdAt: '2024-01-10T09:00:00.000Z',
+    updatedAt: '2024-06-15T10:30:00.000Z',
+  },
+  {
+    id: 'dept_me',
+    name: 'Mechanical Engineering',
+    code: 'ME',
+    description: 'Department of Mechanical Engineering — oversees workshop operations, machinery maintenance, and industry tie-ups.',
+    isActive: true,
+    headId: 'user_admin_me',
+    head: { id: 'user_admin_me', name: 'Dr. Vivek Singh' },
+    _count: { users: 9, tasks: 21 },
+    completionRate: 80,
+    overdueTasks: 1,
+    createdAt: '2024-01-10T09:00:00.000Z',
+    updatedAt: '2024-06-15T10:30:00.000Z',
+  },
+  {
+    id: 'dept_physics',
+    name: 'Physics',
+    code: 'PHY',
+    description: 'Department of Applied Physics — manages laboratory schedules, equipment calibration, and academic coordination.',
+    isActive: true,
+    headId: 'user_admin_phy',
+    head: { id: 'user_admin_phy', name: 'Dr. Anita Patel' },
+    _count: { users: 7, tasks: 15 },
+    completionRate: 87,
+    overdueTasks: 0,
+    createdAt: '2024-01-10T09:00:00.000Z',
+    updatedAt: '2024-06-15T10:30:00.000Z',
+  },
+  {
+    id: 'dept_chem',
+    name: 'Chemistry',
+    code: 'CHEM',
+    description: 'Department of Chemistry — handles reagent procurement, safety compliance, and research lab management.',
+    isActive: true,
+    headId: 'user_admin_chem',
+    head: { id: 'user_admin_chem', name: 'Dr. Deepak Gupta' },
+    _count: { users: 6, tasks: 12 },
+    completionRate: 58,
+    overdueTasks: 4,
+    createdAt: '2024-01-10T09:00:00.000Z',
+    updatedAt: '2024-06-15T10:30:00.000Z',
+  },
+  {
+    id: 'dept_admin',
+    name: 'Administration',
+    code: 'ADMIN',
+    description: 'Central administrative department — manages HR, finance coordination, campus operations, and institutional compliance.',
+    isActive: true,
+    headId: 'user_admin_adm',
+    head: { id: 'user_admin_adm', name: 'Ms. Sunita Verma' },
+    _count: { users: 8, tasks: 24 },
+    completionRate: 91,
+    overdueTasks: 2,
+    createdAt: '2024-01-10T09:00:00.000Z',
+    updatedAt: '2024-06-15T10:30:00.000Z',
+  },
+];

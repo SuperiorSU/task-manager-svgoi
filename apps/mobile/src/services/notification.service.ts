@@ -7,6 +7,8 @@ import { Platform } from 'react-native';
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
   }),
@@ -50,7 +52,7 @@ export const addNotificationResponseListener = (
 ): Subscription => Notifications.addNotificationResponseReceivedListener(handler);
 
 export const removeNotificationSubscription = (sub: Subscription): void =>
-  Notifications.removeNotificationSubscription(sub);
+  sub.remove();
 
 export const setBadgeCount = (count: number): Promise<boolean> =>
   Notifications.setBadgeCountAsync(count);

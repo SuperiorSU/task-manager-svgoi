@@ -16,13 +16,7 @@ import { Feather } from '@expo/vector-icons';
 
 import { useColors } from '../../../src/constants/colors';
 import { useProfileData, useUpdateProfile } from '../../../src/hooks/useProfile';
-
-const getInitials = (name: string) =>
-  name
-    .split(' ')
-    .slice(0, 2)
-    .map((w) => w.charAt(0).toUpperCase())
-    .join('');
+import { getInitials } from '../../../src/utils/initial';
 
 // ─── Read-only row ────────────────────────────────────────────────────────────
 
