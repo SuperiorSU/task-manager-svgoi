@@ -26,6 +26,11 @@ export default function AppLayout() {
         <Stack.Screen name="tasks/create" />
         <Stack.Screen name="tasks/[id]/comments" />
         <Stack.Screen name="notifications" />
+        <Stack.Screen name="profile/edit" />
+        <Stack.Screen name="profile/change-password" />
+        <Stack.Screen name="profile/notifications" />
+        <Stack.Screen name="profile/appearance" />
+        <Stack.Screen name="profile/help" />
       </Stack>
     </>
   );

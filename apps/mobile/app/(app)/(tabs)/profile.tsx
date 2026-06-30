@@ -1,115 +1,319 @@
-import React from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Alert } from 'react-native';
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  Pressable,
+  StyleSheet,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 
-import { Colors } from '../../../src/constants/colors';
-import { Typography } from '../../../src/constants/typography';
-import { Spacing, Layout } from '../../../src/constants/spacing';
-import { ScreenHeader } from '../../../src/components/layout/ScreenHeader';
-import { SafeScreen } from '../../../src/components/layout/SafeScreen';
-import { Avatar } from '../../../src/components/ui/Avatar';
-import { Badge } from '../../../src/components/ui/Badge';
-import { useAuthStore } from '../../../src/stores/auth.store';
+import { useColors } from '../../../src/constants/colors';
+import { Spacing } from '../../../src/constants/spacing';
+import { useThemeStore } from '../../../src/stores/theme.store';
+import { useProfileData, useProfileStats } from '../../../src/hooks/useProfile';
 import { useLogout } from '../../../src/hooks/useAuth';
+import { ProfileStatsBar } from '../../../src/components/profile/ProfileStatsBar';
+import { ProfileInfoCard } from '../../../src/components/profile/ProfileInfoCard';
+import { ProfileSettingsItem } from '../../../src/components/profile/ProfileSettingsItem';
+import { LogoutModal } from '../../../src/components/profile/LogoutModal';
+import { Skeleton } from '../../../src/components/ui/Skeleton';
 
-const ROLE_DISPLAY: Record<string, { label: string; bg: string; text: string }> = {
-  SUPER_ADMIN: { label: 'Super Admin', bg: Colors.priority.critical.bg, text: Colors.priority.critical.text },
-  ADMIN: { label: 'Admin', bg: Colors.brand.primaryLight, text: Colors.brand.primary },
-  EMPLOYEE: { label: 'Employee', bg: Colors.surface.border, text: Colors.text.secondary },
-};
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const getInitials = (name: string) =>
+  name
+    .split(' ')
+    .slice(0, 2)
+    .map((w) => w.charAt(0).toUpperCase())
+    .join('');
+
+const THEME_LABELS = { light: 'Light', dark: 'Dark', system: 'System' };
+
+// ─── Loading skeleton ─────────────────────────────────────────────────────────
+
+const ProfileSkeleton = ({ bg }: { bg: string }) => (
+  <View style={{ gap: 12, padding: 16, backgroundColor: bg, flex: 1 }}>
+    <Skeleton height={220} borderRadius={16} />
+    <Skeleton height={110} borderRadius={12} />
+    <Skeleton height={200} borderRadius={12} />
+    <Skeleton height={56} borderRadius={12} />
+  </View>
+);
+
+// ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function ProfileScreen() {
-  const user = useAuthStore((s) => s.user);
-  const { mutate: logout, isPending } = useLogout();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const colors = useColors();
 
-  const roleDisplay = ROLE_DISPLAY[user?.role ?? 'EMPLOYEE'];
+  const { preference } = useThemeStore();
+  const { data: profile, isLoading: profileLoading } = useProfileData();
+  const { data: stats, isLoading: statsLoading } = useProfileStats();
+  const { mutate: logout, isPending: logoutPending } = useLogout();
 
-  const handleLogout = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign Out', style: 'destructive', onPress: () => logout() },
-    ]);
-  };
+  const [logoutVisible, setLogoutVisible] = useState(false);
+
+  const isLoading = profileLoading || statsLoading;
 
   return (
-    <SafeScreen>
-      <ScreenHeader title="Profile" />
+    <View style={[s.screen, { paddingTop: insets.top, backgroundColor: colors.surface.background }]}>
+      {/* ── Custom header ── */}
+      <View style={[s.headerBar, { backgroundColor: colors.surface.card, borderBottomColor: colors.surface.border }]}>
+        <Text style={[s.headerTitle, { color: colors.text.primary }]}>Profile</Text>
+        <Pressable
+          onPress={() => router.push('/(app)/profile/edit')}
+          style={({ pressed }) => [s.editBtn, { borderColor: colors.surface.border }, pressed && { opacity: 0.7 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Edit profile"
+        >
+          <Feather name="edit-2" size={16} color={colors.text.primary} />
+        </Pressable>
+      </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Profile card */}
-        <View style={styles.profileCard}>
-          <Avatar name={user?.name ?? ''} uri={user?.avatarUrl} size={72} />
-          <View style={styles.profileInfo}>
-            <Text style={styles.name}>{user?.name}</Text>
-            <Text style={styles.email}>{user?.email}</Text>
-            {roleDisplay && (
-              <Badge label={roleDisplay.label} bg={roleDisplay.bg} textColor={roleDisplay.text} />
-            )}
-          </View>
-        </View>
-
-        {/* Details */}
-        {user?.department && (
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Department</Text>
-            <View style={styles.row}>
-              <Feather name="briefcase" size={16} color={Colors.brand.primary} />
-              <Text style={styles.rowText}>{user.department.name}</Text>
+      {isLoading ? (
+        <ProfileSkeleton bg={colors.surface.background} />
+      ) : (
+        <ScrollView
+          contentContainerStyle={s.scroll}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* ── Profile header card ── */}
+          <View style={[s.profileCard, { backgroundColor: colors.surface.card }]}>
+            <View style={s.avatarWrap}>
+              <View style={[s.avatar, { backgroundColor: colors.brand.secondary }]}>
+                <Text style={s.initials}>{getInitials(profile?.name ?? '')}</Text>
+              </View>
+              <Pressable
+                onPress={() => router.push('/(app)/profile/edit')}
+                style={[s.avatarEditBadge, { backgroundColor: colors.brand.primary, borderColor: colors.surface.card }]}
+                accessibilityLabel="Change photo"
+              >
+                <Feather name="camera" size={11} color="#fff" />
+              </Pressable>
             </View>
-          </View>
-        )}
 
-        {/* Actions */}
-        <View style={styles.section}>
-          <Pressable
-            style={({ pressed }) => [styles.menuItem, pressed && styles.pressed]}
-            onPress={handleLogout}
-            disabled={isPending}
-          >
-            <Feather name="log-out" size={18} color={Colors.semantic.error} />
-            <Text style={[styles.menuText, { color: Colors.semantic.error }]}>
-              {isPending ? 'Signing out...' : 'Sign Out'}
+            <Text style={[s.name, { color: colors.text.primary }]}>{profile?.name}</Text>
+            <Text style={[s.designation, { color: colors.text.secondary }]}>
+              {profile?.designation} · {profile?.department}
             </Text>
-          </Pressable>
-        </View>
-      </ScrollView>
-    </SafeScreen>
+
+            <View style={[s.roleBadge, { backgroundColor: colors.brand.primaryLight, borderColor: '#DBEAFE' }]}>
+              <View style={[s.roleDot, { backgroundColor: colors.brand.primary }]} />
+              <Text style={[s.roleLabel, { color: colors.brand.primaryDark }]}>{profile?.role}</Text>
+            </View>
+
+            {stats && <ProfileStatsBar stats={stats} />}
+          </View>
+
+          {/* ── Account section ── */}
+          <Text style={[s.sectionLabel, { color: colors.text.tertiary }]}>Account</Text>
+          <View style={s.cardWrap}>
+            <ProfileInfoCard
+              rows={[
+                { icon: 'mail', subLabel: 'Email', value: profile?.email ?? '' },
+                { icon: 'phone', subLabel: 'Phone', value: profile?.phone ?? '' },
+                {
+                  icon: 'credit-card',
+                  subLabel: 'Employee ID · read-only',
+                  value: profile?.employeeId ?? '',
+                  readOnly: true,
+                },
+              ]}
+            />
+          </View>
+
+          {/* ── Settings section ── */}
+          <Text style={[s.sectionLabel, { color: colors.text.tertiary }]}>Settings</Text>
+          <View style={[s.card, { backgroundColor: colors.surface.card }]}>
+            <ProfileSettingsItem
+              icon="lock"
+              label="Change password"
+              onPress={() => router.push('/(app)/profile/change-password')}
+              showDivider
+            />
+            <ProfileSettingsItem
+              icon="sun"
+              label="Appearance"
+              valueLabel={THEME_LABELS[preference]}
+              onPress={() => router.push('/(app)/profile/appearance')}
+              showDivider
+            />
+            <ProfileSettingsItem
+              icon="bell"
+              label="Notification preferences"
+              onPress={() => router.push('/(app)/profile/notifications')}
+              showDivider
+            />
+            <ProfileSettingsItem
+              icon="info"
+              label="Help & support"
+              onPress={() => router.push('/(app)/profile/help')}
+            />
+          </View>
+
+          {/* ── Logout row ── */}
+          <View style={[s.card, { backgroundColor: colors.surface.card }]}>
+            <ProfileSettingsItem
+              icon="log-out"
+              iconColor="#DC2626"
+              label="Log out"
+              labelColor="#DC2626"
+              onPress={() => setLogoutVisible(true)}
+            />
+          </View>
+
+          {/* ── Version footer ── */}
+          <Text style={[s.version, { color: colors.text.tertiary }]}>TaskFlow SVGOI · v1.0</Text>
+
+          <View style={{ height: Spacing[8] }} />
+        </ScrollView>
+      )}
+
+      <LogoutModal
+        visible={logoutVisible}
+        isPending={logoutPending}
+        onConfirm={() => {
+          setLogoutVisible(false);
+          logout();
+        }}
+        onCancel={() => setLogoutVisible(false)}
+      />
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  content: { padding: Spacing[4], gap: Spacing[4], paddingBottom: Spacing[8] },
-  profileCard: {
-    backgroundColor: Colors.surface.card,
-    borderRadius: Layout.cardRadius,
-    padding: Spacing[5],
+// ─── Styles (layout only — no colors) ────────────────────────────────────────
+
+const s = StyleSheet.create({
+  screen: { flex: 1 },
+  headerBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing[4],
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontFamily: 'Inter-SemiBold',
+  },
+  editBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scroll: {
+    paddingHorizontal: 16,
+    paddingTop: 20,
+  },
+  profileCard: {
+    borderRadius: 16,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 1,
+    alignItems: 'center',
+  },
+  avatarWrap: {
+    position: 'relative',
+    marginBottom: 14,
+  },
+  avatar: {
+    width: 74,
+    height: 74,
+    borderRadius: 37,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  initials: {
+    fontSize: 26,
+    fontFamily: 'Inter-Bold',
+    color: '#fff',
+    letterSpacing: 1,
+  },
+  avatarEditBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  name: {
+    fontSize: 20,
+    fontFamily: 'Inter-SemiBold',
+    textAlign: 'center',
+  },
+  designation: {
+    fontSize: 13,
+    fontFamily: 'Inter-Regular',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  roleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderWidth: 1,
+    borderRadius: 13,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    marginTop: 10,
+  },
+  roleDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  roleLabel: {
+    fontSize: 11,
+    fontFamily: 'Inter-SemiBold',
+  },
+  sectionLabel: {
+    fontSize: 11,
+    fontFamily: 'Inter-Bold',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    marginBottom: 9,
+    marginLeft: 2,
+  },
+  cardWrap: {
+    marginBottom: 20,
+  },
+  card: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 3,
     elevation: 1,
   },
-  profileInfo: { flex: 1, gap: Spacing[1] },
-  name: { ...Typography.h4, fontFamily: 'Inter-SemiBold', color: Colors.text.primary },
-  email: { ...Typography.bodyMd, fontFamily: 'Inter-Regular', color: Colors.text.secondary },
-  section: {
-    backgroundColor: Colors.surface.card,
-    borderRadius: Layout.cardRadius,
-    padding: Spacing[4],
-    gap: Spacing[3],
+  version: {
+    fontSize: 11,
+    fontFamily: 'Inter-Regular',
+    textAlign: 'center',
+    marginBottom: 8,
   },
-  sectionLabel: { ...Typography.labelMd, fontFamily: 'Inter-SemiBold', color: Colors.text.tertiary, textTransform: 'uppercase', letterSpacing: 0.8 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing[3] },
-  rowText: { ...Typography.bodyMd, fontFamily: 'Inter-Regular', color: Colors.text.primary },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing[3],
-    paddingVertical: Spacing[2],
-  },
-  menuText: { ...Typography.bodyLg, fontFamily: 'Inter-Medium' },
-  pressed: { opacity: 0.7 },
 });

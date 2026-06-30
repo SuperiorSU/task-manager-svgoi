@@ -1,22 +1,22 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 
-import { Colors } from '../../../src/constants/colors';
+import { useColors } from '../../../src/constants/colors';
 import { TabBarIcon } from '../../../src/components/layout/TabBarIcon';
 
 export default function TabsLayout() {
+  const colors = useColors();
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: Colors.brand.primary,
-        tabBarInactiveTintColor: Colors.text.tertiary,
+        tabBarActiveTintColor: colors.brand.primary,
+        tabBarInactiveTintColor: colors.text.tertiary,
         tabBarStyle: {
-          backgroundColor: Colors.surface.card,
-          borderTopColor: Colors.surface.border,
+          backgroundColor: colors.surface.card,
+          borderTopColor: colors.surface.border,
           borderTopWidth: 1,
-          // No fixed height — React Navigation auto-adds insets.bottom so the
-          // bar never overlaps the home indicator / gesture nav bar.
         },
         tabBarItemStyle: {
           paddingTop: 8,

@@ -1,134 +1,372 @@
-import React, { useState } from 'react';
-import { FlatList, View, StyleSheet, TextInput, Pressable } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import {
+  FlatList,
+  View,
+  Text,
+  StyleSheet,
+  RefreshControl,
+  Pressable,
+} from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 
-import type { TaskStatus } from '@godigitify/types';
+import type { MockTask } from '../../../src/data/tasks.mock';
+import {
+  useMockTaskList,
+  useMockTaskStats,
+  useTaskFilterState,
+} from '../../../src/hooks/useTasksMock';
 
-import { Colors } from '../../../src/constants/colors';
+import { useColors } from '../../../src/constants/colors';
 import { Spacing, Layout } from '../../../src/constants/spacing';
 import { Typography } from '../../../src/constants/typography';
-import { ScreenHeader } from '../../../src/components/layout/ScreenHeader';
-import { SafeScreen } from '../../../src/components/layout/SafeScreen';
+
 import { TaskCard } from '../../../src/components/task/TaskCard';
 import { TaskFilterBar } from '../../../src/components/task/TaskFilterBar';
+import { TaskSearchBar } from '../../../src/components/task/TaskSearchBar';
+import { TaskPriorityLegend } from '../../../src/components/task/TaskPriorityLegend';
+import { FilterBottomSheet } from '../../../src/components/task/FilterBottomSheet';
+import { TaskOverflowSheet, type OverflowAction } from '../../../src/components/task/TaskOverflowSheet';
 import { TaskCardSkeleton } from '../../../src/components/ui/Skeleton';
 import { EmptyState } from '../../../src/components/ui/EmptyState';
-import { useTasks } from '../../../src/hooks/useTasks';
-import { useDebounce } from '../../../src/hooks/useDebounce';
-import { useRefreshControl } from '../../../src/hooks/useRefreshControl';
-import { usePermissions } from '../../../src/hooks/usePermissions';
+
+// ─── Overdue Banner ───────────────────────────────────────────────────────────
+
+const OverdueBanner = ({ count, onPress }: { count: number; onPress: () => void }) => {
+  const colors = useColors();
+  if (count === 0) return null;
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[banner.row, { backgroundColor: colors.semantic.errorBg, borderColor: colors.status.overdue.solid }]}
+    >
+      <View style={banner.iconWrap}>
+        <Feather name="alert-triangle" size={16} color={colors.semantic.error} />
+      </View>
+      <View style={banner.textBlock}>
+        <Text style={[banner.title, { color: colors.semantic.error }]}>
+          {count} task{count > 1 ? 's' : ''} overdue
+        </Text>
+        <Text style={[banner.sub, { color: colors.status.overdue.text }]}>Tap to review overdue tasks</Text>
+      </View>
+      <Feather name="chevron-right" size={16} color={colors.semantic.error} />
+    </Pressable>
+  );
+};
+
+const banner = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[3],
+    marginHorizontal: Spacing[4],
+    marginBottom: Spacing[3],
+    borderRadius: Layout.cardRadius,
+    borderWidth: 1,
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[3],
+  },
+  iconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  textBlock: { flex: 1 },
+  title: { ...Typography.labelMd, fontFamily: 'Inter-SemiBold' },
+  sub: { ...Typography.caption, fontFamily: 'Inter-Regular' },
+});
+
+// ─── Section Header ───────────────────────────────────────────────────────────
+
+const SectionHeader = ({ title, count }: { title: string; count: number }) => {
+  const colors = useColors();
+  return (
+    <View style={[sec.row, { backgroundColor: colors.surface.background }]}>
+      <Text style={[sec.title, { color: colors.text.secondary }]}>{title}</Text>
+      <View style={[sec.badge, { backgroundColor: colors.brand.primaryLight }]}>
+        <Text style={[sec.badgeText, { color: colors.brand.primary }]}>{count}</Text>
+      </View>
+    </View>
+  );
+};
+
+const sec = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[2],
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[4],
+    paddingBottom: Spacing[2],
+  },
+  title: { ...Typography.labelMd, fontFamily: 'Inter-SemiBold', textTransform: 'uppercase', letterSpacing: 0.6, flex: 1 },
+  badge: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
+  badgeText: { ...Typography.labelSm, fontFamily: 'Inter-Bold' },
+});
+
+// ─── No Results ───────────────────────────────────────────────────────────────
+
+const NoResults = ({ search }: { search: string }) => {
+  const colors = useColors();
+  return (
+    <View style={noRes.wrap}>
+      <Feather name="search" size={36} color={colors.text.tertiary} />
+      <Text style={[noRes.title, { color: colors.text.primary }]}>No results for "{search}"</Text>
+      <Text style={[noRes.sub, { color: colors.text.tertiary }]}>Try a different name, department, or task ID</Text>
+    </View>
+  );
+};
+
+const noRes = StyleSheet.create({
+  wrap: { alignItems: 'center', gap: Spacing[2], paddingTop: 60, paddingHorizontal: Spacing[8] },
+  title: { ...Typography.h4, fontFamily: 'Inter-SemiBold', textAlign: 'center' },
+  sub: { ...Typography.bodyMd, fontFamily: 'Inter-Regular', textAlign: 'center' },
+});
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function TasksScreen() {
   const router = useRouter();
-  const { isAdmin } = usePermissions();
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<TaskStatus | 'ALL'>('ALL');
-  const debouncedSearch = useDebounce(search, 400);
+  const insets = useSafeAreaInsets();
+  const colors = useColors();
 
-  const { data, isLoading, refetch } = useTasks({
-    ...(statusFilter !== 'ALL' ? { status: statusFilter } : {}),
-    ...(debouncedSearch ? { search: debouncedSearch } : {}),
-  });
+  const { filters, setStatus, setSearch, applySheet, hasActiveFilters } = useTaskFilterState();
+  const [filterSheetVisible, setFilterSheetVisible] = useState(false);
+  const [overflowTask, setOverflowTask] = useState<MockTask | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const { refreshing, onRefresh } = useRefreshControl(refetch);
+  const { tasks, todayTasks, overdueTasks, isLoading } = useMockTaskList(filters);
+  const { data: statsData } = useMockTaskStats();
+  const stats = statsData ?? { total: 0, pending: 0, inProgress: 0, completed: 0, underReview: 0, overdue: 0 };
 
-  const tasks = data as Array<{
-    id: string;
-    title: string;
-    status: TaskStatus;
-    priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
-    dueDate: string;
-    assignee?: { name: string };
-    department?: { name: string } | null;
-  }> ?? [];
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await new Promise((r) => setTimeout(r, 800));
+    setRefreshing(false);
+  }, []);
+
+  const handleTaskPress = useCallback((id: string) => {
+    router.push(`/(app)/tasks/${id}` as Parameters<typeof router.push>[0]);
+  }, [router]);
+
+  const handleMorePress = useCallback((task: MockTask) => {
+    setOverflowTask(task);
+  }, []);
+
+  const handleOverflowAction = useCallback((action: OverflowAction, task: MockTask) => {
+    if (action === 'view') {
+      router.push(`/(app)/tasks/${task.id}` as Parameters<typeof router.push>[0]);
+    }
+  }, [router]);
+
+  const showSections = filters.status === 'ALL' && !filters.search;
+  const upcomingTasks = useMemo(() => {
+    if (!showSections) return tasks;
+    return tasks.filter((t) => !todayTasks.some((td) => td.id === t.id));
+  }, [tasks, todayTasks, showSections]);
+
+  const renderTask = useCallback(
+    ({ item }: { item: MockTask }) => (
+      <TaskCard task={item} onPress={handleTaskPress} onMorePress={handleMorePress} />
+    ),
+    [handleTaskPress, handleMorePress]
+  );
+
+  const renderLoading = () => (
+    <View style={styles.loadingList}>
+      {[1, 2, 3, 4].map((i) => <TaskCardSkeleton key={i} />)}
+    </View>
+  );
+
+  const ListHeader = (
+    <View>
+      {!isLoading && overdueTasks.length > 0 && filters.status !== 'OVERDUE' && (
+        <OverdueBanner count={overdueTasks.length} onPress={() => setStatus('OVERDUE')} />
+      )}
+      <View style={styles.legendSection}>
+        <TaskPriorityLegend />
+      </View>
+      {showSections && !isLoading && todayTasks.length > 0 && (
+        <SectionHeader title="Today's Tasks" count={todayTasks.length} />
+      )}
+    </View>
+  );
+
+  const todaySection = showSections && todayTasks.length > 0 && !isLoading ? (
+    <View>
+      {todayTasks.map((task) => (
+        <View key={task.id} style={styles.cardWrap}>
+          <TaskCard task={task} onPress={handleTaskPress} onMorePress={handleMorePress} />
+        </View>
+      ))}
+      {upcomingTasks.length > 0 && (
+        <SectionHeader title="Upcoming Tasks" count={upcomingTasks.length} />
+      )}
+    </View>
+  ) : null;
+
+  const currentTasks = showSections ? upcomingTasks : tasks;
+  const noResults = !isLoading && tasks.length === 0;
 
   return (
-    <SafeScreen>
-      <ScreenHeader
-        title="Tasks"
-        rightAction={
-          isAdmin
-            ? { icon: 'plus', label: 'Create task', onPress: () => router.push('/(app)/tasks/create') }
-            : undefined
-        }
-      />
-
-      {/* Search bar */}
-      <View style={styles.searchRow}>
-        <View style={styles.searchWrapper}>
-          <Feather name="search" size={16} color={Colors.text.tertiary} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search tasks..."
-            placeholderTextColor={Colors.text.tertiary}
-            value={search}
-            onChangeText={setSearch}
-            returnKeyType="search"
-          />
-          {search.length > 0 && (
-            <Pressable onPress={() => setSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Feather name="x" size={16} color={Colors.text.tertiary} />
-            </Pressable>
-          )}
+    <View style={[styles.screen, { paddingTop: insets.top, backgroundColor: colors.surface.background }]}>
+      {/* ── Custom Header ── */}
+      <View style={[styles.header, { backgroundColor: colors.surface.card, borderBottomColor: colors.surface.border }]}>
+        <View>
+          <Text style={[styles.headerTitle, { color: colors.text.primary }]}>My Tasks</Text>
+          <Text style={[styles.headerSub, { color: colors.text.tertiary }]}>
+            {isLoading ? 'Loading…' : `${stats.total} total · ${stats.overdue} overdue`}
+          </Text>
         </View>
+        <Pressable
+          onPress={() => setFilterSheetVisible(true)}
+          style={({ pressed }) => [
+            styles.filterBtn,
+            { backgroundColor: colors.surface.background, borderColor: colors.surface.border },
+            hasActiveFilters && { backgroundColor: colors.brand.primary, borderColor: colors.brand.primary },
+            pressed && { opacity: 0.8 },
+          ]}
+          accessibilityLabel="Open filters"
+        >
+          <Feather
+            name="sliders"
+            size={18}
+            color={hasActiveFilters ? colors.text.inverse : colors.text.secondary}
+          />
+          {hasActiveFilters && (
+            <View style={[styles.filterDot, { backgroundColor: colors.semantic.error, borderColor: colors.surface.card }]} />
+          )}
+        </Pressable>
       </View>
 
-      <TaskFilterBar active={statusFilter} onChange={setStatusFilter} />
+      {/* ── Search Bar ── */}
+      <View style={[styles.searchWrap, { backgroundColor: colors.surface.card, borderBottomColor: colors.surface.border }]}>
+        <TaskSearchBar value={filters.search} onChangeText={setSearch} />
+      </View>
 
+      {/* ── Status Filter Chips ── */}
+      <TaskFilterBar active={filters.status} onChange={setStatus} />
+
+      {/* ── Main List ── */}
       <FlatList
-        data={isLoading ? [] : tasks}
+        data={isLoading ? [] : currentTasks}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        ItemSeparatorComponent={() => <View style={{ height: Spacing[3] }} />}
-        ListEmptyComponent={
-          isLoading ? (
-            <View style={styles.loadingList}>
-              <TaskCardSkeleton />
-              <TaskCardSkeleton />
-              <TaskCardSkeleton />
-            </View>
-          ) : (
-            <EmptyState
-              icon="check-square"
-              title={debouncedSearch ? 'No tasks found' : 'No tasks yet'}
-              subtitle={debouncedSearch ? 'Try a different search' : 'Tasks assigned to you will appear here'}
-            />
-          )
-        }
-        renderItem={({ item }) => <TaskCard task={item} />}
+        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + Spacing[8] }]}
         showsVerticalScrollIndicator={false}
+        ItemSeparatorComponent={() => <View style={{ height: Spacing[3] }} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.brand.primary}
+            colors={[colors.brand.primary]}
+          />
+        }
+        ListHeaderComponent={
+          <View>
+            {ListHeader}
+            {todaySection}
+          </View>
+        }
+        ListEmptyComponent={
+          isLoading ? renderLoading() : noResults ? (
+            filters.search ? (
+              <NoResults search={filters.search} />
+            ) : (
+              <EmptyState
+                icon="check-square"
+                title="All caught up!"
+                subtitle={
+                  hasActiveFilters
+                    ? 'No tasks match your current filters'
+                    : 'Tasks assigned to you will appear here'
+                }
+              />
+            )
+          ) : null
+        }
+        renderItem={renderTask}
       />
-    </SafeScreen>
+
+      <FilterBottomSheet
+        visible={filterSheetVisible}
+        current={{
+          sortBy: filters.sortBy,
+          sortOrder: filters.sortOrder,
+          priorities: filters.priorities,
+          departmentId: filters.departmentId,
+        }}
+        onApply={(sheet) => applySheet(sheet)}
+        onClose={() => setFilterSheetVisible(false)}
+      />
+
+      <TaskOverflowSheet
+        visible={overflowTask !== null}
+        task={overflowTask}
+        onAction={handleOverflowAction}
+        onClose={() => setOverflowTask(null)}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  searchRow: {
-    paddingHorizontal: Spacing[4],
-    paddingVertical: Spacing[3],
-    backgroundColor: Colors.surface.card,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.surface.border,
-  },
-  searchWrapper: {
+  screen: { flex: 1 },
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing[2],
-    backgroundColor: Colors.surface.background,
-    borderRadius: 10,
-    paddingHorizontal: Spacing[3],
-    height: 40,
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[3],
+    paddingBottom: Spacing[3],
+    borderBottomWidth: 1,
   },
-  searchInput: {
-    flex: 1,
-    ...Typography.bodyMd,
+  headerTitle: {
+    ...Typography.h2,
+    fontFamily: 'Inter-Bold',
+  },
+  headerSub: {
+    ...Typography.caption,
     fontFamily: 'Inter-Regular',
-    color: Colors.text.primary,
+    marginTop: 2,
+  },
+  filterBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterDot: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    borderWidth: 1,
+  },
+  searchWrap: {
+    borderBottomWidth: 1,
+  },
+  legendSection: {
+    paddingHorizontal: Spacing[4],
+    paddingBottom: Spacing[3],
   },
   list: {
-    padding: Spacing[4],
     paddingBottom: Spacing[8],
   },
-  loadingList: { gap: Spacing[3] },
+  loadingList: {
+    gap: Spacing[3],
+    padding: Spacing[4],
+  },
+  cardWrap: {
+    paddingHorizontal: Spacing[4],
+    marginBottom: Spacing[3],
+  },
 });
