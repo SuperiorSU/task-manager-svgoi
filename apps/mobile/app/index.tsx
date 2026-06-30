@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
 
 import { useAuthStore } from '../src/stores/auth.store';
+import { getHomeRoute } from '../src/utils/roleRoute';
 
 export default function RootIndex() {
   const user = useAuthStore((s) => s.user);
@@ -13,7 +14,7 @@ export default function RootIndex() {
   // if the parent re-renders for any reason (network state, etc.).
   useEffect(() => {
     if (isLoading) return;
-    router.replace(user ? '/(app)/(tabs)' : '/(auth)/login');
+    router.replace(user ? getHomeRoute(user.role) : '/(auth)/login');
   }, [isLoading, user]);
 
   return null;

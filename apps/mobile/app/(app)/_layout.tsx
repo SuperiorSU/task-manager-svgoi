@@ -22,6 +22,8 @@ export default function AppLayout() {
       {user && <SocketInitializer />}
       <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="(admin)" />
+        <Stack.Screen name="(sa)" />
         <Stack.Screen name="tasks/[id]" />
         <Stack.Screen name="tasks/create" />
         <Stack.Screen name="tasks/[id]/comments" />

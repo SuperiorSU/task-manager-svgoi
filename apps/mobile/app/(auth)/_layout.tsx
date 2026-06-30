@@ -3,6 +3,7 @@ import { Stack, useRouter } from 'expo-router';
 
 import { Colors } from '../../src/constants/colors';
 import { useAuthStore } from '../../src/stores/auth.store';
+import { getHomeRoute } from '../../src/utils/roleRoute';
 
 export default function AuthLayout() {
   const user = useAuthStore((s) => s.user);
@@ -12,7 +13,7 @@ export default function AuthLayout() {
   // Swapping causes the entire Stack tree to unmount (TextInputs lose focus,
   // keyboard dismisses, both inputs flash cursor on remount).
   useEffect(() => {
-    if (user) router.replace('/(app)/(tabs)');
+    if (user) router.replace(getHomeRoute(user.role));
   }, [user]);
 
   return (
