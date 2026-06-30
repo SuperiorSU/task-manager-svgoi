@@ -218,9 +218,10 @@ datasource db {
 
 // ─── ENUMS ──────────────────────────────────────────────────────────
 enum Role {
-  SUPER_ADMIN
-  ADMIN
-  EMPLOYEE
+  PLATFORM_MANAGER   // Godigitify infrastructure role — web only, no task ops
+  SUPER_ADMIN        // Org-level admin — mobile + web, full org access
+  ADMIN              // Dept manager — mobile + web, dept-scoped + cross-dept assignment
+  EMPLOYEE           // Operational staff — mobile only, own tasks only
 }
 
 enum TaskStatus {
@@ -345,6 +346,7 @@ model Task {
   recurringConfig Json?      // { frequency: 'daily'|'weekly'|'monthly', endDate: Date }
   parentTaskId String?      // For recurring task instances
   isDeleted    Boolean      @default(false)
+  isCrossDept  Boolean      @default(false)  // TRUE when assignee is in a different dept than creator
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
   acceptedAt   DateTime?
@@ -538,8 +540,7 @@ model RefreshToken {
 
 ```typescript
 // src/shared/guards/requirePermission.guard.ts
-// Permissions are checked server-side on EVERY protected endpoint
-// Never trust client-side permission claims
+// Four-tier permission system — checked server-side on EVERY protected endpoint
 
 export const PERMISSIONS = {
   // Task permissions
@@ -550,48 +551,101 @@ export const PERMISSIONS = {
   TASK_UPDATE_STATUS: 'task:update:status',
   TASK_DELETE: 'task:delete',
   TASK_ASSIGN: 'task:assign',
+  TASK_ASSIGN_CROSSDEPT: 'task:assign:crossdept',  // Admin → other dept
   TASK_REASSIGN: 'task:reassign',
   TASK_BULK_OPS: 'task:bulk',
+  TASK_APPROVE: 'task:approve',     // UNDER_REVIEW → COMPLETED
+  TASK_CANCEL: 'task:cancel',       // ANY → CANCELLED (only creator or SA)
 
   // User permissions
-  USER_CREATE: 'user:create',
+  USER_CREATE_ADMIN: 'user:create:admin',      // SA only
+  USER_CREATE_EMPLOYEE: 'user:create:employee', // SA + Admin (own dept)
   USER_READ: 'user:read',
   USER_UPDATE: 'user:update',
-  USER_DEACTIVATE: 'user:deactivate',
+  USER_SUSPEND: 'user:suspend',
+  USER_REACTIVATE: 'user:reactivate',
+  USER_HARD_DELETE: 'user:delete:hard',        // PLATFORM_MANAGER only
 
   // Department permissions
   DEPT_MANAGE: 'dept:manage',
 
   // Report permissions
-  REPORT_VIEW: 'report:view',
+  REPORT_VIEW_OWN: 'report:view:own',
+  REPORT_VIEW_DEPT: 'report:view:dept',
+  REPORT_VIEW_ORG: 'report:view:org',
   REPORT_DOWNLOAD: 'report:download',
 
-  // Admin
-  SYSTEM_CONFIG: 'system:config',
-  AUDIT_VIEW: 'audit:view',
+  // Audit & system (PLATFORM_MANAGER only)
+  AUDIT_VIEW_ORG: 'audit:view:org',        // SA: own org task audit
+  AUDIT_VIEW_SYSTEM: 'audit:view:system',  // PM only: system-wide audit
+  LOG_MANAGE: 'log:manage',                // PM only
+  SYSTEM_CONFIG: 'system:config',          // PM only
+  ORG_MANAGE: 'org:manage',               // PM only
 } as const;
 
 // Default permission sets by role
 export const ROLE_PERMISSIONS: Record<string, string[]> = {
-  SUPER_ADMIN: Object.values(PERMISSIONS), // All permissions
-  ADMIN: [
+  PLATFORM_MANAGER: [
+    PERMISSIONS.USER_HARD_DELETE,
+    PERMISSIONS.USER_READ,
+    PERMISSIONS.AUDIT_VIEW_SYSTEM,
+    PERMISSIONS.LOG_MANAGE,
+    PERMISSIONS.SYSTEM_CONFIG,
+    PERMISSIONS.ORG_MANAGE,
+    // Note: NO task permissions — PM is not an operational role
+  ],
+  SUPER_ADMIN: [
     PERMISSIONS.TASK_CREATE,
     PERMISSIONS.TASK_READ_ALL,
     PERMISSIONS.TASK_UPDATE_ALL,
+    PERMISSIONS.TASK_DELETE,
     PERMISSIONS.TASK_ASSIGN,
+    PERMISSIONS.TASK_ASSIGN_CROSSDEPT,
     PERMISSIONS.TASK_REASSIGN,
     PERMISSIONS.TASK_BULK_OPS,
-    PERMISSIONS.USER_CREATE,
+    PERMISSIONS.TASK_APPROVE,
+    PERMISSIONS.TASK_CANCEL,
+    PERMISSIONS.USER_CREATE_ADMIN,
+    PERMISSIONS.USER_CREATE_EMPLOYEE,
     PERMISSIONS.USER_READ,
     PERMISSIONS.USER_UPDATE,
-    PERMISSIONS.REPORT_VIEW,
+    PERMISSIONS.USER_SUSPEND,
+    PERMISSIONS.USER_REACTIVATE,
+    PERMISSIONS.DEPT_MANAGE,
+    PERMISSIONS.REPORT_VIEW_OWN,
+    PERMISSIONS.REPORT_VIEW_DEPT,
+    PERMISSIONS.REPORT_VIEW_ORG,
+    PERMISSIONS.REPORT_DOWNLOAD,
+    PERMISSIONS.AUDIT_VIEW_ORG,
+  ],
+  ADMIN: [
+    PERMISSIONS.TASK_CREATE,
+    PERMISSIONS.TASK_READ_ALL,       // Scoped to dept at service layer
+    PERMISSIONS.TASK_UPDATE_ALL,     // Scoped to own tasks at service layer
+    PERMISSIONS.TASK_ASSIGN,
+    PERMISSIONS.TASK_ASSIGN_CROSSDEPT,  // Admin can assign to other depts
+    PERMISSIONS.TASK_REASSIGN,
+    PERMISSIONS.TASK_BULK_OPS,
+    PERMISSIONS.TASK_APPROVE,
+    PERMISSIONS.TASK_CANCEL,         // Own created tasks only
+    PERMISSIONS.USER_CREATE_EMPLOYEE,  // Own dept only, enforced at service layer
+    PERMISSIONS.USER_READ,
+    PERMISSIONS.USER_UPDATE,         // Own dept only
+    PERMISSIONS.USER_SUSPEND,        // Own dept only
+    PERMISSIONS.USER_REACTIVATE,     // Own dept only
+    PERMISSIONS.REPORT_VIEW_OWN,
+    PERMISSIONS.REPORT_VIEW_DEPT,
     PERMISSIONS.REPORT_DOWNLOAD,
   ],
   EMPLOYEE: [
     PERMISSIONS.TASK_READ_OWN,
     PERMISSIONS.TASK_UPDATE_STATUS,
+    PERMISSIONS.REPORT_VIEW_OWN,
   ],
 };
+
+// IMPORTANT: Permissions grant the door; service-layer scoping enforces the room.
+// e.g. ADMIN has USER_SUSPEND but the service checks departmentId before executing.
 ```
 
 ```typescript

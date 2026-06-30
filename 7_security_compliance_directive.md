@@ -155,20 +155,35 @@ if (!task) return sendError(reply, 404, 'NOT_FOUND', 'Task not found');
 
 ### 2.3 Permission Matrix Enforcement
 ```
-Endpoint                          Required Permission        Notes
-POST /tasks                       task:create               Admin, SA only
-GET /tasks                        task:read:all or own      Filtered by role
-PATCH /tasks/:id/status           task:update:status        Own task only (Employee)
-PATCH /tasks/:id                  task:update:all           Admin+ only
-DELETE /tasks/:id                 task:delete               SA only (soft delete)
-POST /tasks/:id/assign            task:assign               Admin+ only
-POST /tasks/bulk                  task:bulk                 Admin+ only
-GET /users                        user:read                 Admin+
-POST /users                       user:create               Admin+
-PATCH /users/:id/deactivate       user:deactivate           Admin+ (own dept only for Admin)
-GET /reports                      report:view               Admin+
-GET /audit                        audit:view                SA only
-GET /admin/config                 system:config             SA only
+Endpoint                          Required Permission          Notes
+POST /tasks                       task:create                  Admin, SA only. PM blocked.
+GET /tasks                        task:read:all or own         Filtered by role at service layer
+PATCH /tasks/:id/status           task:update:status           Own task only (Employee/Admin-as-assignee)
+PATCH /tasks/:id                  task:update:all              Creator or SA only
+DELETE /tasks/:id                 task:delete                  SA only (soft delete)
+POST /tasks/:id/assign            task:assign                  Admin+. Cross-dept checked separately.
+POST /tasks/:id/assign-crossdept  task:assign:crossdept        Admin+. Flags isCrossDept=true on task.
+POST /tasks/bulk                  task:bulk                    Admin+ only
+PATCH /tasks/:id/approve          task:approve                 Task creator or SA only
+PATCH /tasks/:id/cancel           task:cancel                  Task creator or SA only
+
+GET /users                        user:read                    Scoped: Admin=own dept, SA=org, PM=all orgs
+POST /users (employee)            user:create:employee         Admin (own dept) + SA
+POST /users (admin)               user:create:admin            SA only. Admin cannot create Admin.
+PATCH /users/:id/suspend          user:suspend                 Admin (own dept) + SA
+PATCH /users/:id/reactivate       user:reactivate              Admin (own dept) + SA
+DELETE /users/:id                 user:delete:hard             PLATFORM_MANAGER only
+PATCH /users/:id/reset-password   user:update                  Admin (own dept) + SA
+
+GET /departments                  dept:manage                  SA only
+POST /departments                 dept:manage                  SA only
+
+GET /reports/*                    report:view:dept             Admin gets dept-only; SA gets all
+GET /platform/audit               audit:view:system            PLATFORM_MANAGER only
+GET /audit                        audit:view:org               SA only (own org tasks)
+GET /platform/config              system:config                PLATFORM_MANAGER only
+GET /platform/logs                log:manage                   PLATFORM_MANAGER only
+GET /platform/orgs                org:manage                   PLATFORM_MANAGER only
 ```
 
 ---

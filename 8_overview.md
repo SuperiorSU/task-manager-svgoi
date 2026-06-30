@@ -31,57 +31,133 @@ Accent:          #F59E0B (amber — used for in-progress, warnings)
 
 ## 2. Role Architecture (FR-01 through FR-09)
 
-### Three-Tier Role System
+### Four-Tier Role System
+
 ```
-SUPER_ADMIN
-├── Full system access
-├── Manages all departments, all admins, all employees
-├── Only role that can: delete tasks, view audit logs, configure system
-├── Dashboard: org-wide view (all depts combined)
-└── Primary surface: Web Admin (desktop-first use case)
+PLATFORM_MANAGER  ← Super-super admin. Godigitify-level. Web only.
+│
+├── Scope: entire platform (all orgs, all tenants)
+├── Exclusive capabilities:
+│     - Account/org creation and deletion
+│     - System-wide audit log access and export
+│     - User lifecycle management across all orgs (create, suspend, hard-delete)
+│     - Log management (retention, archival, purge)
+│     - System configuration and feature flags
+│     - Billing / plan management (future)
+├── Cannot: create or assign tasks (not an operational role)
+├── Dashboard: platform-level (org count, user count, system health)
+└── Primary surface: Web Admin ONLY — never the mobile app
 
-ADMIN
-├── Department-scoped (can be assigned to 1+ departments)
-├── Creates + assigns tasks within their department(s)
-├── Manages employees in their department
-├── Dashboard: dept-level view
-├── Reports: dept-level only (SA sees org-wide)
-└── Primary surface: Both Web Admin + Mobile App
+SUPER_ADMIN  ← Org-level administrator. SVGOI leadership.
+│
+├── Scope: entire SVGOI organisation
+├── Task capabilities:
+│     - Create tasks and assign to ANY Admin or ANY Employee across all departments
+│     - Reassign, edit, cancel, or soft-delete any task
+│     - Approve/reject task submissions (UNDER_REVIEW → COMPLETED or back to IN_PROGRESS)
+├── User management (via Mobile App + Web Admin):
+│     - Create Admin accounts
+│     - Create Employee accounts
+│     - Suspend / reactivate any user
+│     - Reset any user's password
+│     - Assign users to departments
+│     - Cannot hard-delete users (PLATFORM_MANAGER only)
+├── Visibility: org-wide dashboard, all departments, all tasks
+├── Reports: org-wide + dept-level + individual
+├── Audit logs: read-only (write access is PLATFORM_MANAGER only)
+└── Primary surface: Mobile App + Web Admin
 
-EMPLOYEE
-├── Sees only their own assigned tasks
-├── Can: accept, update status, add comments, upload proof
-├── Cannot: create tasks, see other employees' tasks, access web admin
-└── Primary surface: Mobile App ONLY
+ADMIN  ← Department manager / HOD.
+│
+├── Scope: their assigned department(s) — can be multi-dept
+├── Task capabilities:
+│     - Create tasks and assign to:
+│         → Employees within their own department(s)
+│         → Admins of OTHER departments (cross-dept admin assignment ✅)
+│         → Employees of OTHER departments (cross-dept employee assignment — configurable per org)
+│     - Reassign tasks (within scope)
+│     - Approve/reject task submissions for tasks they created
+│     - Cannot delete tasks (soft-cancel only)
+├── User management (via Mobile App):
+│     - Create Employee accounts within their department
+│     - Suspend / reactivate employees in their department
+│     - Cannot create Admin accounts (SA only)
+│     - Cannot manage users outside their department
+├── Dashboard: own dept(s) view + summary of tasks assigned to other depts
+├── Reports: own dept + employees they manage
+└── Primary surface: Mobile App + Web Admin
+
+EMPLOYEE  ← Operational staff.
+│
+├── Scope: their own assigned tasks only
+├── Task capabilities:
+│     - Accept assigned tasks
+│     - Update status (PENDING→ACCEPTED→IN_PROGRESS→UNDER_REVIEW)
+│     - Add comments and @mentions on own tasks
+│     - Upload completion proof
+│     - Request clarifications
+│     - Cannot create tasks, cannot see other employees' tasks
+├── User management: none
+├── Dashboard: personal task summary only
+└── Primary surface: Mobile App ONLY — zero web admin access
 ```
 
 ### Permission Matrix Implementation
 ```typescript
-// Extend base PERMISSIONS from 07_SECURITY_CHECKLIST with SVGOI-specific additions:
+// Four-tier permission system — extend base PERMISSIONS from 07_SECURITY_CHECKLIST
 
-// Status transition permissions (who can do what):
-// PENDING → ACCEPTED:      Task assignee (EMPLOYEE)
-// ACCEPTED → IN_PROGRESS:  Task assignee (EMPLOYEE)
-// IN_PROGRESS → UNDER_REVIEW: Task assignee (EMPLOYEE)
-// UNDER_REVIEW → COMPLETED:   Task creator (ADMIN/SA)
-// UNDER_REVIEW → IN_PROGRESS: Task creator (ADMIN/SA) — reject submission
-// ANY → CANCELLED:            Task creator or SA only
+// ─── Task assignment matrix (FR-13) ─────────────────────────────────
+// PLATFORM_MANAGER → nobody (not an operational role)
+// SUPER_ADMIN      → ADMIN (any dept)     ✅
+// SUPER_ADMIN      → EMPLOYEE (any dept)  ✅
+// ADMIN            → ADMIN (any dept)     ✅  ← KEY CHANGE: cross-dept admin assignment allowed
+// ADMIN            → EMPLOYEE (own dept)  ✅
+// ADMIN            → EMPLOYEE (other dept)✅  (configurable org setting, default ON)
+// EMPLOYEE         → self                 ✅  (self-tasks, requires manager approval if configured)
 
-// Multi-level assignment matrix (FR-13):
-// SA → ADMIN:      ✅
-// SA → EMPLOYEE:   ✅
-// ADMIN → ADMIN:   ✅ (same dept only)
-// ADMIN → EMPLOYEE:✅ (own dept only)
-// EMPLOYEE → self: ✅ (self-tasks, requires manager approval if configured)
+// ─── Status transition matrix ────────────────────────────────────────
+// PENDING       → ACCEPTED:       Task assignee (any role)
+// ACCEPTED      → IN_PROGRESS:    Task assignee (any role)
+// IN_PROGRESS   → UNDER_REVIEW:   Task assignee (any role)
+// UNDER_REVIEW  → COMPLETED:      Task creator (ADMIN / SUPER_ADMIN)
+// UNDER_REVIEW  → IN_PROGRESS:    Task creator (ADMIN / SUPER_ADMIN) — reject/revision
+// ANY           → CANCELLED:      Task creator OR SUPER_ADMIN only
+// COMPLETED     → (terminal):     No transitions out of COMPLETED
+// CANCELLED     → (terminal):     No transitions out of CANCELLED
+
+// ─── User management permissions ────────────────────────────────────
+// PLATFORM_MANAGER: create/suspend/hard-delete any user, any org
+// SUPER_ADMIN:      create Admin + Employee, suspend/reactivate any user in org
+// ADMIN:            create Employee (own dept), suspend/reactivate Employee (own dept)
+// EMPLOYEE:         none
+
+// ─── Audit / system access ──────────────────────────────────────────
+// PLATFORM_MANAGER: full audit log (all orgs), system config, log management
+// SUPER_ADMIN:      read-only audit log (own org), org-level reports
+// ADMIN:            read-only task activity (own dept tasks only)
+// EMPLOYEE:         read-only activity on own tasks only
+
+export const ROLE_HIERARCHY = {
+  PLATFORM_MANAGER: 4,
+  SUPER_ADMIN: 3,
+  ADMIN: 2,
+  EMPLOYEE: 1,
+} as const;
+
+// RBAC rule: a user can only manage users with a strictly lower hierarchy value
+// e.g. SA (3) can manage ADMIN (2) and EMPLOYEE (1), but not another SA (3)
 ```
 
 ---
 
 ## 3. Screen Inventory — Mobile App
 
+> **Note:** PLATFORM_MANAGER has NO mobile app access. PM operates exclusively via Web Admin.
+> All other roles (SUPER_ADMIN, ADMIN, EMPLOYEE) use the mobile app as their primary surface.
+
 ### Authentication Screens
 ```
-/login                 → Login with Employee ID + Password
+/login                 → Login with Employee ID + Password (all roles)
 /forgot-password       → Request reset link via email
 /reset-password        → Set new password (from email link deeplink)
 ```
@@ -94,26 +170,46 @@ Tab 3: Calendar
 Tab 4: Profile
 ```
 
-### Admin/SA Tab Navigator (4 tabs)
+### Admin Tab Navigator (5 tabs)
 ```
 Tab 1: Dashboard
-Tab 2: Tasks (all tasks, with department filter)
-Tab 3: Calendar
-Tab 4: Profile
+Tab 2: Tasks (all dept tasks, with cross-dept filter)
+Tab 3: Team (user management for own dept)
+Tab 4: Calendar
+Tab 5: Profile
+```
+
+### Super Admin Tab Navigator (5 tabs)
+```
+Tab 1: Dashboard
+Tab 2: Tasks (org-wide, all departments)
+Tab 3: People (org-wide user management — admins + employees)
+Tab 4: Calendar
+Tab 5: Profile
 ```
 
 ### Stack Screens (pushed from tabs)
 ```
-tasks/[id]                  → Task Detail
-tasks/[id]/comments         → Comments thread (full screen)
-tasks/create                → Create Task (Admin+ only)
-tasks/[id]/edit             → Edit Task (Admin+ only)
-tasks/[id]/upload-proof     → Upload completion proof
-notifications               → Notification center
-reports/index               → Reports overview (Admin+ only)
-profile/edit                → Edit profile
-profile/change-password     → Change password
-profile/notification-settings → Notification preference toggles
+tasks/[id]                     → Task Detail
+tasks/[id]/comments            → Comments thread (full screen)
+tasks/create                   → Create Task (Admin+ only)
+tasks/[id]/edit                → Edit Task (Admin+ only)
+tasks/[id]/upload-proof        → Upload completion proof
+notifications                  → Notification center
+reports/index                  → Reports overview (Admin+ only)
+
+─── User Management (Admin+ only, via People / Team tab) ───────────
+people/index                   → User list (SA: all users | Admin: own dept)
+people/create                  → Create new user (SA: Admin or Employee | Admin: Employee only)
+people/[id]                    → User profile view
+people/[id]/edit               → Edit user details
+people/[id]/suspend            → Suspend / reactivate user (confirmation modal)
+people/[id]/reset-password     → Force password reset for user
+
+─── Profile ────────────────────────────────────────────────────────
+profile/edit                   → Edit own profile
+profile/change-password        → Change own password
+profile/notification-settings  → Notification preference toggles
 ```
 
 ---
@@ -153,26 +249,43 @@ Recent activity (last 3 events on my tasks — status changes, comments)
 
 ### 4.3 Dashboard Screen (Admin)
 ```
-Additional stats for Admin:
-[Dept Tasks]  [Team Pending]
-[Team Done]   [Team Overdue]
+Stats row 1 — Own department:
+[Dept Tasks: 24]   [Team Pending: 8]
+[Team Done: 14]    [Team Overdue: 2]
+
+Stats row 2 — Tasks assigned OUT to other depts (Admin cross-dept assignment):
+[Assigned Out: 6]  [Out Pending: 3]   ← only visible if Admin has cross-dept assignments
+
+Overdue alert banner (if team overdue > 0):
+"⚠️ [N] tasks in [Dept Name] are overdue. Tap to view."
 
 Additional sections:
-- Workload distribution: horizontal bar per team member (compact, max 5 visible + "see all")
+- Workload distribution: horizontal bar per team member (compact, max 5 + "see all")
 - Department completion rate: ring chart (FR-26)
+- Cross-dept assigned tasks summary: compact list of tasks sent to other depts
 - Quick action: [+ Create Task] FAB (floating action button, bottom-right)
 ```
 
 ### 4.4 Dashboard Screen (Super Admin)
 ```
-Org-wide stats:
-[Total Tasks]  [Across All Depts]
-[Org Completed] [Org Overdue]
+Org-wide stats row:
+[Total Tasks]    [Org Pending]
+[Org Completed]  [Org Overdue]
+
+People stats row:
+[Active Users]   [Departments]   ← tappable → People screen
+
+Overdue alert banner (if org overdue > 0):
+"⚠️ [N] tasks across [M] departments are overdue."
 
 Additional sections:
 - Department comparison: small bar chart (dept names + completion %)
-- System health: [N] active users, [N] admins, [N] departments
-- Recent audit events (last 5)
+- Workload distribution: dept-level summary (not employee-level — too granular for SA dash)
+- Upcoming (org-wide, next 3 days of critical/high priority tasks only)
+- Quick actions row: [+ Create Task]  [+ Add User]  [View Reports]
+
+Note: SA does NOT see system audit logs on the dashboard — that is PLATFORM_MANAGER territory.
+      SA sees task activity and org-level operational data only.
 ```
 
 ### 4.5 My Tasks Screen
@@ -247,12 +360,24 @@ Bottom action bar (fixed, role-contextual):
     PENDING:        [Accept Task]                          (full-width, primary)
     ACCEPTED:       [Mark In Progress]                     (full-width, primary)
     IN_PROGRESS:    [Submit for Review] [+ Upload Proof]   (split, proof optional or required)
-    UNDER_REVIEW:   Waiting... (read-only message)
-    COMPLETED:      Completed ✓ (read-only)
+    UNDER_REVIEW:   Waiting for review... (read-only message, grey)
+    COMPLETED:      Completed ✓ (read-only, green)
 
-  For ADMIN (on team task):
+  For ADMIN (on task they CREATED):
     UNDER_REVIEW:   [Approve & Complete] [Request Revision]
-    Any status:     [Reassign] [Edit] (in bottom overflow menu)
+    Any status:     [Reassign] [Edit] [Cancel Task] (in bottom overflow menu ⋮)
+
+  For ADMIN (on task assigned TO them by SA or another Admin):
+    Same flow as EMPLOYEE — they are the assignee:
+    PENDING:        [Accept Task]
+    ACCEPTED:       [Mark In Progress]
+    IN_PROGRESS:    [Submit for Review] [+ Upload Proof]
+    UNDER_REVIEW:   Waiting for review... (read-only)
+
+  For SUPER_ADMIN (on any task):
+    UNDER_REVIEW:   [Approve & Complete] [Request Revision]
+    Any status:     [Reassign] [Edit] [Cancel Task] (always available)
+    Full overflow:  [Edit] [Reassign] [Cancel] [View Audit Trail]
 
 Comment input (always visible):
   - Expandable text input
@@ -265,23 +390,34 @@ Comment input (always visible):
 Form fields (in order):
 1. Task Title (required, max 200 chars, char counter shown at 150+)
 2. Description (optional, markdown supported, max 5000 chars)
-3. Department (required for SA, pre-filled for Admin)
-4. Assignee (required, searchable dropdown filtered by department)
-   - Multi-assignee NOT in v1 (simplify — one task, one owner)
-5. Priority (required, visual selector: 4 colored pills)
+3. Department (required for SA — any dept; pre-filled for Admin but changeable for cross-dept assign)
+   - Admin sees own dept pre-selected but CAN switch to another dept for cross-dept assignment
+   - Changing department resets the Assignee field
+4. Assignee (required, searchable dropdown):
+   - SA: shows all active users across all departments, grouped by dept
+   - Admin: shows users in selected department (own dept OR cross-dept if switched)
+   - Assignee role can be ADMIN or EMPLOYEE — both valid
+   - Multi-assignee NOT in v1 (one task, one owner)
+5. Priority (required, visual selector: 4 colored pills — Critical / High / Medium / Low)
 6. Due Date + Time (required, datetime picker)
 7. Category/Type (optional, configurable dropdown)
-8. Attachments (optional, up to 5 files)
+8. Attachments (optional, up to 5 reference files)
 9. Recurring (toggle → reveals: daily/weekly/monthly + end date)
 
 Validation:
 - Due date must be in the future
-- Assignee must be active and in selected department
+- Assignee must be active
+- If cross-dept assignment: show confirmation chip "Assigning to [Dept Name] — [Assignee Name]"
 - Title uniqueness: warn (not block) if duplicate title exists for same dept this month
 
 Submission:
-- [Save as Draft] (saves without notifying assignee) — future v1.1
-- [Create & Assign] → creates task + sends push notification to assignee
+- [Save as Draft] — saves without notifying assignee (v1.1)
+- [Create & Assign] → creates task + sends push notification to assignee immediately
+
+Cross-dept assignment UX note:
+  When Admin selects a department other than their own, show a subtle info chip:
+  "ℹ️ This task will be assigned outside your department"
+  This is informational only — not a blocker.
 ```
 
 ### 4.8 Calendar Screen
@@ -337,7 +473,7 @@ Empty state: "All caught up! 🎉" + bell illustration
 Top section (non-scrollable):
   - Avatar (64pt) with edit overlay → image picker
   - Name (h3, semiBold)
-  - Role badge + Department chip
+  - Role badge + Department chip (employees + admins)
   - Employee ID (caption, monospace)
 
 Settings list sections:
@@ -356,6 +492,7 @@ NOTIFICATIONS
 REPORTS (Admin+ only)
   > My Performance       → Reports screen
   > Department Report    → Reports screen
+  > Organisation Report  → Reports screen (SA only)
 
 APP
   > About TaskFlow SVGOI
@@ -363,6 +500,94 @@ APP
 
 Bottom (no section header):
   > Sign Out             (danger red text, no button border)
+
+Note: User management is NOT in Profile — it lives in the dedicated
+      People tab (SA) or Team tab (Admin) in the tab navigator.
+      Profile is for the current user's own settings only.
+```
+
+### 4.11 People / Team Screen (Admin+ only)
+```
+Header: "People" (SA) or "My Team" (Admin)
+Sub-header chip: "[N] Active · [M] Suspended" (tappable toggles between views)
+
+Search bar: debounced 300ms, searches name + employee ID + email
+
+Filter chips (horizontal scroll):
+  SA view:    [All] [Admins] [Employees] [Suspended] — all depts, dept filter dropdown
+  Admin view: [All] [Employees] [Suspended] — own dept only
+
+User card (in list):
+  [Avatar] [Name]          [Role badge]
+           [Dept chip]     [Status: Active / Suspended]
+           [Employee ID]
+  → Tap: opens User Profile view
+  → Swipe left (Admin on own-dept employee): [Suspend] (amber) | [Reset PWD] (blue)
+  → Swipe left (SA on any user):             [Suspend] (amber) | [Reset PWD] (blue)
+
+FAB: [+ Add User]
+  SA sees: role selector (Admin / Employee) → create user form
+  Admin sees: Employee-only create form (no role selector, defaults to Employee)
+
+Empty state: "No team members yet. Add your first team member."
+```
+
+### 4.12 Create / Edit User Screen (Admin+ only)
+```
+Fields:
+1. Full Name (required)
+2. Employee ID (required, unique — validated against org)
+3. Email (required, used for password reset only — not the login identifier)
+4. Phone (optional)
+5. Role (required):
+   - SA sees: [Admin] [Employee] selector
+   - Admin sees: Employee only (no selector shown)
+6. Department (required):
+   - SA: department dropdown (all active depts)
+   - Admin: pre-filled with own dept, read-only
+7. Designation / Job Title (optional)
+8. Reporting Manager (optional, searchable — shows Admins in selected dept)
+
+On create:
+  - System generates a temporary password and emails it to the user
+  - User is prompted to change password on first login
+  - Toast: "User created. Temporary password sent to [email]"
+
+On edit:
+  - Role and Department changes require confirmation modal
+  - Role downgrade (Admin → Employee) warns: "This will remove their task creation access"
+```
+
+### 4.13 User Profile View Screen (Admin+ only — viewing another user)
+```
+Layout:
+  [Avatar 80pt]   [Name h2]
+                  [Role badge] [Status badge: Active/Suspended]
+                  [Dept chip]  [Employee ID monospace]
+  
+  CONTACT
+  > Email: user@svgoi.ac.in
+  > Phone: +91 XXXXXX
+
+  TASK SUMMARY (last 30 days)
+  > Assigned: [N]   Completed: [N]   Overdue: [N]
+  > On-time rate: [N%]
+
+  RECENT TASKS (last 5, compact cards)
+
+  ACTIONS (overflow menu ⋮ top right):
+  SA on any user:
+    > Edit Profile
+    > Reset Password  → sends email with reset link
+    > Suspend Account → confirmation modal: "Suspend [Name]? They will be logged out immediately."
+    > Reactivate      → (shown only if suspended)
+
+  Admin on own-dept employee:
+    > Edit Profile
+    > Reset Password
+    > Suspend Account / Reactivate
+
+  Admin on another dept's user: READ ONLY (no actions)
 ```
 
 ---
@@ -462,38 +687,44 @@ Upload flow (mobile):
 
 ## 7. Reports Module (FR-57)
 
-### Report Types
+### Report Types & Access Matrix
 ```
 1. Individual Performance Report
    - Date range: configurable (default last 30 days)
    - Metrics: tasks assigned, completed, on-time rate, avg completion time
    - Trend chart: daily completion over date range
    - Generated: PDF via Puppeteer (HTML template → PDF)
-   - Available to: SA (all employees), Admin (own dept employees), Employee (own)
+   - Available to: SA (all employees), Admin (own dept employees only), Employee (own report only)
 
 2. Department Performance Report
    - Date range: configurable
    - Metrics: total tasks, completion %, overdue %, avg resolution time
    - Comparison: vs previous period, vs org average
-   - Available to: SA (all depts), Admin (own dept)
+   - Available to: SA (all depts), Admin (own dept only)
 
-3. Organization Summary Report
+3. Organisation Summary Report
    - Date range: configurable
-   - Top-level KPIs + department breakdown
+   - Top-level KPIs + department-by-department breakdown
    - Available to: SA only
 
 4. Task Audit Report
-   - All tasks in date range with full activity trail
-   - Used for compliance / management review
-   - Available to: SA only
+   - All tasks in date range with full activity trail per task
+   - Used for operational compliance / management review
+   - Available to: SA only (own org tasks)
+   - Note: PLATFORM_MANAGER has a separate system-level audit export — not this report
+
+5. Cross-Department Assignment Report  ← NEW (reflects new Admin cross-dept capability)
+   - Shows tasks that an Admin assigned OUTSIDE their own department
+   - Tracks completion rates of cross-dept assignments vs own-dept assignments
+   - Available to: SA only (org-wide view) + Admin (their own cross-dept assignments)
 
 Report generation flow:
-1. Admin requests report via app/web
+1. User requests report via app or web admin
 2. API enqueues report job in BullMQ (reportQueue)
 3. Worker generates PDF using HTML template + Puppeteer
-4. PDF saved to Supabase storage (reports/ bucket)
-5. Push notification sent: "Your report is ready"
-6. App calls GET /reports/{id}/download → gets signed URL → opens in device PDF viewer
+4. PDF saved to Supabase storage (reports/ bucket, scoped to requester's org)
+5. Push notification sent to requester: "Your [Report Type] report is ready"
+6. App calls GET /reports/{id}/download → gets signed URL (15 min) → opens in device PDF viewer
 ```
 
 ---
@@ -622,17 +853,42 @@ Deliverable: v1.0 deployed to production. App submitted to both stores.
 ## 11. Known Architectural Decisions & Rationale
 
 ```
+DECISION: Four-tier role system (PLATFORM_MANAGER / SUPER_ADMIN / ADMIN / EMPLOYEE)
+RATIONALE: PLATFORM_MANAGER is a Godigitify-level infrastructure role, not a client role.
+           Separating it from SUPER_ADMIN means SVGOI leadership (SA) never has system-config
+           access, and Godigitify retains control of account/log management across all clients.
+           This also future-proofs multi-tenancy — one PM manages many SVGOI-type orgs.
+
+DECISION: PLATFORM_MANAGER is web-only — no mobile app access
+RATIONALE: PM's job is system administration: user lifecycle, log management, audit exports.
+           These are deliberate, seated-at-a-desk tasks.
+           Forcing PM to mobile creates security risk (PM credentials on a device).
+           PM has no operational task work that would require mobile access.
+
+DECISION: SUPER_ADMIN uses Mobile App as primary surface (not web-only)
+RATIONALE: SVGOI leadership needs real-time visibility while walking departments.
+           A college principal or head of institution is not desk-bound.
+           SA retains full web admin access as well — it's not a restriction, it's an addition.
+           User management (create, suspend, reset password) is exposed via the mobile People tab.
+
+DECISION: ADMIN can assign tasks cross-department (to other Admins AND Employees in other depts)
+RATIONALE: College operations frequently span departments. Lab work assigned by CS dept head
+           to Physics dept staff is a real SVGOI use case. Restricting to own-dept-only would
+           force SAs to intermediate every cross-dept task — creating a bottleneck.
+           SAFEGUARD: cross-dept assignments are tracked separately in dashboard + reports.
+           SA can see exactly which Admin is assigning outside their scope.
+
 DECISION: Single assignee per task (not multi-assignee)
-RATIONALE: BRD FR-12 mentions "multiple employees" but also "specify task owners" (singular).
-           SVGOI's use case is accountability-driven — one owner per task.
-           Multi-assignee makes status transitions ambiguous ("who accepts?").
+RATIONALE: BRD FR-12 mentions "multiple employees" but SVGOI's use case is accountability-driven.
+           One task, one owner. Multi-assignee makes status transitions ambiguous ("who accepts?").
            MITIGATION: Admin can duplicate task (FR-23) to assign same work to multiple people.
            FUTURE: v1.1 can add co-assignees as read-only watchers.
 
-DECISION: Employees are mobile-only (no web admin access)
-RATIONALE: Employees perform operational tasks on-the-go.
-           Web admin is management-layer tooling.
-           Reduces scope significantly, improves security (fewer attack surfaces for regular users).
+DECISION: Employee accounts created by Admin or SA (no self-registration)
+RATIONALE: SVGOI is a controlled institutional environment. HR assigns employee IDs.
+           Self-registration would create unverified accounts outside the org hierarchy.
+           ADMIN can create Employee accounts within their own department.
+           SA can create both Admin and Employee accounts across all departments.
 
 DECISION: PDF report generation via BullMQ (async)
 RATIONALE: Puppeteer is slow (2–10 seconds). Blocking the API request is unacceptable.
@@ -659,38 +915,77 @@ RATIONALE: Adds complexity (expo-local-authentication + secure token linking).
 
 ### Auth
 ```
-□ Employee logs in with Employee ID + correct password → lands on Dashboard
+□ Employee logs in with Employee ID + correct password → lands on Dashboard (4-tab)
+□ Admin logs in → lands on Dashboard (5-tab with Team tab)
+□ SA logs in → lands on Dashboard (5-tab with People tab)
+□ PM logs in via web → lands on PM web dashboard (no mobile access)
+□ PM tries to access mobile app login → account not recognised (PM role blocked on mobile)
 □ Employee logs in with wrong password → error message, no redirect
-□ Employee locked after 5 attempts → sees lockout message, can retry after 15 min
-□ SA resets employee password → employee receives email, sets new password
+□ Employee locked after 5 attempts → lockout message, can retry after 15 min
+□ SA resets employee password → employee receives email, sets new password on first login
+□ Admin resets own-dept employee password → works (own dept only)
+□ Admin tries to reset another dept's employee password → 403 Forbidden
 □ Refresh token used twice → second use returns 401 (rotation enforcement)
 ```
 
 ### Task Workflow
 ```
-□ SA creates task for Employee → Employee gets push notification immediately
-□ Employee accepts task → status → ACCEPTED, creator gets push notification
-□ Employee submits for review with proof → SA/Admin notified
-□ Admin approves → task COMPLETED, employee notified
-□ Admin rejects (request revision) → task back to IN_PROGRESS, employee notified
-□ Task passes due date without completion → overdue notification sent, badge shown
-□ Admin reassigns task → old assignee notified, new assignee notified, history preserved
+□ SA creates task → assigns to Admin in Dept A → Admin gets push notification
+□ SA creates task → assigns to Employee in Dept B → Employee gets push notification
+□ Admin (Dept A) creates task → assigns to Admin in Dept B (cross-dept) → Dept B Admin notified
+□ Admin (Dept A) creates task → assigns to Employee in Dept B (cross-dept) → Employee notified
+□ Employee accepts task → status ACCEPTED, creator notified
+□ Employee submits for review with proof → task creator (Admin/SA) notified
+□ Admin (creator) approves → COMPLETED, employee notified
+□ Admin (creator) rejects → back to IN_PROGRESS, employee notified
+□ Admin (assignee on a task from SA) acts as employee — accepts, progresses, submits
+□ Task passes due date → overdue notification to assignee, escalation after 4h to manager
+□ SA cancels any task → CANCELLED, assignee notified, history preserved
+□ Admin tries to cancel a task they didn't create → 403 Forbidden
 ```
 
-### RBAC
+### RBAC — Four-Tier Enforcement
 ```
-□ Employee tries GET /tasks (all tasks) → 403 Forbidden
-□ Employee tries to update another employee's task status → 404 (IDOR protection)
-□ Admin tries to view another dept's tasks → 403 Forbidden
-□ Admin tries to access /audit-logs → 403 Forbidden
-□ SA can access all of the above → 200 OK
+□ EMPLOYEE tries GET /tasks (all tasks) → 403 Forbidden
+□ EMPLOYEE tries to update another employee's task status → 404 (IDOR protection)
+□ ADMIN tries to view another dept's user list → 403 Forbidden
+□ ADMIN tries to create an Admin account → 403 Forbidden (SA only)
+□ ADMIN suspends own-dept employee → 200 OK, user logged out, refresh tokens revoked
+□ ADMIN tries to suspend another dept's employee → 403 Forbidden
+□ SA suspends any user → 200 OK, user logged out immediately
+□ SA tries to view system-level audit logs → 403 Forbidden (PM only)
+□ PM accesses system audit log → 200 OK
+□ PM tries to create a task → 403 Forbidden (PM is not an operational role)
+□ PM tries to access the mobile app → blocked at auth layer
+```
+
+### Cross-Department Task Assignment
+```
+□ Admin assigns task to employee in same dept → works, appears in Admin's task list
+□ Admin assigns task to admin in different dept → works, cross-dept summary shows on dashboard
+□ Admin assigns task to employee in different dept → works (if org setting ON)
+□ Assigned cross-dept admin acts as assignee (accepts, progresses, submits)
+□ Cross-dept task creator (Admin A) approves submission from Admin B → COMPLETED
+□ Cross-dept assignment appears in SA's org-wide task view with correct dept labels
+□ Cross-dept assignment report (SA) correctly tracks Admin A's assignments to other depts
+```
+
+### User Management (Mobile App)
+```
+□ SA creates Admin account via mobile People tab → Admin gets email with temp password
+□ SA creates Employee account → Employee gets email with temp password
+□ SA suspends Admin → Admin immediately kicked out (push refresh triggers logout)
+□ SA reactivates suspended Employee → Employee can log in again
+□ Admin creates Employee in own dept via mobile Team tab → Employee gets email
+□ Admin tries to create Employee in another dept (via API) → 403 Forbidden
+□ New user logs in with temp password → forced to set new password before seeing dashboard
 ```
 
 ### Offline
 ```
 □ Employee opens app with no internet → sees cached task list with offline banner
 □ Employee tries to change status offline → queued, replays on reconnect
-□ Notification received while offline → appears on reconnect in correct order
+□ Notification received while offline → appears in correct order on reconnect
 ```
 
 ---
@@ -699,18 +994,27 @@ RATIONALE: Adds complexity (expo-local-authentication + secure token linking).
 
 ### ✅ DO
 - Use **Employee ID** (not email) as the primary login identifier — SVGOI uses HR-assigned IDs
-- Scope ALL Admin queries to their **department(s)** — never show cross-dept data by accident
+- Treat **PLATFORM_MANAGER as infrastructure, not operations** — PM creates orgs and manages logs; PM never touches tasks
+- Allow **ADMIN to assign tasks cross-department** — track these in a separate dashboard section
+- Make **SUPER_ADMIN mobile-first** — the People tab on mobile is their primary user management surface
+- Scope ALL Admin DATA queries to their **department(s)** — unless the query is cross-dept task assignment scope
 - Show **overdue tasks prominently** — they are the most operationally critical signal
 - Send push notifications for **task assignment immediately** — the whole value prop is instant visibility
+- **Suspend users immediately** — revoke all refresh tokens on suspend so they're logged out within seconds
 - Preserve **complete task history** per FR-20 — even cancelled tasks have immutable audit trails
 - Support **PDF upload for completion proof** — lab reports, forms, signed documents are PDFs in SVGOI context
 - Use the **PetPooja-style priority stripe** (left border) on every task card — it's the design signature
+- Show **cross-dept assignment context** on the task detail screen (e.g. "Assigned by Physics Dept → CS Dept")
 
 ### ❌ DON'T
-- Never let an Employee see another Employee's tasks — isolation is non-negotiable per BRD
-- Never hard-delete any task or audit record — soft-delete (isDeleted=true) always
+- Never give **PLATFORM_MANAGER** access to the mobile app — web only, always
+- Never let **PLATFORM_MANAGER create or assign tasks** — not an operational role
+- Never let an **Employee** see another Employee's tasks — isolation is non-negotiable per BRD
+- Never let an **Admin create another Admin** — Super Admin only
+- Never allow an **Admin to manage users outside their department** — dept-scoped always
+- Never hard-delete any task, user, or audit record — soft-delete (isDeleted=true / isActive=false) always
 - Never block the UI during report generation — always async via BullMQ
-- Never show department-switching in the app — Admin is scoped to their dept(s) permanently
 - Never skip the **task acceptance step** (FR-17) — it's contractually required per BRD
 - Never allow status to go backwards except **UNDER_REVIEW → IN_PROGRESS** (revision flow)
+- Never expose **system audit logs** to Super Admin — those are PLATFORM_MANAGER territory
 - Never let EAS production builds go out without both iOS + Android tested on physical devices

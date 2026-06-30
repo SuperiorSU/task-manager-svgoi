@@ -159,20 +159,29 @@ export const config = {
 
 ```typescript
 // src/app/(admin)/layout.tsx
-// Server component — fetch session server-side
+// Server component — fetch session server-side, gate by role
 import { redirect } from 'next/navigation';
 import { getServerSession } from '@/lib/session';
 import { AdminShell } from '@/components/layout/AdminShell';
+import { PlatformShell } from '@/components/layout/PlatformShell';
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession();
   if (!session) redirect('/login');
 
-  // Only admins can access web dashboard
-  if (session.user.role === 'EMPLOYEE') {
-    redirect('/unauthorized'); // Employees use mobile app only
+  const { role } = session.user;
+
+  // Employees are mobile-only — never web admin
+  if (role === 'EMPLOYEE') {
+    redirect('/unauthorized');
   }
 
+  // PLATFORM_MANAGER gets a completely separate shell (different nav, different branding)
+  if (role === 'PLATFORM_MANAGER') {
+    return <PlatformShell user={session.user}>{children}</PlatformShell>;
+  }
+
+  // SUPER_ADMIN and ADMIN share the AdminShell (nav items filtered by permission)
   return <AdminShell user={session.user}>{children}</AdminShell>;
 }
 ```
@@ -183,17 +192,29 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
 ```typescript
 // src/constants/navigation.ts
-import type { Permission } from '@godigitify/types';
+// Navigation is role-filtered — each item only renders if the user has the required permission
 
 type NavItem = {
   label: string;
   href: string;
   icon: string;
   permission?: string;
+  roles?: string[];        // Alternative to permission — restrict by role directly
   children?: NavItem[];
 };
 
-export const NAV_ITEMS: NavItem[] = [
+// ─── PLATFORM_MANAGER nav (web only) ─────────────────────────────────
+export const PM_NAV_ITEMS: NavItem[] = [
+  { label: 'Platform Overview', href: '/platform', icon: 'globe' },
+  { label: 'Organisations', href: '/platform/orgs', icon: 'building' },
+  { label: 'All Users', href: '/platform/users', icon: 'users', permission: 'user:read' },
+  { label: 'Audit Logs', href: '/platform/audit', icon: 'shield', permission: 'audit:view:system' },
+  { label: 'Log Management', href: '/platform/logs', icon: 'file-text', permission: 'log:manage' },
+  { label: 'System Config', href: '/platform/config', icon: 'settings', permission: 'system:config' },
+];
+
+// ─── SUPER_ADMIN + ADMIN shared nav ──────────────────────────────────
+export const ADMIN_NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: 'grid' },
   {
     label: 'Tasks',
@@ -205,13 +226,39 @@ export const NAV_ITEMS: NavItem[] = [
       { label: 'Create Task', href: '/tasks/create', permission: 'task:create' },
     ],
   },
-  { label: 'Users', href: '/users', icon: 'users', permission: 'user:read' },
-  { label: 'Departments', href: '/departments', icon: 'building', permission: 'dept:manage' },
-  { label: 'Reports', href: '/reports', icon: 'bar-chart', permission: 'report:view' },
+  {
+    label: 'People',
+    href: '/people',
+    icon: 'users',
+    permission: 'user:read',
+    // SA sees all users org-wide; Admin sees own dept — enforced at data layer
+  },
+  {
+    label: 'Departments',
+    href: '/departments',
+    icon: 'building-2',
+    permission: 'dept:manage',
+    roles: ['SUPER_ADMIN'],  // Admin can view but not manage
+  },
+  { label: 'Reports', href: '/reports', icon: 'bar-chart', permission: 'report:view:dept' },
   { label: 'Notifications', href: '/notifications', icon: 'bell' },
-  { label: 'Audit Log', href: '/audit', icon: 'shield', permission: 'audit:view' },
-  { label: 'Settings', href: '/settings', icon: 'settings', permission: 'system:config' },
+  {
+    label: 'Audit Log',
+    href: '/audit',
+    icon: 'shield',
+    permission: 'audit:view:org',
+    roles: ['SUPER_ADMIN'],   // Admin cannot see audit log on web
+  },
+  {
+    label: 'Settings',
+    href: '/settings',
+    icon: 'settings',
+    roles: ['SUPER_ADMIN'],
+  },
 ];
+
+// Note: EMPLOYEE has no web admin access at all.
+// The admin layout gate redirects EMPLOYEE and PLATFORM_MANAGER to appropriate surfaces.
 ```
 
 ---
@@ -392,18 +439,24 @@ export default config;
 ## 10. DOs and DON'Ts — Web Admin
 
 ### ✅ DO
+- Render **separate shells** for PLATFORM_MANAGER (PlatformShell) vs SA/Admin (AdminShell) — they have completely different nav and scope
 - Keep **filter/sort state in URL search params** — never in component state
 - Use **React Server Components** for initial data fetches where possible
 - Use **Suspense + skeleton loaders** for every async data boundary
 - Guard pages with **middleware** AND component-level **PermissionGate**
+- Scope People/Users list to **own department for Admin**, org-wide for SA — same component, different query
 - Implement **optimistic updates** for status changes in the task table
-- Show **confirmation dialogs** for all destructive actions (deactivate user, cancel task)
+- Show **confirmation dialogs** for all destructive actions (suspend user, cancel task)
 - Implement **keyboard shortcuts** for power users (/ to search, N for new task)
 - Export all report downloads via **background job** (BullMQ) — never block UI for PDF gen
+- Make the **cross-dept assignment** visible in task list with a dept-transfer icon indicator
 
 ### ❌ DON'T
 - Never allow **Employees** to access the web admin — mobile only for them
+- Never allow **PLATFORM_MANAGER** to reach the standard admin routes (/dashboard, /tasks) — they go to /platform/*
+- Never let **PM create or assign tasks** — block at the API layer (no task permissions in PM role)
 - Never fetch data in **useEffect** — use TanStack Query or Server Components
 - Never put **sensitive logic** in Client Components that reaches out to raw DB
 - Never store auth tokens in **localStorage** — httpOnly cookies only on web
 - Never build **non-paginated** list views — always paginate at 20 items default
+- Never show **system-level audit logs** to SA in the web admin — that's PM territory only
