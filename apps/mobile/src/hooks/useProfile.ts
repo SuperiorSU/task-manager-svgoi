@@ -5,6 +5,8 @@ import {
   MOCK_PROFILE_USER,
   MOCK_PROFILE_STATS,
   MOCK_NOTIFICATION_PREFS,
+  MOCK_ADMIN_PROFILE_USER,
+  MOCK_ADMIN_PROFILE_STATS,
   type ProfileUser,
   type ProfileStats,
   type NotificationPreferences,
@@ -105,6 +107,43 @@ export const useUpdateNotificationPrefs = () => {
     },
   });
 };
+
+// ─── Admin profile queries ────────────────────────────────────────────────────
+
+const adminQK = {
+  profile: ['admin', 'profile'] as const,
+  stats:   ['admin', 'profile', 'stats'] as const,
+};
+
+async function fetchAdminProfile(): Promise<ProfileUser> {
+  if (USE_MOCK) {
+    await new Promise((r) => setTimeout(r, 350));
+    return MOCK_ADMIN_PROFILE_USER;
+  }
+  throw new Error('API not implemented');
+}
+
+async function fetchAdminProfileStats(): Promise<ProfileStats> {
+  if (USE_MOCK) {
+    await new Promise((r) => setTimeout(r, 300));
+    return MOCK_ADMIN_PROFILE_STATS;
+  }
+  throw new Error('API not implemented');
+}
+
+export const useAdminProfileData = () =>
+  useQuery({
+    queryKey: adminQK.profile,
+    queryFn: fetchAdminProfile,
+    staleTime: 5 * 60 * 1000,
+  });
+
+export const useAdminProfileStats = () =>
+  useQuery({
+    queryKey: adminQK.stats,
+    queryFn: fetchAdminProfileStats,
+    staleTime: 5 * 60 * 1000,
+  });
 
 // ─── Change password mutation ─────────────────────────────────────────────────
 

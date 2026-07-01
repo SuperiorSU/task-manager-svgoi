@@ -67,6 +67,26 @@ export const MOCK_PROFILE_STATS: ProfileStats = {
   active: 12,
 };
 
+// ─── Admin mock profile ───────────────────────────────────────────────────────
+
+export const MOCK_ADMIN_PROFILE_USER: ProfileUser = {
+  id: 'usr_admin_001',
+  name: 'Dr. Priya Nair',
+  email: 'priya.nair@svgoi.edu.in',
+  phone: '+91 98765 11111',
+  employeeId: 'EMP-2019-0003',
+  designation: 'Head of Department',
+  department: 'Physics',
+  role: 'Admin',
+  reportingManager: 'Dr. R. K. Sharma, Principal',
+};
+
+export const MOCK_ADMIN_PROFILE_STATS: ProfileStats = {
+  onTimeRate: 97,
+  completed: 56,
+  active: 8,
+};
+
 // ─── Mock notification preferences ───────────────────────────────────────────
 
 export const MOCK_NOTIFICATION_PREFS: NotificationPreferences = {
