@@ -1,0 +1,188 @@
+type AuditLogRecord = {
+  id: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  description: string;
+  ipAddress?: string;
+  userAgent?: string;
+  metadata?: Record<string, unknown>;
+  actorId?: string;
+  actor?: { id: string; name: string; role: string; avatarUrl?: string | null };
+  createdAt: string;
+};
+
+const now = new Date('2026-06-30T10:00:00.000Z');
+const ago = (minutes: number) => new Date(now.getTime() - minutes * 60000).toISOString();
+
+export const MOCK_AUDIT_LOGS: AuditLogRecord[] = [
+  {
+    id: 'audit_001',
+    action: 'LOGIN',
+    entityType: 'User',
+    entityId: 'user_sa',
+    description: 'Successful login from IP 192.168.1.10',
+    ipAddress: '192.168.1.10',
+    userAgent: 'Chrome/126 — macOS',
+    actorId: 'user_sa',
+    actor: { id: 'user_sa', name: 'Dr. Ramesh Iyer', role: 'SUPER_ADMIN' },
+    createdAt: ago(30),
+  },
+  {
+    id: 'audit_002',
+    action: 'CREATE',
+    entityType: 'Task',
+    entityId: 'task_025',
+    description: 'Created task: Fire Drill — All Labs and Classrooms',
+    ipAddress: '192.168.1.10',
+    metadata: { taskTitle: 'Fire Drill — All Labs and Classrooms', priority: 'CRITICAL' },
+    actorId: 'user_sa',
+    actor: { id: 'user_sa', name: 'Dr. Ramesh Iyer', role: 'SUPER_ADMIN' },
+    createdAt: ago(32),
+  },
+  {
+    id: 'audit_003',
+    action: 'STATUS_CHANGED',
+    entityType: 'Task',
+    entityId: 'task_007',
+    description: 'Task status changed: IN_PROGRESS → UNDER_REVIEW',
+    metadata: { from: 'IN_PROGRESS', to: 'UNDER_REVIEW', taskTitle: 'CS Lab Network Infrastructure Audit' },
+    actorId: 'user_emp_cs2',
+    actor: { id: 'user_emp_cs2', name: 'Mr. Arjun Menon', role: 'EMPLOYEE' },
+    createdAt: ago(90),
+  },
+  {
+    id: 'audit_004',
+    action: 'LOGIN',
+    entityType: 'User',
+    entityId: 'user_admin_ece',
+    description: 'Successful login from IP 192.168.2.45',
+    ipAddress: '192.168.2.45',
+    userAgent: 'Chrome/126 — Windows',
+    actorId: 'user_admin_ece',
+    actor: { id: 'user_admin_ece', name: 'Dr. Priya Sharma', role: 'ADMIN' },
+    createdAt: ago(110),
+  },
+  {
+    id: 'audit_005',
+    action: 'ASSIGNED',
+    entityType: 'Task',
+    entityId: 'task_025',
+    description: 'Task assigned to Ms. Sunita Verma (user_admin_adm)',
+    metadata: { assigneeId: 'user_admin_adm', assigneeName: 'Ms. Sunita Verma' },
+    actorId: 'user_sa',
+    actor: { id: 'user_sa', name: 'Dr. Ramesh Iyer', role: 'SUPER_ADMIN' },
+    createdAt: ago(120),
+  },
+  {
+    id: 'audit_006',
+    action: 'UPDATE',
+    entityType: 'User',
+    entityId: 'user_emp_cs3',
+    description: 'User account suspended: Mr. Suresh Nair',
+    metadata: { reason: 'Inactive for 30+ days', previousStatus: 'active', newStatus: 'suspended' },
+    actorId: 'user_admin_cs',
+    actor: { id: 'user_admin_cs', name: 'Dr. Raj Kumar', role: 'ADMIN' },
+    createdAt: ago(240),
+  },
+  {
+    id: 'audit_007',
+    action: 'STATUS_CHANGED',
+    entityType: 'Task',
+    entityId: 'task_016',
+    description: 'Task status changed: UNDER_REVIEW → COMPLETED',
+    metadata: { from: 'UNDER_REVIEW', to: 'COMPLETED', taskTitle: 'Semester 1 Exam Timetable — Publish' },
+    actorId: 'user_sa',
+    actor: { id: 'user_sa', name: 'Dr. Ramesh Iyer', role: 'SUPER_ADMIN' },
+    createdAt: ago(720),
+  },
+  {
+    id: 'audit_008',
+    action: 'LOGIN_FAILED',
+    entityType: 'User',
+    entityId: 'unknown',
+    description: 'Failed login attempt — Employee ID: CS999',
+    ipAddress: '203.145.22.10',
+    userAgent: 'Firefox/127 — Ubuntu',
+    createdAt: ago(860),
+  },
+  {
+    id: 'audit_009',
+    action: 'CREATE',
+    entityType: 'User',
+    entityId: 'user_emp_me1',
+    description: 'New user created: Mr. Ravi Kumar (ME101)',
+    metadata: { role: 'EMPLOYEE', department: 'Mechanical Engineering' },
+    actorId: 'user_admin_me',
+    actor: { id: 'user_admin_me', name: 'Dr. Vivek Singh', role: 'ADMIN' },
+    createdAt: ago(1440),
+  },
+  {
+    id: 'audit_010',
+    action: 'DELETE',
+    entityType: 'Task',
+    entityId: 'task_022',
+    description: 'Task soft-deleted: Industry Expert Lecture — AI/ML (June 15)',
+    metadata: { reason: 'CANCELLED — speaker withdrew' },
+    actorId: 'user_admin_cs',
+    actor: { id: 'user_admin_cs', name: 'Dr. Raj Kumar', role: 'ADMIN' },
+    createdAt: ago(2160),
+  },
+  {
+    id: 'audit_011',
+    action: 'PASSWORD_CHANGED',
+    entityType: 'User',
+    entityId: 'user_emp_adm1',
+    description: 'Password changed for Ms. Pooja Shah',
+    actorId: 'user_emp_adm1',
+    actor: { id: 'user_emp_adm1', name: 'Ms. Pooja Shah', role: 'EMPLOYEE' },
+    createdAt: ago(2880),
+  },
+  {
+    id: 'audit_012',
+    action: 'ROLE_CHANGED',
+    entityType: 'User',
+    entityId: 'user_admin_cs',
+    description: 'Role confirmed as ADMIN for Dr. Raj Kumar',
+    metadata: { from: 'EMPLOYEE', to: 'ADMIN' },
+    actorId: 'user_sa',
+    actor: { id: 'user_sa', name: 'Dr. Ramesh Iyer', role: 'SUPER_ADMIN' },
+    createdAt: ago(4320),
+  },
+  {
+    id: 'audit_013',
+    action: 'REASSIGNED',
+    entityType: 'Task',
+    entityId: 'task_010',
+    description: 'Task reassigned to Mr. Ravi Kumar (ME101)',
+    metadata: { previousAssignee: 'user_admin_me', newAssignee: 'user_emp_me1' },
+    actorId: 'user_admin_me',
+    actor: { id: 'user_admin_me', name: 'Dr. Vivek Singh', role: 'ADMIN' },
+    createdAt: ago(5760),
+  },
+  {
+    id: 'audit_014',
+    action: 'LOGIN',
+    entityType: 'User',
+    entityId: 'user_admin_cs',
+    description: 'Successful login from IP 192.168.1.35',
+    ipAddress: '192.168.1.35',
+    userAgent: 'Safari/17 — iPhone',
+    actorId: 'user_admin_cs',
+    actor: { id: 'user_admin_cs', name: 'Dr. Raj Kumar', role: 'ADMIN' },
+    createdAt: ago(7200),
+  },
+  {
+    id: 'audit_015',
+    action: 'STATUS_CHANGED',
+    entityType: 'Task',
+    entityId: 'task_017',
+    description: 'Task status changed: UNDER_REVIEW → COMPLETED',
+    metadata: { from: 'UNDER_REVIEW', to: 'COMPLETED', taskTitle: 'ME Workshop Safety Drill — June' },
+    actorId: 'user_admin_me',
+    actor: { id: 'user_admin_me', name: 'Dr. Vivek Singh', role: 'ADMIN' },
+    createdAt: ago(8640),
+  },
+];
+
+export type { AuditLogRecord };

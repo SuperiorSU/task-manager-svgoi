@@ -6,6 +6,7 @@ import { Feather } from '@expo/vector-icons';
 import { useColors } from '../../constants/colors';
 import { Typography } from '../../constants/typography';
 import { Spacing } from '../../constants/spacing';
+import { getInitials } from '../../utils/initial';
 
 type Props = {
   greeting: string;
@@ -16,13 +17,6 @@ type Props = {
   onNotificationPress: () => void;
   onProfilePress: () => void;
 };
-
-const getInitials = (name: string): string =>
-  name
-    .split(' ')
-    .slice(0, 2)
-    .map((w) => w.charAt(0).toUpperCase())
-    .join('');
 
 export const DashboardHeader = React.memo(
   ({ greeting, firstName, userName, dateLabel, unreadCount, onNotificationPress, onProfilePress }: Props) => {

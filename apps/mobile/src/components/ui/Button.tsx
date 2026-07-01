@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
-import { Colors } from '../../constants/colors';
+import { useColors } from '../../constants/colors';
 import { Typography } from '../../constants/typography';
 import { Layout } from '../../constants/spacing';
 
@@ -23,10 +23,35 @@ type Props = PressableProps & {
 
 export const Button = React.memo(
   ({ label, variant = 'primary', loading, fullWidth, disabled, onPress, style, ...rest }: Props) => {
+    const colors = useColors();
+
     const handlePress = async (e: Parameters<NonNullable<PressableProps['onPress']>>[0]) => {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       onPress?.(e);
     };
+
+    const variantStyles = {
+      primary: {
+        bg: colors.brand.primary,
+        bgPressed: colors.brand.primaryDark,
+        labelColor: colors.text.inverse,
+      },
+      secondary: {
+        bg: 'transparent',
+        bgPressed: colors.brand.primaryLight,
+        labelColor: colors.brand.primary,
+      },
+      danger: {
+        bg: colors.semantic.error,
+        bgPressed: '#DC2626',
+        labelColor: colors.text.inverse,
+      },
+      ghost: {
+        bg: 'transparent',
+        bgPressed: colors.brand.primaryLight,
+        labelColor: colors.brand.primary,
+      },
+    }[variant];
 
     return (
       <Pressable
@@ -34,11 +59,12 @@ export const Button = React.memo(
         onPress={handlePress}
         disabled={disabled ?? loading}
         style={({ pressed }) => [
-          styles.base,
-          styles[variant],
-          fullWidth && styles.fullWidth,
-          (disabled ?? loading) && styles.disabled,
-          pressed && styles[`${variant}Pressed`],
+          s.base,
+          { backgroundColor: pressed ? variantStyles.bgPressed : variantStyles.bg },
+          variant === 'secondary' && s.secondaryBorder,
+          variant === 'secondary' && { borderColor: colors.brand.primary },
+          fullWidth && s.fullWidth,
+          (disabled ?? loading) && s.disabled,
           style as object,
         ]}
         accessibilityRole="button"
@@ -47,10 +73,10 @@ export const Button = React.memo(
         {loading ? (
           <ActivityIndicator
             size="small"
-            color={variant === 'primary' || variant === 'danger' ? Colors.text.inverse : Colors.brand.primary}
+            color={variant === 'primary' || variant === 'danger' ? colors.text.inverse : colors.brand.primary}
           />
         ) : (
-          <Text style={[styles.label, styles[`${variant}Label`]]}>{label}</Text>
+          <Text style={[s.labelText, { color: variantStyles.labelColor }]}>{label}</Text>
         )}
       </Pressable>
     );
@@ -59,7 +85,7 @@ export const Button = React.memo(
 
 Button.displayName = 'Button';
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   base: {
     height: 52,
     borderRadius: Layout.buttonRadius,
@@ -69,20 +95,9 @@ const styles = StyleSheet.create({
   },
   fullWidth: { width: '100%' },
   disabled: { opacity: 0.5 },
-
-  primary: { backgroundColor: Colors.brand.primary },
-  primaryLabel: { ...Typography.labelLg, fontFamily: 'Inter-SemiBold', color: Colors.text.inverse },
-  primaryPressed: { backgroundColor: Colors.brand.primaryDark },
-
-  secondary: { borderWidth: 1.5, borderColor: Colors.brand.primary, backgroundColor: 'transparent' },
-  secondaryLabel: { ...Typography.labelLg, fontFamily: 'Inter-SemiBold', color: Colors.brand.primary },
-  secondaryPressed: { backgroundColor: Colors.brand.primaryLight },
-
-  danger: { backgroundColor: Colors.semantic.error },
-  dangerLabel: { ...Typography.labelLg, fontFamily: 'Inter-SemiBold', color: Colors.text.inverse },
-  dangerPressed: { backgroundColor: '#DC2626' },
-
-  ghost: { backgroundColor: 'transparent' },
-  ghostLabel: { ...Typography.labelLg, fontFamily: 'Inter-SemiBold', color: Colors.brand.primary },
-  ghostPressed: { backgroundColor: Colors.brand.primaryLight },
+  secondaryBorder: { borderWidth: 1.5 },
+  labelText: {
+    ...Typography.labelLg,
+    fontFamily: 'Inter-SemiBold',
+  },
 });

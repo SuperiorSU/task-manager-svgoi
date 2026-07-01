@@ -33,6 +33,9 @@ export default function AppLayout() {
         <Stack.Screen name="profile/notifications" />
         <Stack.Screen name="profile/appearance" />
         <Stack.Screen name="profile/help" />
+        <Stack.Screen name="people/[id]" />
+        <Stack.Screen name="people/create" />
+        <Stack.Screen name="people/[id]/edit" />
       </Stack>
     </>
   );

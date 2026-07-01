@@ -1,18 +1,40 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api';
 import { queryKeys } from '@/constants/queryKeys';
+import { dashboardService } from '@/services/dashboard.service';
 
-export const useDashboardStats = (period = 'week') =>
+export const useDashboardStats = () =>
   useQuery({
-    queryKey: queryKeys.dashboard.stats(period),
-    queryFn: () => api.get('/dashboard/stats', { params: { period } }).then((r) => r.data.data),
+    queryKey: queryKeys.dashboard.stats('week'),
+    queryFn: () => dashboardService.getStats(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+export const useDashboardTrend = () =>
+  useQuery({
+    queryKey: ['dashboard', 'trend'],
+    queryFn: () => dashboardService.getTrend(),
+    staleTime: 10 * 60 * 1000,
+  });
+
+export const useDashboardDeptStats = () =>
+  useQuery({
+    queryKey: ['dashboard', 'dept-stats'],
+    queryFn: () => dashboardService.getDeptStats(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+export const useDashboardWorkload = () =>
+  useQuery({
+    queryKey: ['dashboard', 'workload'],
+    queryFn: () => dashboardService.getWorkload(),
     staleTime: 5 * 60 * 1000,
   });
 
 export const useDashboardActivity = () =>
   useQuery({
     queryKey: queryKeys.dashboard.activity(),
-    queryFn: () => api.get('/dashboard/activity').then((r) => r.data.data),
+    queryFn: () => dashboardService.getActivity(),
+    staleTime: 2 * 60 * 1000,
   });

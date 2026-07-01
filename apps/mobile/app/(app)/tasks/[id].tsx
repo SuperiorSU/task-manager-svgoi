@@ -5,8 +5,11 @@ import {
   ScrollView,
   StyleSheet,
   Alert,
-  Pressable,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
   Platform,
+  Pressable,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +20,7 @@ import * as Haptics from 'expo-haptics';
 import type { MockTask } from '../../../src/data/tasks.mock';
 import { isTaskOverdue } from '../../../src/data/tasks.mock';
 import { useMockTaskDetail } from '../../../src/hooks/useTasksMock';
+import { adminTasksService } from '../../../src/services/adminTasks.service';
 
 import { Colors } from '../../../src/constants/colors';
 import { Typography } from '../../../src/constants/typography';
@@ -105,8 +109,12 @@ export default function TaskDetailScreen() {
   const { data: task, isLoading } = useMockTaskDetail(id ?? '');
   const [localTask, setLocalTask] = useState<MockTask | null>(null);
   const [overflowVisible, setOverflowVisible] = useState(false);
+  const [revisionModalVisible, setRevisionModalVisible] = useState(false);
+  const [revisionNote, setRevisionNote] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
 
   const displayed = localTask ?? task ?? null;
+  const isAdminCreator = displayed ? adminTasksService.isAdminCreator(displayed) : false;
 
   // ── handlers ──
   const handleBack = useCallback(() => router.back(), [router]);
@@ -125,6 +133,42 @@ export default function TaskDetailScreen() {
       ]
     );
   }, []);
+
+  const handleApprove = useCallback(async (t: MockTask) => {
+    setActionLoading(true);
+    try {
+      await adminTasksService.approveTask(t.id);
+      setLocalTask((prev) => ({ ...(prev ?? t), status: 'COMPLETED' }));
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.replace('/(app)/(admin)/tasks' as Parameters<typeof router.replace>[0]);
+    } catch {
+      Alert.alert('Error', 'Could not approve the task. Please try again.');
+    } finally {
+      setActionLoading(false);
+    }
+  }, [router]);
+
+  const handleRevise = useCallback((_t: MockTask) => {
+    setRevisionNote('');
+    setRevisionModalVisible(true);
+  }, []);
+
+  const handleRevisionSubmit = useCallback(async () => {
+    const t = displayed;
+    if (!t) return;
+    setActionLoading(true);
+    try {
+      await adminTasksService.requestRevision(t.id, revisionNote.trim());
+      setLocalTask((prev) => ({ ...(prev ?? t), status: 'IN_PROGRESS' }));
+      setRevisionModalVisible(false);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      router.replace('/(app)/(admin)/tasks' as Parameters<typeof router.replace>[0]);
+    } catch {
+      Alert.alert('Error', 'Could not request revision. Please try again.');
+    } finally {
+      setActionLoading(false);
+    }
+  }, [displayed, revisionNote, router]);
 
   const handleUploadProof = useCallback((_t: MockTask) => {
     Alert.alert('Upload Proof', 'File picker would open here in production.');
@@ -325,7 +369,10 @@ export default function TaskDetailScreen() {
       {/* ── Fixed action bar ── */}
       <TaskActionBar
         task={t}
+        isAdminCreator={isAdminCreator}
         onStatusChange={handleStatusChange}
+        onApprove={handleApprove}
+        onRevise={handleRevise}
         onUploadProof={handleUploadProof}
         onAddComment={handleAddComment}
       />
@@ -337,6 +384,59 @@ export default function TaskDetailScreen() {
         onAction={handleOverflowAction}
         onClose={() => setOverflowVisible(false)}
       />
+
+      {/* ── Revision note modal ── */}
+      <Modal
+        visible={revisionModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setRevisionModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={revisionModal.overlay}
+        >
+          <View style={revisionModal.sheet}>
+            <Text style={revisionModal.title}>Request Revision</Text>
+            <Text style={revisionModal.subtitle}>
+              Explain what needs to be changed before this task can be approved.
+            </Text>
+
+            <TextInput
+              style={revisionModal.input}
+              placeholder="e.g. Please update the safety checklist and re-attach photos…"
+              placeholderTextColor={Colors.text.tertiary}
+              value={revisionNote}
+              onChangeText={setRevisionNote}
+              multiline
+              maxLength={500}
+              autoFocus
+            />
+
+            <View style={revisionModal.actions}>
+              <Pressable
+                onPress={() => setRevisionModalVisible(false)}
+                style={({ pressed }) => [revisionModal.cancelBtn, pressed && { opacity: 0.7 }]}
+              >
+                <Text style={revisionModal.cancelLabel}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleRevisionSubmit}
+                disabled={actionLoading}
+                style={({ pressed }) => [
+                  revisionModal.submitBtn,
+                  pressed && { opacity: 0.85 },
+                  actionLoading && { opacity: 0.6 },
+                ]}
+              >
+                <Text style={revisionModal.submitLabel}>
+                  {actionLoading ? 'Sending…' : 'Send for Revision'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -464,6 +564,76 @@ const styles = StyleSheet.create({
     ...Typography.labelSm,
     fontFamily: 'Inter-Medium',
     color: Colors.brand.primary,
+  },
+});
+
+const revisionModal = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: Colors.surface.card,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: Spacing[5],
+    gap: Spacing[4],
+  },
+  title: {
+    ...Typography.h3,
+    fontFamily: 'Inter-Bold',
+    color: Colors.text.primary,
+  },
+  subtitle: {
+    ...Typography.bodyMd,
+    fontFamily: 'Inter-Regular',
+    color: Colors.text.secondary,
+    lineHeight: 22,
+  },
+  input: {
+    backgroundColor: Colors.surface.background,
+    borderWidth: 1,
+    borderColor: Colors.surface.border,
+    borderRadius: 12,
+    padding: Spacing[3],
+    minHeight: 96,
+    textAlignVertical: 'top',
+    ...Typography.bodyMd,
+    fontFamily: 'Inter-Regular',
+    color: Colors.text.primary,
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: Spacing[3],
+    paddingBottom: Spacing[2],
+  },
+  cancelBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.surface.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelLabel: {
+    ...Typography.labelMd,
+    fontFamily: 'Inter-SemiBold',
+    color: Colors.text.secondary,
+  },
+  submitBtn: {
+    flex: 2,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#F59E0B',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  submitLabel: {
+    ...Typography.labelMd,
+    fontFamily: 'Inter-SemiBold',
+    color: '#FFFFFF',
   },
 });
 

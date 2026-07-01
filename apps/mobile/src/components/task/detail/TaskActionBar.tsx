@@ -9,7 +9,7 @@ import { Colors } from '../../../constants/colors';
 import { Typography } from '../../../constants/typography';
 import { Spacing } from '../../../constants/spacing';
 
-// Map current status → what the primary CTA should be
+// Map current status → what the primary CTA should be (assignee/employee flow)
 const STATUS_CTA: Record<
   MockTask['status'],
   { label: string; icon: keyof typeof Feather.glyphMap; nextStatus: MockTask['status'] | null; color: string } | null
@@ -17,95 +17,151 @@ const STATUS_CTA: Record<
   PENDING:      { label: 'Accept Task',         icon: 'check-circle',    nextStatus: 'ACCEPTED',     color: Colors.semantic.success },
   ACCEPTED:     { label: 'Start Working',        icon: 'zap',             nextStatus: 'IN_PROGRESS',  color: Colors.status.inProgress.text },
   IN_PROGRESS:  { label: 'Submit for Review',    icon: 'upload',          nextStatus: 'UNDER_REVIEW', color: Colors.brand.primary },
-  UNDER_REVIEW: { label: 'Mark Complete',        icon: 'check-square',    nextStatus: 'COMPLETED',    color: Colors.semantic.success },
+  UNDER_REVIEW: { label: 'Awaiting review…',     icon: 'clock',           nextStatus: null,           color: Colors.text.tertiary },
   COMPLETED:    null,
   CANCELLED:    null,
 };
 
 type Props = {
   task: MockTask;
+  /** When true, renders the admin creator approval bar (Approve & Complete / Revise) */
+  isAdminCreator?: boolean;
   onStatusChange: (task: MockTask, nextStatus: MockTask['status']) => void;
+  onApprove?: (task: MockTask) => void;
+  onRevise?: (task: MockTask) => void;
   onUploadProof: (task: MockTask) => void;
   onAddComment: (task: MockTask) => void;
 };
 
-export const TaskActionBar = React.memo(({ task, onStatusChange, onUploadProof, onAddComment }: Props) => {
-  const insets = useSafeAreaInsets();
-  const cta = STATUS_CTA[task.status];
+export const TaskActionBar = React.memo(
+  ({ task, isAdminCreator = false, onStatusChange, onApprove, onRevise, onUploadProof, onAddComment }: Props) => {
+    const insets = useSafeAreaInsets();
+    const pb = insets.bottom + Spacing[2];
 
-  const handleCta = async () => {
-    if (!cta?.nextStatus) return;
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    onStatusChange(task, cta.nextStatus);
-  };
+    // ── Admin creator approval bar (UNDER_REVIEW only) ──────────────────────
+    if (isAdminCreator && task.status === 'UNDER_REVIEW') {
+      return (
+        <View style={[actionStyles.bar, { paddingBottom: pb }]}>
+          {/* Revise button */}
+          <Pressable
+            onPress={async () => {
+              await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              onRevise?.(task);
+            }}
+            style={({ pressed }) => [
+              actionStyles.reviseBtn,
+              pressed && { opacity: 0.78 },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Request revision"
+          >
+            <Feather name="rotate-ccw" size={16} color="#B45309" />
+            <Text style={actionStyles.reviseLabel}>Revise</Text>
+          </Pressable>
 
-  const handleUpload = async () => {
-    await Haptics.selectionAsync();
-    onUploadProof(task);
-  };
-
-  const handleComment = async () => {
-    await Haptics.selectionAsync();
-    onAddComment(task);
-  };
-
-  // Completed or cancelled: show a "Closed" state bar
-  if (!cta) {
-    return (
-      <View style={[actionStyles.bar, { paddingBottom: insets.bottom + Spacing[2] }]}>
-        <View style={actionStyles.closedRow}>
-          <View style={actionStyles.closedIcon}>
-            <Feather
-              name={task.status === 'COMPLETED' ? 'check-circle' : 'x-circle'}
-              size={20}
-              color={task.status === 'COMPLETED' ? Colors.semantic.success : Colors.text.tertiary}
-            />
-          </View>
-          <Text style={actionStyles.closedText}>
-            {task.status === 'COMPLETED' ? 'Task Completed' : 'Task Cancelled'}
-          </Text>
+          {/* Approve & Complete button */}
+          <Pressable
+            onPress={async () => {
+              await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              onApprove?.(task);
+            }}
+            style={({ pressed }) => [
+              actionStyles.approveBtn,
+              pressed && { opacity: 0.87 },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Approve and complete"
+          >
+            <Feather name="check" size={17} color="#FFFFFF" />
+            <Text style={actionStyles.approveLabel}>Approve &amp; Complete</Text>
+          </Pressable>
         </View>
+      );
+    }
+
+    const cta = STATUS_CTA[task.status];
+
+    // ── Completed / Cancelled closed bar ────────────────────────────────────
+    if (!cta) {
+      return (
+        <View style={[actionStyles.bar, { paddingBottom: pb }]}>
+          <View style={actionStyles.closedRow}>
+            <View style={actionStyles.closedIcon}>
+              <Feather
+                name={task.status === 'COMPLETED' ? 'check-circle' : 'x-circle'}
+                size={20}
+                color={task.status === 'COMPLETED' ? Colors.semantic.success : Colors.text.tertiary}
+              />
+            </View>
+            <Text style={actionStyles.closedText}>
+              {task.status === 'COMPLETED' ? 'Task Completed' : 'Task Cancelled'}
+            </Text>
+          </View>
+        </View>
+      );
+    }
+
+    // ── "Awaiting review" read-only state for assignee ───────────────────────
+    if (task.status === 'UNDER_REVIEW') {
+      return (
+        <View style={[actionStyles.bar, { paddingBottom: pb }]}>
+          <View style={actionStyles.closedRow}>
+            <Feather name="clock" size={18} color={Colors.text.tertiary} />
+            <Text style={actionStyles.closedText}>Waiting for review…</Text>
+          </View>
+        </View>
+      );
+    }
+
+    // ── Standard assignee action bar ─────────────────────────────────────────
+    return (
+      <View style={[actionStyles.bar, { paddingBottom: pb }]}>
+        {/* Secondary: Upload Proof */}
+        <Pressable
+          onPress={async () => {
+            await Haptics.selectionAsync();
+            onUploadProof(task);
+          }}
+          style={({ pressed }) => [actionStyles.secondaryBtn, pressed && { opacity: 0.75 }]}
+          accessibilityLabel="Upload proof"
+        >
+          <Feather name="paperclip" size={18} color={Colors.text.secondary} />
+        </Pressable>
+
+        {/* Secondary: Add Comment */}
+        <Pressable
+          onPress={async () => {
+            await Haptics.selectionAsync();
+            onAddComment(task);
+          }}
+          style={({ pressed }) => [actionStyles.secondaryBtn, pressed && { opacity: 0.75 }]}
+          accessibilityLabel="Add comment"
+        >
+          <Feather name="message-circle" size={18} color={Colors.text.secondary} />
+        </Pressable>
+
+        {/* Primary CTA */}
+        <Pressable
+          onPress={async () => {
+            if (!cta.nextStatus) return;
+            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            onStatusChange(task, cta.nextStatus);
+          }}
+          style={({ pressed }) => [
+            actionStyles.primaryBtn,
+            { backgroundColor: cta.color },
+            pressed && { opacity: 0.87 },
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel={cta.label}
+        >
+          <Feather name={cta.icon} size={18} color={Colors.text.inverse} />
+          <Text style={actionStyles.primaryLabel}>{cta.label}</Text>
+        </Pressable>
       </View>
     );
-  }
-
-  return (
-    <View style={[actionStyles.bar, { paddingBottom: insets.bottom + Spacing[2] }]}>
-      {/* Secondary: Upload Proof */}
-      <Pressable
-        onPress={handleUpload}
-        style={({ pressed }) => [actionStyles.secondaryBtn, pressed && { opacity: 0.75 }]}
-        accessibilityLabel="Upload proof"
-      >
-        <Feather name="paperclip" size={18} color={Colors.text.secondary} />
-      </Pressable>
-
-      {/* Secondary: Add Comment */}
-      <Pressable
-        onPress={handleComment}
-        style={({ pressed }) => [actionStyles.secondaryBtn, pressed && { opacity: 0.75 }]}
-        accessibilityLabel="Add comment"
-      >
-        <Feather name="message-circle" size={18} color={Colors.text.secondary} />
-      </Pressable>
-
-      {/* Primary CTA */}
-      <Pressable
-        onPress={handleCta}
-        style={({ pressed }) => [
-          actionStyles.primaryBtn,
-          { backgroundColor: cta.color },
-          pressed && { opacity: 0.87 },
-        ]}
-        accessibilityRole="button"
-        accessibilityLabel={cta.label}
-      >
-        <Feather name={cta.icon} size={18} color={Colors.text.inverse} />
-        <Text style={actionStyles.primaryLabel}>{cta.label}</Text>
-      </Pressable>
-    </View>
-  );
-});
+  },
+);
 
 TaskActionBar.displayName = 'TaskActionBar';
 
@@ -161,5 +217,38 @@ const actionStyles = StyleSheet.create({
     ...Typography.labelLg,
     fontFamily: 'Inter-Medium',
     color: Colors.text.tertiary,
+  },
+  // Admin creator approval layout
+  reviseBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 52,
+    width: 110,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#FCD34D',
+    backgroundColor: '#FFFBEB',
+  },
+  reviseLabel: {
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+    color: '#B45309',
+  },
+  approveBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing[2],
+    height: 52,
+    borderRadius: 12,
+    backgroundColor: '#16A34A',
+  },
+  approveLabel: {
+    fontSize: 15,
+    fontFamily: 'Inter-SemiBold',
+    color: '#FFFFFF',
   },
 });

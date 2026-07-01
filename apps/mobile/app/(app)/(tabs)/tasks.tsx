@@ -3,9 +3,9 @@ import {
   FlatList,
   View,
   Text,
+  Pressable,
   StyleSheet,
   RefreshControl,
-  Pressable,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,7 +19,7 @@ import type { TaskCardItem } from '../../../src/components/task/TaskCard';
 import type { TaskOverflowItem } from '../../../src/components/task/TaskOverflowSheet';
 
 import { useColors } from '../../../src/constants/colors';
-import { Spacing, Layout } from '../../../src/constants/spacing';
+import { Spacing } from '../../../src/constants/spacing';
 import { Typography } from '../../../src/constants/typography';
 
 import { TaskCard } from '../../../src/components/task/TaskCard';
@@ -28,106 +28,11 @@ import { TaskSearchBar } from '../../../src/components/task/TaskSearchBar';
 import { TaskPriorityLegend } from '../../../src/components/task/TaskPriorityLegend';
 import { FilterBottomSheet } from '../../../src/components/task/FilterBottomSheet';
 import { TaskOverflowSheet, type OverflowAction } from '../../../src/components/task/TaskOverflowSheet';
+import { TaskOverdueBanner } from '../../../src/components/task/TaskOverdueBanner';
+import { TaskSectionHeader } from '../../../src/components/task/TaskSectionHeader';
+import { TaskNoResults } from '../../../src/components/task/TaskNoResults';
 import { TaskCardSkeleton } from '../../../src/components/ui/Skeleton';
 import { EmptyState } from '../../../src/components/ui/EmptyState';
-
-// ─── Overdue Banner ───────────────────────────────────────────────────────────
-
-const OverdueBanner = ({ count, onPress }: { count: number; onPress: () => void }) => {
-  const colors = useColors();
-  if (count === 0) return null;
-  return (
-    <Pressable
-      onPress={onPress}
-      style={[banner.row, { backgroundColor: colors.semantic.errorBg, borderColor: colors.status.overdue.solid }]}
-    >
-      <View style={banner.iconWrap}>
-        <Feather name="alert-triangle" size={16} color={colors.semantic.error} />
-      </View>
-      <View style={banner.textBlock}>
-        <Text style={[banner.title, { color: colors.semantic.error }]}>
-          {count} task{count > 1 ? 's' : ''} overdue
-        </Text>
-        <Text style={[banner.sub, { color: colors.status.overdue.text }]}>Tap to review overdue tasks</Text>
-      </View>
-      <Feather name="chevron-right" size={16} color={colors.semantic.error} />
-    </Pressable>
-  );
-};
-
-const banner = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing[3],
-    marginHorizontal: Spacing[4],
-    marginBottom: Spacing[3],
-    borderRadius: Layout.cardRadius,
-    borderWidth: 1,
-    paddingHorizontal: Spacing[4],
-    paddingVertical: Spacing[3],
-  },
-  iconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  textBlock: { flex: 1 },
-  title: { ...Typography.labelMd, fontFamily: 'Inter-SemiBold' },
-  sub: { ...Typography.caption, fontFamily: 'Inter-Regular' },
-});
-
-// ─── Section Header ───────────────────────────────────────────────────────────
-
-const SectionHeader = ({ title, count }: { title: string; count: number }) => {
-  const colors = useColors();
-  return (
-    <View style={[sec.row, { backgroundColor: colors.surface.background }]}>
-      <Text style={[sec.title, { color: colors.text.secondary }]}>{title}</Text>
-      <View style={[sec.badge, { backgroundColor: colors.brand.primaryLight }]}>
-        <Text style={[sec.badgeText, { color: colors.brand.primary }]}>{count}</Text>
-      </View>
-    </View>
-  );
-};
-
-const sec = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing[2],
-    paddingHorizontal: Spacing[4],
-    paddingTop: Spacing[4],
-    paddingBottom: Spacing[2],
-  },
-  title: { ...Typography.labelMd, fontFamily: 'Inter-SemiBold', textTransform: 'uppercase', letterSpacing: 0.6, flex: 1 },
-  badge: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
-  badgeText: { ...Typography.labelSm, fontFamily: 'Inter-Bold' },
-});
-
-// ─── No Results ───────────────────────────────────────────────────────────────
-
-const NoResults = ({ search }: { search: string }) => {
-  const colors = useColors();
-  return (
-    <View style={noRes.wrap}>
-      <Feather name="search" size={36} color={colors.text.tertiary} />
-      <Text style={[noRes.title, { color: colors.text.primary }]}>No results for "{search}"</Text>
-      <Text style={[noRes.sub, { color: colors.text.tertiary }]}>Try a different name, department, or task ID</Text>
-    </View>
-  );
-};
-
-const noRes = StyleSheet.create({
-  wrap: { alignItems: 'center', gap: Spacing[2], paddingTop: 60, paddingHorizontal: Spacing[8] },
-  title: { ...Typography.h4, fontFamily: 'Inter-SemiBold', textAlign: 'center' },
-  sub: { ...Typography.bodyMd, fontFamily: 'Inter-Regular', textAlign: 'center' },
-});
-
-// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function TasksScreen() {
   const router = useRouter();
@@ -215,7 +120,8 @@ export default function TasksScreen() {
   }, [router]);
 
   const showSections = filters.status === 'ALL' && !filters.search;
-  const sectionUpcoming = useMemo(() => {
+
+  const upcomingTasks = useMemo(() => {
     if (!showSections) return tasks;
     return tasks.filter((t) => !todayTasks.some((td) => td.id === t.id));
   }, [tasks, todayTasks, showSections]);
@@ -227,41 +133,44 @@ export default function TasksScreen() {
     [handleTaskPress, handleMorePress]
   );
 
-  const renderLoading = () => (
+  const renderLoading = useCallback(() => (
     <View style={styles.loadingList}>
       {[1, 2, 3, 4].map((i) => <TaskCardSkeleton key={i} />)}
     </View>
-  );
+  ), []);
 
-  const ListHeader = (
+  const currentTasks = showSections ? upcomingTasks : tasks;
+  const noResults = !isLoading && tasks.length === 0;
+
+  const listHeader = useMemo(() => (
     <View>
       {!isLoading && overdueTasks.length > 0 && filters.status !== 'OVERDUE' && (
-        <OverdueBanner count={overdueTasks.length} onPress={() => setStatus('OVERDUE')} />
+        <TaskOverdueBanner count={overdueTasks.length} onPress={() => setStatus('OVERDUE')} />
       )}
       <View style={styles.legendSection}>
         <TaskPriorityLegend />
       </View>
       {showSections && !isLoading && todayTasks.length > 0 && (
-        <SectionHeader title="Today's Tasks" count={todayTasks.length} />
+        <TaskSectionHeader title="Today's Tasks" count={todayTasks.length} />
       )}
     </View>
-  );
+  ), [isLoading, overdueTasks, filters.status, showSections, todayTasks, setStatus]);
 
-  const todaySection = showSections && todayTasks.length > 0 && !isLoading ? (
-    <View>
-      {todayTasks.map((task) => (
-        <View key={task.id} style={styles.cardWrap}>
-          <TaskCard task={task} onPress={handleTaskPress} onMorePress={handleMorePress} />
-        </View>
-      ))}
-      {sectionUpcoming.length > 0 && (
-        <SectionHeader title="Upcoming Tasks" count={sectionUpcoming.length} />
-      )}
-    </View>
-  ) : null;
-
-  const displayTasks = showSections ? sectionUpcoming : tasks;
-  const noResults = !isLoading && tasks.length === 0;
+  const todaySection = useMemo(() => {
+    if (!showSections || todayTasks.length === 0 || isLoading) return null;
+    return (
+      <View>
+        {todayTasks.map((task) => (
+          <View key={task.id} style={styles.cardWrap}>
+            <TaskCard task={task} onPress={handleTaskPress} onMorePress={handleMorePress} />
+          </View>
+        ))}
+        {upcomingTasks.length > 0 && (
+          <TaskSectionHeader title="Upcoming Tasks" count={upcomingTasks.length} />
+        )}
+      </View>
+    );
+  }, [showSections, todayTasks, isLoading, upcomingTasks, handleTaskPress, handleMorePress]);
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top, backgroundColor: colors.surface.background }]}>
@@ -319,14 +228,14 @@ export default function TasksScreen() {
         }
         ListHeaderComponent={
           <View>
-            {ListHeader}
+            {listHeader}
             {todaySection}
           </View>
         }
         ListEmptyComponent={
           isLoading ? renderLoading() : noResults ? (
             filters.search ? (
-              <NoResults search={filters.search} />
+              <TaskNoResults search={filters.search} />
             ) : (
               <EmptyState
                 icon="check-square"
@@ -410,7 +319,7 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing[3],
   },
   list: {
-    paddingBottom: Spacing[8],
+    paddingTop: Spacing[3],
   },
   loadingList: {
     gap: Spacing[3],
@@ -421,3 +330,4 @@ const styles = StyleSheet.create({
     marginBottom: Spacing[3],
   },
 });
+

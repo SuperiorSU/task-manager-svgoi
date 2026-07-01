@@ -34,6 +34,18 @@ export const tasksController = {
     return sendSuccess(reply, task, 201);
   },
 
+  async update(request: FastifyRequest, reply: FastifyReply) {
+    const { id } = request.params as { id: string };
+    const task = await tasksService.update(
+      id,
+      request.body as never,
+      request.user.id,
+      request.user.role,
+      request.user.departmentId
+    );
+    return sendSuccess(reply, task);
+  },
+
   async updateStatus(request: FastifyRequest, reply: FastifyReply) {
     const { id } = request.params as { id: string };
     const { status, comment } = request.body as { status: string; comment?: string };

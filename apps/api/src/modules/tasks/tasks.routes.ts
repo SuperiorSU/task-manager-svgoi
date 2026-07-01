@@ -30,6 +30,12 @@ export const tasksRoutes = async (app: FastifyInstance): Promise<void> => {
     handler: tasksController.create,
   });
 
+  // Update task details (title, description, priority, dueDate, assigneeId, departmentId)
+  app.patch('/:id', {
+    preHandler: [requireAuth, requirePermission(PERMISSIONS.TASK_UPDATE_ALL)],
+    handler: tasksController.update,
+  });
+
   app.patch('/:id/status', {
     preHandler: [requireAuth, requirePermission(PERMISSIONS.TASK_UPDATE_STATUS)],
     schema: { body: updateStatusBodySchema },

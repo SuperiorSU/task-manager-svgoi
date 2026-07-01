@@ -126,7 +126,7 @@ export default function TaskDetailPage() {
               <div>
                 <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">Assignee</dt>
                 <dd className="mt-1 flex items-center gap-2">
-                  <AvatarWithFallback name={t.assignee.name} src={t.assignee.avatarUrl} size={20} />
+                  <AvatarWithFallback name={t.assignee.name} src={t.assignee.avatarUrl ?? null} size={20} />
                   <span className="text-sm text-slate-900">{t.assignee.name}</span>
                 </dd>
               </div>

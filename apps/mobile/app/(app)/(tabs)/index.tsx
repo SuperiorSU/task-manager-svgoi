@@ -1,18 +1,14 @@
 import React, { useMemo } from 'react';
 import {
   View,
-  Text,
   ScrollView,
   StyleSheet,
   RefreshControl,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 
 import { useColors } from '../../../src/constants/colors';
-import { Typography } from '../../../src/constants/typography';
 import { Spacing, Layout } from '../../../src/constants/spacing';
 
 import { useAuthStore } from '../../../src/stores/auth.store';
@@ -31,56 +27,10 @@ import { DashboardSectionHeader } from '../../../src/components/dashboard/Dashbo
 import { StatCard } from '../../../src/components/dashboard/StatCard';
 import { UpcomingTaskItem } from '../../../src/components/dashboard/UpcomingTaskItem';
 import { DashboardActivityItem } from '../../../src/components/dashboard/DashboardActivityItem';
-import { Skeleton } from '../../../src/components/ui/Skeleton';
-
-function buildGreeting(): string {
-  const h = dayjs().hour();
-  if (h < 12) return 'Good morning';
-  if (h < 17) return 'Good afternoon';
-  return 'Good evening';
-}
-
-const StatsSkeleton = () => (
-  <View style={styles.statsGrid}>
-    <View style={styles.statsRow}>
-      <Skeleton height={130} borderRadius={Layout.cardRadius} style={styles.statFlex} />
-      <Skeleton height={130} borderRadius={Layout.cardRadius} style={styles.statFlex} />
-    </View>
-    <View style={styles.statsRow}>
-      <Skeleton height={130} borderRadius={Layout.cardRadius} style={styles.statFlex} />
-      <Skeleton height={130} borderRadius={Layout.cardRadius} style={styles.statFlex} />
-    </View>
-  </View>
-);
-
-const ListSkeleton = ({ rows = 3 }: { rows?: number }) => (
-  <View style={styles.skeletonList}>
-    {Array.from({ length: rows }).map((_, i) => (
-      <Skeleton key={i} height={72} borderRadius={12} />
-    ))}
-  </View>
-);
-
-const EmptyState = ({
-  icon,
-  message,
-}: {
-  icon: keyof typeof Feather.glyphMap;
-  message: string;
-}) => {
-  const colors = useColors();
-  return (
-    <View style={[
-      styles.emptyWrap,
-      { backgroundColor: colors.surface.card, borderColor: colors.surface.border },
-    ]}>
-      <View style={[styles.emptyIconBg, { backgroundColor: colors.surface.background }]}>
-        <Feather name={icon} size={28} color={colors.text.tertiary} />
-      </View>
-      <Text style={[styles.emptyText, { color: colors.text.tertiary }]}>{message}</Text>
-    </View>
-  );
-};
+import { StatsSkeleton } from '../../../src/components/dashboard/StatsSkeleton';
+import { ListSkeleton } from '../../../src/components/dashboard/ListSkeleton';
+import { EmptyState } from '../../../src/components/ui/EmptyState';
+import { buildGreeting } from '../../../src/utils/greeting';
 
 export default function EmployeeDashboardScreen() {
   const router = useRouter();
@@ -104,7 +54,7 @@ export default function EmployeeDashboardScreen() {
   const overdueCount = stats?.overdue ?? 0;
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.surface.background }]} edges={['top']}>
+    <View style={[styles.safe, { backgroundColor: colors.surface.background }]}>
       <DashboardHeader
         greeting={greeting}
         firstName={firstName}
@@ -223,7 +173,7 @@ export default function EmployeeDashboardScreen() {
 
         <View style={styles.bottomPad} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -237,30 +187,7 @@ const styles = StyleSheet.create({
   },
   statsGrid: { gap: Spacing[3] },
   statsRow: { flexDirection: 'row', gap: Spacing[3] },
-  statFlex: { flex: 1 },
-  skeletonList: { gap: Spacing[2], marginTop: Spacing[3] },
   section: { gap: Spacing[3] },
   list: { gap: Spacing[2] },
-  emptyWrap: {
-    alignItems: 'center',
-    paddingVertical: Spacing[6],
-    gap: Spacing[3],
-    borderRadius: Layout.cardRadius,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-  },
-  emptyIconBg: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyText: {
-    ...Typography.bodyMd,
-    fontFamily: 'Inter-Regular',
-    textAlign: 'center',
-    paddingHorizontal: Spacing[6],
-  },
   bottomPad: { height: Spacing[4] },
 });

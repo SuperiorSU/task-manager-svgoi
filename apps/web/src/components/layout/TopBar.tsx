@@ -7,10 +7,12 @@ import { useUIStore } from '@/stores/ui.store';
 import { useAuthStore } from '@/stores/auth.store';
 import { AvatarWithFallback } from '@/components/shared/AvatarWithFallback';
 import { BreadcrumbNav } from './BreadcrumbNav';
+import { useUnreadCount } from '@/hooks/useNotifications';
 
 export const TopBar = () => {
   const { toggleSidebar } = useUIStore();
   const user = useAuthStore((s) => s.user);
+  const { data: unreadCount } = useUnreadCount();
 
   return (
     <header className="flex h-16 items-center justify-between border-b border-surface-border bg-white px-6">
@@ -32,6 +34,11 @@ export const TopBar = () => {
           aria-label="Notifications"
         >
           <Bell className="h-5 w-5" />
+          {(unreadCount ?? 0) > 0 && (
+            <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+              {unreadCount! > 9 ? '9+' : unreadCount}
+            </span>
+          )}
         </Link>
         {user && (
           <div className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-subtle">

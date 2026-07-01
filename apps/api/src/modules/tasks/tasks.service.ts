@@ -184,6 +184,64 @@ export const tasksService = {
     return task;
   },
 
+  async update(
+    id: string,
+    data: {
+      title?: string;
+      description?: string;
+      priority?: string;
+      dueDate?: string;
+      assigneeId?: string;
+      departmentId?: string;
+    },
+    actorId: string,
+    actorRole: string,
+    actorDeptId?: string
+  ) {
+    const task = await prisma.task.findFirst({
+      where: {
+        id,
+        isDeleted: false,
+        ...(actorRole === 'ADMIN' ? { departmentId: actorDeptId } : {}),
+      },
+      select: { id: true, title: true },
+    });
+    if (!task) throw Object.assign(new Error('Task not found'), { statusCode: 404, code: 'NOT_FOUND' });
+
+    const updated = await prisma.task.update({
+      where: { id },
+      data: {
+        ...(data.title !== undefined ? { title: data.title } : {}),
+        ...(data.description !== undefined ? { description: data.description } : {}),
+        ...(data.priority !== undefined ? { priority: data.priority as never } : {}),
+        ...(data.dueDate !== undefined ? { dueDate: new Date(data.dueDate) } : {}),
+        ...(data.assigneeId !== undefined ? { assigneeId: data.assigneeId } : {}),
+        ...(data.departmentId !== undefined ? { departmentId: data.departmentId } : {}),
+      },
+      select: taskSelect,
+    });
+
+    await prisma.taskActivity.create({
+      data: {
+        taskId: id,
+        actorId,
+        action: 'UPDATE',
+        description: `Task "${task.title}" updated`,
+        metadata: data as never,
+      },
+    });
+
+    await writeAuditLog({
+      action: 'UPDATE',
+      entityType: 'Task',
+      entityId: id,
+      description: `Task "${task.title}" updated`,
+      actorId,
+    });
+
+    return updated;
+  },
+
   async updateStatus(
     id: string,
     newStatus: TaskStatus,
