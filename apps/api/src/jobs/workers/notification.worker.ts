@@ -28,7 +28,7 @@ export const notificationWorker = new Worker<NotificationJob>(
         to: t.token,
         title,
         body,
-        data,
+        ...(data ? { data } : {}),
         sound: 'default' as const,
         priority,
       }));

@@ -1,11 +1,11 @@
 import cron from 'node-cron';
-import type { Logger } from 'pino';
+import type { FastifyBaseLogger } from 'fastify';
 
 import { prisma } from '../../config/database.js';
 
 // Supabase free tier pauses the database after 7 days of inactivity.
 // This job runs a cheap SELECT 1 every 12 hours to keep the connection alive.
-export function startDbKeepalive(logger: Logger): cron.ScheduledTask {
+export function startDbKeepalive(logger: FastifyBaseLogger): cron.ScheduledTask {
   const ping = async () => {
     try {
       await prisma.$queryRaw`SELECT 1`;

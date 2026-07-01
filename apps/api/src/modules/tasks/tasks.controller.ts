@@ -9,7 +9,7 @@ export const tasksController = {
     const result = await tasksService.getList({
       ...(request.query as object),
       viewerRole: user.role,
-      viewerDeptId: user.departmentId,
+      ...(user.departmentId ? { viewerDeptId: user.departmentId } : {}),
       viewerId: user.id,
     });
     return sendSuccess(reply, result.tasks, 200, result.meta);

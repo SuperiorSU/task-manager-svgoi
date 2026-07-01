@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 
-import { redis } from '../../config/redis.js';
+import { cache } from '../../config/redis.js';
 import { requireAuth } from '../../shared/guards/requireAuth.guard.js';
 import { requirePermission } from '../../shared/guards/requirePermission.guard.js';
 import { PERMISSIONS } from '../../shared/guards/permissions.js';
@@ -44,12 +44,12 @@ const REPORTS_CACHE_KEY = 'reports:list';
 const REPORTS_TTL = 300;
 
 async function getReports(): Promise<ReportRecord[]> {
-  const cached = await redis.get<ReportRecord[]>(REPORTS_CACHE_KEY).catch(() => null);
+  const cached = await cache.get<ReportRecord[]>(REPORTS_CACHE_KEY).catch(() => null);
   return cached ?? [];
 }
 
 async function saveReports(reports: ReportRecord[]): Promise<void> {
-  await redis.set(REPORTS_CACHE_KEY, reports, REPORTS_TTL).catch(() => {});
+  await cache.set(REPORTS_CACHE_KEY, reports, REPORTS_TTL).catch(() => {});
 }
 
 export const reportsRoutes = async (app: FastifyInstance): Promise<void> => {

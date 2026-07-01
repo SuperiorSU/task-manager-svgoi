@@ -13,10 +13,10 @@ const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'application/pdf'
 
 const s3 = new S3Client({
   region: 'auto',
-  endpoint: env.SUPABASE_URL ? `${env.SUPABASE_URL}/storage/v1/s3` : undefined,
-  credentials: env.SUPABASE_SERVICE_KEY
-    ? { accessKeyId: 'supabase', secretAccessKey: env.SUPABASE_SERVICE_KEY }
-    : undefined,
+  ...(env.SUPABASE_URL ? { endpoint: `${env.SUPABASE_URL}/storage/v1/s3` } : {}),
+  ...(env.SUPABASE_SERVICE_KEY
+    ? { credentials: { accessKeyId: 'supabase', secretAccessKey: env.SUPABASE_SERVICE_KEY } }
+    : {}),
 });
 
 const BUCKET = 'svgoi-task-attachments';

@@ -56,7 +56,7 @@ export class ApiClient {
   }
 
   get<T>(path: string, params?: RequestOptions['params']) {
-    return this.request<T>(path, { method: 'GET', params });
+    return this.request<T>(path, { method: 'GET', ...(params ? { params } : {}) });
   }
 
   post<T>(path: string, body?: unknown) {

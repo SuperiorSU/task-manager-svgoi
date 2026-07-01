@@ -10,6 +10,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
+import type { TaskStatus } from '@godigitify/types';
+
 import type { MockTask } from '../../data/tasks.mock';
 import { useColors } from '../../constants/colors';
 import { Typography } from '../../constants/typography';

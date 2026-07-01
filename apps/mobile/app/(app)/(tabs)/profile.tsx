@@ -29,6 +29,23 @@ export default function ProfileScreen() {
   const isLoading = profileLoading || statsLoading;
   const handleEditPress = () => router.push('/(app)/profile/edit');
 
+  const headerProfile = profile
+    ? {
+        name: profile.name,
+        ...(profile.designation !== undefined ? { designation: profile.designation } : {}),
+        ...(profile.department ? { department: profile.department.name } : {}),
+        role: profile.role,
+      }
+    : undefined;
+
+  const headerStats = stats
+    ? {
+        onTimeRate: stats.completed > 0 ? Math.round(((stats.completed - stats.overdue) / stats.completed) * 100) : 0,
+        completed: stats.completed,
+        active: stats.pending + stats.inProgress,
+      }
+    : undefined;
+
   return (
     <View style={[s.screen, { paddingTop: insets.top, backgroundColor: colors.surface.background }]}>
       <ProfileHeaderBar onEditPress={handleEditPress} />
@@ -40,7 +57,7 @@ export default function ProfileScreen() {
           contentContainerStyle={s.scroll}
           showsVerticalScrollIndicator={false}
         >
-          <ProfileHeaderCard profile={profile} stats={stats} onEditPress={handleEditPress} />
+          <ProfileHeaderCard profile={headerProfile} stats={headerStats} onEditPress={handleEditPress} />
 
           <ProfileAccountSection profile={profile} />
 

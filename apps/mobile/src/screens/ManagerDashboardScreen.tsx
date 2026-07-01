@@ -11,7 +11,7 @@ import { useColors } from '../constants/colors';
 import { Layout, Spacing } from '../constants/spacing';
 import { Typography } from '../constants/typography';
 import { buildGreeting } from '../utils/greeting';
-import { useMockUnreadCount } from '../hooks/useDashboard';
+import { useUnreadCount } from '../hooks/useDashboard';
 import { DashboardHeader } from '../components/dashboard/DashboardHeader';
 import { OverdueAlertBanner } from '../components/dashboard/OverdueAlertBanner';
 import { StatCard } from '../components/dashboard/StatCard';
@@ -46,7 +46,7 @@ export function ManagerDashboardScreen({ role }: Props) {
   const router = useRouter();
   const colors = useColors();
   const user = useAuthStore((s) => s.user);
-  const { data: unreadCount = 0 } = useMockUnreadCount();
+  const { data: unreadCount = 0 } = useUnreadCount();
   const [refreshing, setRefreshing] = useState(false);
 
   const routeGroup = routeGroupByRole[role];

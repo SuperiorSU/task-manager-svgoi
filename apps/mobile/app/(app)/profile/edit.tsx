@@ -51,12 +51,12 @@ export default function EditProfileScreen() {
     if (profile) {
       setName(profile.name);
       setEmail(profile.email);
-      setPhone(profile.phone);
+      setPhone(profile.phone ?? '');
     }
   }, [profile]);
 
   const handleSave = () => {
-    updateProfile({ name, email, phone }, { onSuccess: () => router.back() });
+    updateProfile({ name, phone }, { onSuccess: () => router.back() });
   };
 
   const inputStyle = (field: string) => [
@@ -151,11 +151,11 @@ export default function EditProfileScreen() {
           <View style={[s.readOnlyDivider, { backgroundColor: colors.surface.border }]} />
           <ReadOnlyRow label="Employee ID" value={profile?.employeeId ?? ''} />
           <View style={[s.readOnlyDivider, { backgroundColor: colors.surface.border }]} />
-          <ReadOnlyRow label="Department" value={profile?.department ?? ''} />
+          <ReadOnlyRow label="Department" value={profile?.department?.name ?? ''} />
           <View style={[s.readOnlyDivider, { backgroundColor: colors.surface.border }]} />
           <ReadOnlyRow label="Role" value={profile?.role ?? ''} />
           <View style={[s.readOnlyDivider, { backgroundColor: colors.surface.border }]} />
-          <ReadOnlyRow label="Reporting manager" value={profile?.reportingManager ?? ''} />
+          <ReadOnlyRow label="Reporting manager" value={profile?.manager?.name ?? ''} />
         </View>
       </ScrollView>
 

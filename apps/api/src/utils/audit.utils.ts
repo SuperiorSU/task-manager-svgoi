@@ -1,3 +1,5 @@
+import type { Prisma } from '@prisma/client';
+
 import { prisma } from '../config/database.js';
 
 type AuditParams = {
@@ -12,16 +14,17 @@ type AuditParams = {
 };
 
 export const writeAuditLog = async (params: AuditParams): Promise<void> => {
-  await prisma.auditLog.create({
-    data: {
-      action: params.action as never,
-      entityType: params.entityType,
-      entityId: params.entityId,
-      description: params.description,
-      actorId: params.actorId,
-      ipAddress: params.ipAddress,
-      userAgent: params.userAgent,
-      metadata: params.metadata,
-    },
-  });
+  const data: Prisma.AuditLogUncheckedCreateInput = {
+    action: params.action as never,
+    entityType: params.entityType,
+    entityId: params.entityId,
+    description: params.description,
+    ...(params.actorId !== undefined ? { actorId: params.actorId } : {}),
+    ...(params.ipAddress !== undefined ? { ipAddress: params.ipAddress } : {}),
+    ...(params.userAgent !== undefined ? { userAgent: params.userAgent } : {}),
+    ...(params.metadata !== undefined
+      ? { metadata: params.metadata as Prisma.InputJsonValue }
+      : {}),
+  };
+  await prisma.auditLog.create({ data });
 };

@@ -47,7 +47,7 @@ export const requireAuth = async (
       id: user.id,
       role: user.role as never,
       sid: payload.sid,
-      departmentId: user.departmentId ?? undefined,
+      ...(user.departmentId ? { departmentId: user.departmentId } : {}),
       permissions: allPerms,
     };
   } catch {

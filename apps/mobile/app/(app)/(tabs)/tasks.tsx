@@ -45,9 +45,9 @@ export default function TasksScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const apiFilters = useMemo(() => ({
-    status: filters.status === 'ALL' || filters.status === 'OVERDUE' ? undefined : filters.status,
-    priority: filters.priorities.length === 1 ? filters.priorities[0] : undefined,
-    search: filters.search || undefined,
+    ...(filters.status !== 'ALL' && filters.status !== 'OVERDUE' ? { status: filters.status } : {}),
+    ...(filters.priorities.length === 1 ? { priority: filters.priorities[0] } : {}),
+    ...(filters.search ? { search: filters.search } : {}),
     sortBy: filters.sortBy,
     order: filters.sortOrder,
     limit: 100,
@@ -213,7 +213,7 @@ export default function TasksScreen() {
 
       {/* ── Main List ── */}
       <FlatList
-        data={isLoading ? [] : displayTasks}
+        data={isLoading ? [] : currentTasks}
         keyExtractor={(item) => item.id}
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + Spacing[8] }]}
         showsVerticalScrollIndicator={false}

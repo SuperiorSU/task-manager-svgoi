@@ -135,7 +135,7 @@ export const tasksService = {
         isDeleted: false,
         ...(viewerRole === 'EMPLOYEE'
           ? { assigneeId: viewerId }
-          : viewerRole === 'ADMIN'
+          : viewerRole === 'ADMIN' && viewerDeptId
           ? { departmentId: viewerDeptId }
           : {}),
       },
@@ -149,14 +149,14 @@ export const tasksService = {
     const task = await prisma.task.create({
       data: {
         title: input.title,
-        description: input.description,
+        ...(input.description !== undefined ? { description: input.description } : {}),
         priority: input.priority as never,
         dueDate: new Date(input.dueDate),
         assigneeId: input.assigneeId,
         creatorId: input.creatorId,
-        departmentId: input.departmentId,
+        ...(input.departmentId !== undefined ? { departmentId: input.departmentId } : {}),
         isRecurring: input.isRecurring ?? false,
-        recurringConfig: (input.recurringConfig as never) ?? undefined,
+        ...(input.recurringConfig !== undefined ? { recurringConfig: input.recurringConfig as never } : {}),
       },
       select: taskSelect,
     });
@@ -202,7 +202,7 @@ export const tasksService = {
       where: {
         id,
         isDeleted: false,
-        ...(actorRole === 'ADMIN' ? { departmentId: actorDeptId } : {}),
+        ...(actorRole === 'ADMIN' && actorDeptId ? { departmentId: actorDeptId } : {}),
       },
       select: { id: true, title: true },
     });
@@ -390,7 +390,7 @@ export const tasksService = {
     await tasksService.getById(taskId, authorId, viewerRole ?? 'EMPLOYEE', viewerDeptId);
 
     const comment = await prisma.comment.create({
-      data: { taskId, authorId, content, parentId },
+      data: { taskId, authorId, content, ...(parentId !== undefined ? { parentId } : {}) },
       select: {
         id: true,
         content: true,

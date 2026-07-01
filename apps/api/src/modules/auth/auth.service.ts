@@ -64,7 +64,7 @@ export const authService = {
 
     if (!user || !(await verifyPassword(password, user.passwordHash))) {
       // Track failed attempts — fire-and-forget if Redis is down
-      void redis.incr(attemptsKey).then(async (attempts) => {
+      void redis.incr(attemptsKey).then(async (attempts: number) => {
         if (attempts === 1) await redis.expire(attemptsKey, LOCKOUT_TTL);
         if (attempts >= LOCKOUT_ATTEMPTS) {
           await redis.setex(lockKey, LOCKOUT_TTL, '1');

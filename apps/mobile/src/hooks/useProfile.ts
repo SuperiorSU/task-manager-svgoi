@@ -4,6 +4,7 @@ import { authApi, usersApi, dashboardApi } from '@godigitify/api-client';
 import { useAuthStore } from '../stores/auth.store';
 import { queryKeys } from '../constants/queryKeys';
 import {
+  USE_MOCK,
   MOCK_NOTIFICATION_PREFS,
   MOCK_ADMIN_PROFILE_USER,
   MOCK_ADMIN_PROFILE_STATS,

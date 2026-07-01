@@ -1,7 +1,7 @@
 import type { Role } from '@godigitify/types';
 
-declare module 'fastify' {
-  interface FastifyRequest {
+declare module '@fastify/jwt' {
+  interface FastifyJWT {
     user: {
       id: string;
       role: Role;

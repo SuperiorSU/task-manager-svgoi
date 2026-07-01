@@ -54,7 +54,12 @@ export const departmentsRoutes = async (app: FastifyInstance): Promise<void> => 
         headId?: string;
       };
       const dept = await prisma.department.create({
-        data: { name, code, description, headId },
+        data: {
+          name,
+          code,
+          ...(description !== undefined ? { description } : {}),
+          ...(headId !== undefined ? { headId } : {}),
+        },
         select: deptSelect,
       });
       return sendSuccess(reply, dept, 201);

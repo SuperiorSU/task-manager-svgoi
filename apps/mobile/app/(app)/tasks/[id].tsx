@@ -178,7 +178,7 @@ export default function TaskDetailScreen() {
     // scroll to comments — handled inline in screen
   }, []);
 
-  const handleOverflowAction = useCallback((action: OverflowAction, t: MockTask) => {
+  const handleOverflowAction = useCallback((action: OverflowAction) => {
     if (action === 'delete') {
       Alert.alert('Delete Task', 'This action cannot be undone.', [
         { text: 'Cancel', style: 'cancel' },
@@ -186,9 +186,12 @@ export default function TaskDetailScreen() {
       ]);
     }
     if (action === 'mark_complete') {
-      setLocalTask({ ...t, status: 'COMPLETED' });
+      setLocalTask((prev) => {
+        const base = prev ?? displayed;
+        return base ? { ...base, status: 'COMPLETED' } : prev;
+      });
     }
-  }, [router]);
+  }, [router, displayed]);
 
   if (isLoading) {
     return <DetailSkeleton insets={insets} />;
