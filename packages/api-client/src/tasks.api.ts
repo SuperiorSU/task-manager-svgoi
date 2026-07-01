@@ -1,25 +1,28 @@
-import type { Task, TaskFilters, CreateTaskDto, UpdateTaskStatusDto } from '@godigitify/types';
+import type { RichTask, TaskFilters, CreateTaskDto, UpdateTaskStatusDto } from '@godigitify/types';
 
 import { getApiClient } from './client';
 
+export type TaskListMeta = { page: number; limit: number; total: number; totalPages: number };
+export type TaskListResponse = { tasks: RichTask[]; meta: TaskListMeta };
+
 export const tasksApi = {
   getList: (filters?: TaskFilters) =>
-    getApiClient().get<Task[]>('/tasks', filters as Record<string, string | number | boolean | undefined>),
+    getApiClient().get<TaskListResponse>('/tasks', filters as Record<string, string | number | boolean | undefined>),
 
-  getById: (id: string) => getApiClient().get<Task>(`/tasks/${id}`),
+  getById: (id: string) => getApiClient().get<RichTask>(`/tasks/${id}`),
 
-  create: (dto: CreateTaskDto) => getApiClient().post<Task>('/tasks', dto),
+  create: (dto: CreateTaskDto) => getApiClient().post<RichTask>('/tasks', dto),
 
   update: (id: string, dto: Partial<CreateTaskDto>) =>
-    getApiClient().patch<Task>(`/tasks/${id}`, dto),
+    getApiClient().patch<RichTask>(`/tasks/${id}`, dto),
 
   updateStatus: (id: string, dto: UpdateTaskStatusDto) =>
-    getApiClient().patch<Task>(`/tasks/${id}/status`, dto),
+    getApiClient().patch<RichTask>(`/tasks/${id}/status`, dto),
 
   delete: (id: string) => getApiClient().delete<void>(`/tasks/${id}`),
 
   assign: (id: string, assigneeId: string) =>
-    getApiClient().post<Task>(`/tasks/${id}/assign`, { assigneeId }),
+    getApiClient().post<RichTask>(`/tasks/${id}/assign`, { assigneeId }),
 
   getComments: (taskId: string) =>
     getApiClient().get<unknown[]>(`/tasks/${taskId}/comments`),
@@ -32,4 +35,14 @@ export const tasksApi = {
 
   bulkUpdateStatus: (ids: string[], status: string) =>
     getApiClient().post<void>('/tasks/bulk/status', { ids, status }),
+
+  /** Fetch tasks with due dates within [from, to] for the calendar view */
+  getCalendar: (from: string, to: string) =>
+    getApiClient().get<TaskListResponse>('/tasks', {
+      dueAfter: from,
+      dueBefore: to,
+      limit: 200,
+      sortBy: 'dueDate',
+      order: 'asc',
+    } as Record<string, string | number | boolean | undefined>),
 };

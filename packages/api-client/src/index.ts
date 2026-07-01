@@ -1,7 +1,10 @@
 export { initApiClient, getApiClient } from './client';
 export { authApi } from './auth.api';
 export { tasksApi } from './tasks.api';
+export type { TaskListResponse, TaskListMeta } from './tasks.api';
 export { usersApi } from './users.api';
+export { dashboardApi } from './dashboard.api';
+export type { DashboardStats, DashboardActivityItem, UpcomingTask } from './dashboard.api';
 export { notificationsApi } from './notifications.api';
 export { departmentsApi } from './departments.api';
 export { reportsApi } from './reports.api';

@@ -9,10 +9,10 @@ export type CalendarTask = {
   title: string;
   status: TaskStatus;
   priority: TaskPriority;
-  department: string;
+  department?: string | null;
   /** ISO datetime string — includes time for week/day view placement */
   dueDate: string;
-  progress: number; // 0-100
+  progress?: number; // 0-100, absent when fetched from real API
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

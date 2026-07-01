@@ -4,17 +4,31 @@ import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 
-import type { MockTask } from '../../data/tasks.mock';
-import { isTaskOverdue } from '../../data/tasks.mock';
+import type { TaskStatus, TaskPriority } from '@godigitify/types';
 
 import { useColors } from '../../constants/colors';
 import { Typography } from '../../constants/typography';
 import { Spacing, Layout } from '../../constants/spacing';
 import { TaskStatusBadge } from './TaskStatusBadge';
 
+/** Minimal shape TaskCard needs — satisfied by both RichTask and MockTask */
+export type TaskCardItem = {
+  id: string;
+  title: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  dueDate: string;
+  department?: { name: string } | null;
+  assignee: { name: string };
+};
+
+const isTaskOverdue = (task: TaskCardItem): boolean =>
+  !['COMPLETED', 'CANCELLED'].includes(task.status) &&
+  dayjs(task.dueDate).isBefore(dayjs());
+
 type Props = {
-  task: MockTask;
-  onMorePress?: (task: MockTask) => void;
+  task: TaskCardItem;
+  onMorePress?: (task: TaskCardItem) => void;
   onPress?: (id: string) => void;
 };
 
@@ -71,18 +85,14 @@ export const TaskCard = React.memo(({ task, onMorePress, onPress }: Props) => {
         </Text>
 
         <View style={styles.tagRow}>
-          <View style={[styles.tag, { backgroundColor: colors.brand.primaryLight }]}>
-            <Feather name="folder" size={10} color={colors.brand.primary} />
-            <Text style={[styles.tagText, { color: colors.brand.primary }]} numberOfLines={1}>
-              {task.project.name}
-            </Text>
-          </View>
-          <View style={[styles.tag, { backgroundColor: colors.surface.background }]}>
-            <Feather name="briefcase" size={10} color={colors.text.tertiary} />
-            <Text style={[styles.tagText, { color: colors.text.secondary }]} numberOfLines={1}>
-              {task.department.name}
-            </Text>
-          </View>
+          {task.department?.name ? (
+            <View style={[styles.tag, { backgroundColor: colors.brand.primaryLight }]}>
+              <Feather name="briefcase" size={10} color={colors.brand.primary} />
+              <Text style={[styles.tagText, { color: colors.brand.primary }]} numberOfLines={1}>
+                {task.department.name}
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.metaRow}>

@@ -33,7 +33,7 @@ export const DashboardHeader = React.memo(
     return (
       <View style={[
         styles.header,
-        { paddingTop: insets.top + Spacing[2], backgroundColor: colors.surface.card, borderBottomColor: colors.surface.border },
+        { paddingTop: insets.top, backgroundColor: colors.surface.card, borderBottomColor: colors.surface.border },
       ]}>
         <View style={styles.row}>
           <View style={styles.greetingBlock}>
@@ -82,7 +82,7 @@ const styles = StyleSheet.create({
   header: {
     borderBottomWidth: 1,
     paddingHorizontal: Spacing[4],
-    paddingBottom: Spacing[4],
+    paddingBottom: Spacing[2],
   },
   row: {
     flexDirection: 'row',

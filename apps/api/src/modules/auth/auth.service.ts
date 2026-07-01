@@ -25,6 +25,8 @@ const safeUserSelect = {
   createdAt: true,
   updatedAt: true,
   permissions: { select: { permission: true } },
+  department: { select: { id: true, name: true, code: true } },
+  manager: { select: { id: true, name: true } },
 } as const;
 
 const LOCKOUT_ATTEMPTS = 5;

@@ -13,10 +13,10 @@ import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 
-import type { CalendarTask } from '../../../src/data/calendar.mock';
 import {
   useCalendarTasks,
   useCalendarState,
+  type CalendarTask,
 } from '../../../src/hooks/useCalendar';
 
 import { useColors } from '../../../src/constants/colors';
@@ -124,8 +124,6 @@ export default function CalendarScreen() {
   const insets = useSafeAreaInsets();
   const colors = useColors();
 
-  const { data: taskMap = new Map<string, CalendarTask[]>(), isLoading, refetch } = useCalendarTasks();
-
   const {
     view,
     switchView,
@@ -137,6 +135,8 @@ export default function CalendarScreen() {
     today,
     getMondayOf,
   } = useCalendarState();
+
+  const { data: taskMap = new Map<string, CalendarTask[]>(), isLoading, refetch } = useCalendarTasks(periodAnchor, view);
 
   const selectedDateStr = selectedDate.format('YYYY-MM-DD');
 

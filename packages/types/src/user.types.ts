@@ -16,6 +16,8 @@ export type User = {
   lastLoginAt?: string;
   createdAt: string;
   updatedAt: string;
+  department?: { id: string; name: string; code: string } | null;
+  manager?: { id: string; name: string } | null;
 };
 
 export type UserProfile = Omit<User, 'permissions'>;

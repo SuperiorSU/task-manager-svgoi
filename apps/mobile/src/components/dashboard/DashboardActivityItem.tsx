@@ -7,38 +7,50 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 
 dayjs.extend(relativeTime);
 
-import type { ActivityItem, ActivityType } from '../../data/dashboard.mock';
-
 import { useColors } from '../../constants/colors';
 import { Typography } from '../../constants/typography';
 import { Spacing } from '../../constants/spacing';
 
+type ActivityAction =
+  | 'CREATE' | 'UPDATE' | 'DELETE'
+  | 'STATUS_CHANGED' | 'ASSIGNED' | 'REASSIGNED'
+  | string;
+
+type ActivityItemShape = {
+  id: string;
+  action: ActivityAction;
+  description: string;
+  createdAt: string;
+  task: { id: string; title: string };
+  actor: { id: string; name: string; avatarUrl?: string | null };
+};
+
 type Props = {
-  item: ActivityItem;
+  item: ActivityItemShape;
 };
 
 export const DashboardActivityItem = React.memo(({ item }: Props) => {
   const router = useRouter();
   const colors = useColors();
 
-  const ACTIVITY_CONFIG: Record<
-    ActivityType,
-    { icon: keyof typeof Feather.glyphMap; color: string; bg: string }
-  > = {
-    ASSIGNED:       { icon: 'user-plus',      color: colors.brand.primary,         bg: colors.brand.primaryLight },
-    ACCEPTED:       { icon: 'check-circle',   color: colors.semantic.success,       bg: colors.semantic.successBg },
-    STATUS_CHANGED: { icon: 'refresh-cw',     color: colors.status.inProgress.text, bg: colors.status.inProgress.bg },
-    COMMENT_ADDED:  { icon: 'message-circle', color: colors.status.underReview.text, bg: colors.status.underReview.bg },
-    COMPLETED:      { icon: 'check-square',   color: colors.semantic.success,       bg: colors.semantic.successBg },
-    SUBMITTED:      { icon: 'upload',         color: colors.brand.primary,         bg: colors.brand.primaryLight },
-    REASSIGNED:     { icon: 'corner-up-right', color: colors.status.accepted.text,  bg: colors.status.accepted.bg },
+  const ACTION_CONFIG: Record<string, { icon: keyof typeof Feather.glyphMap; color: string; bg: string }> = {
+    CREATE:         { icon: 'plus-circle',    color: colors.brand.primary,          bg: colors.brand.primaryLight },
+    UPDATE:         { icon: 'message-circle', color: colors.status.underReview.text, bg: colors.status.underReview.bg },
+    DELETE:         { icon: 'trash-2',        color: colors.semantic.error,          bg: colors.semantic.errorBg },
+    STATUS_CHANGED: { icon: 'refresh-cw',     color: colors.status.inProgress.text,  bg: colors.status.inProgress.bg },
+    ASSIGNED:       { icon: 'user-plus',      color: colors.brand.primary,           bg: colors.brand.primaryLight },
+    REASSIGNED:     { icon: 'corner-up-right', color: colors.status.accepted.text,   bg: colors.status.accepted.bg },
   };
 
-  const config = ACTIVITY_CONFIG[item.type];
+  const config = ACTION_CONFIG[item.action] ?? {
+    icon: 'activity' as keyof typeof Feather.glyphMap,
+    color: colors.text.secondary,
+    bg: colors.surface.background,
+  };
 
   const handlePress = useCallback(() => {
-    router.push(`/(app)/tasks/${item.taskId}`);
-  }, [item.taskId, router]);
+    router.push(`/(app)/tasks/${item.task.id}`);
+  }, [item.task.id, router]);
 
   return (
     <Pressable
@@ -49,7 +61,7 @@ export const DashboardActivityItem = React.memo(({ item }: Props) => {
         pressed && styles.pressed,
       ]}
       accessibilityRole="button"
-      accessibilityLabel={`${item.actorName} ${item.description} ${item.taskTitle}`}
+      accessibilityLabel={`${item.actor.name} ${item.description} ${item.task.title}`}
     >
       <View style={[styles.iconWrap, { backgroundColor: config.bg }]}>
         <Feather name={config.icon} size={15} color={config.color} />
@@ -57,11 +69,11 @@ export const DashboardActivityItem = React.memo(({ item }: Props) => {
 
       <View style={styles.body}>
         <Text style={[styles.text, { color: colors.text.primary }]} numberOfLines={2}>
-          <Text style={[styles.actor, { color: colors.text.primary }]}>{item.actorName}</Text>
+          <Text style={[styles.actor, { color: colors.text.primary }]}>{item.actor.name}</Text>
           {' '}
           <Text style={[styles.action, { color: colors.text.secondary }]}>{item.description}</Text>
           {' '}
-          <Text style={[styles.taskTitle, { color: colors.text.primary }]}>"{item.taskTitle}"</Text>
+          <Text style={[styles.taskTitle, { color: colors.text.primary }]}>"{item.task.title}"</Text>
         </Text>
         <Text style={[styles.time, { color: colors.text.tertiary }]}>{dayjs(item.createdAt).fromNow()}</Text>
       </View>

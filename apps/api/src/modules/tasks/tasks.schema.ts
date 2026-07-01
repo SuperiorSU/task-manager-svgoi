@@ -50,6 +50,8 @@ export const taskFiltersSchema = {
     limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
     sortBy: { type: 'string', enum: ['dueDate', 'priority', 'createdAt', 'title'], default: 'dueDate' },
     order: { type: 'string', enum: ['asc', 'desc'], default: 'asc' },
+    dueAfter: { type: 'string' },
+    dueBefore: { type: 'string' },
   },
 } as const;
 

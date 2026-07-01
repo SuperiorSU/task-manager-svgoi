@@ -98,15 +98,23 @@ export default function ProfileScreen() {
 
             <Text style={[s.name, { color: colors.text.primary }]}>{profile?.name}</Text>
             <Text style={[s.designation, { color: colors.text.secondary }]}>
-              {profile?.designation} · {profile?.department}
+              {profile?.designation} · {profile?.department?.name ?? '—'}
             </Text>
 
             <View style={[s.roleBadge, { backgroundColor: colors.brand.primaryLight, borderColor: '#DBEAFE' }]}>
               <View style={[s.roleDot, { backgroundColor: colors.brand.primary }]} />
-              <Text style={[s.roleLabel, { color: colors.brand.primaryDark }]}>{profile?.role}</Text>
+              <Text style={[s.roleLabel, { color: colors.brand.primaryDark }]}>
+                {profile?.role === 'SUPER_ADMIN' ? 'Super Admin'
+                  : profile?.role === 'ADMIN' ? 'Admin'
+                  : 'Employee'}
+              </Text>
             </View>
 
-            {stats && <ProfileStatsBar stats={stats} />}
+            {stats && <ProfileStatsBar stats={{
+              onTimeRate: 0,
+              completed: stats.completed,
+              active: (stats.pending ?? 0) + (stats.inProgress ?? 0),
+            }} />}
           </View>
 
           {/* ── Account section ── */}

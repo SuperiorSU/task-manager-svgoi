@@ -49,6 +49,33 @@ export type TaskFilters = {
   limit?: number;
   sortBy?: 'dueDate' | 'priority' | 'createdAt' | 'title';
   order?: 'asc' | 'desc';
+  dueAfter?: string;
+  dueBefore?: string;
+};
+
+/** Shape returned by the API for task lists — nested creator, assignee, department included */
+export type RichTask = {
+  id: string;
+  title: string;
+  description?: string | null;
+  status: TaskStatus;
+  priority: TaskPriority;
+  dueDate: string;
+  isRecurring: boolean;
+  recurringConfig?: unknown;
+  parentTaskId?: string | null;
+  isDeleted: boolean;
+  creatorId: string;
+  assigneeId: string;
+  departmentId?: string | null;
+  acceptedAt?: string | null;
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  creator: { id: string; name: string; avatarUrl?: string | null };
+  assignee: { id: string; name: string; avatarUrl?: string | null };
+  department?: { id: string; name: string; code: string } | null;
+  _count: { comments: number; attachments: number };
 };
 
 export type UpdateTaskStatusDto = {

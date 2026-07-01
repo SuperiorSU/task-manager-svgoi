@@ -59,6 +59,8 @@ type TaskFilters = {
   limit?: number;
   sortBy?: string;
   order?: 'asc' | 'desc';
+  dueAfter?: string;
+  dueBefore?: string;
   viewerRole?: string;
   viewerDeptId?: string;
   viewerId?: string;
@@ -101,6 +103,12 @@ export const tasksService = {
         { title: { contains: rest.search, mode: 'insensitive' } },
         { description: { contains: rest.search, mode: 'insensitive' } },
       ];
+    }
+    if (rest.dueAfter || rest.dueBefore) {
+      const dueDateFilter: Record<string, Date> = {};
+      if (rest.dueAfter) dueDateFilter['gte'] = new Date(rest.dueAfter);
+      if (rest.dueBefore) dueDateFilter['lte'] = new Date(rest.dueBefore);
+      where['dueDate'] = dueDateFilter;
     }
 
     const [tasks, total] = await prisma.$transaction([
@@ -299,8 +307,8 @@ export const tasksService = {
     // Verify viewer has access to this task (reuse getById for the access check)
     await tasksService.getById(taskId, viewerId, viewerRole, viewerDeptId);
 
-    return prisma.taskComment.findMany({
-      where: { taskId, isDeleted: false },
+    return prisma.comment.findMany({
+      where: { taskId },
       orderBy: { createdAt: 'asc' },
       select: {
         id: true,
@@ -323,7 +331,7 @@ export const tasksService = {
   ) {
     await tasksService.getById(taskId, authorId, viewerRole ?? 'EMPLOYEE', viewerDeptId);
 
-    const comment = await prisma.taskComment.create({
+    const comment = await prisma.comment.create({
       data: { taskId, authorId, content, parentId },
       select: {
         id: true,
@@ -338,7 +346,7 @@ export const tasksService = {
       data: {
         taskId,
         actorId: authorId,
-        action: 'COMMENT_ADDED',
+        action: 'UPDATE',
         description: `Comment added`,
       },
     });

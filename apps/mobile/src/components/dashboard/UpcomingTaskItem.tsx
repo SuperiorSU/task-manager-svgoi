@@ -4,15 +4,24 @@ import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 
-import type { UpcomingTask } from '../../data/dashboard.mock';
+import type { TaskStatus, TaskPriority } from '@godigitify/types';
 
 import { useColors } from '../../constants/colors';
 import { Typography } from '../../constants/typography';
 import { Spacing } from '../../constants/spacing';
 import { TaskStatusBadge } from '../task/TaskStatusBadge';
 
+type UpcomingTaskShape = {
+  id: string;
+  title: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  dueDate: string;
+  department?: { name: string } | null;
+};
+
 type Props = {
-  task: UpcomingTask;
+  task: UpcomingTaskShape;
 };
 
 const isDueSoon = (dueDate: string) =>
@@ -53,7 +62,7 @@ export const UpcomingTaskItem = React.memo(({ task }: Props) => {
 
         <View style={styles.metaRow}>
           <Text style={[styles.dept, { color: colors.text.secondary }]} numberOfLines={1}>
-            {task.department}
+            {task.department?.name ?? '—'}
           </Text>
           <Text style={[styles.dot, { color: colors.text.tertiary }]}>·</Text>
           <Feather

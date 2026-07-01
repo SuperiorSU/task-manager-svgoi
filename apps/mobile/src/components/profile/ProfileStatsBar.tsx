@@ -1,10 +1,15 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
-import type { ProfileStats } from '../../data/profile.mock';
 import { useColors } from '../../constants/colors';
 
-type Props = { stats: ProfileStats };
+type StatsShape = {
+  onTimeRate: number;
+  completed: number;
+  active: number;
+};
+
+type Props = { stats: StatsShape };
 
 type StatCellProps = {
   value: string;

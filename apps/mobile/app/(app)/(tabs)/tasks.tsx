@@ -10,13 +10,13 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
+import dayjs from 'dayjs';
 
-import type { MockTask } from '../../../src/data/tasks.mock';
-import {
-  useMockTaskList,
-  useMockTaskStats,
-  useTaskFilterState,
-} from '../../../src/hooks/useTasksMock';
+import type { RichTask } from '@godigitify/types';
+import { useTasks } from '../../../src/hooks/useTasks';
+import { useTaskFilterState } from '../../../src/hooks/useTasksMock';
+import type { TaskCardItem } from '../../../src/components/task/TaskCard';
+import type { TaskOverflowItem } from '../../../src/components/task/TaskOverflowSheet';
 
 import { useColors } from '../../../src/constants/colors';
 import { Spacing, Layout } from '../../../src/constants/spacing';
@@ -136,41 +136,92 @@ export default function TasksScreen() {
 
   const { filters, setStatus, setSearch, applySheet, hasActiveFilters } = useTaskFilterState();
   const [filterSheetVisible, setFilterSheetVisible] = useState(false);
-  const [overflowTask, setOverflowTask] = useState<MockTask | null>(null);
+  const [overflowTask, setOverflowTask] = useState<TaskOverflowItem | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  const { tasks, todayTasks, overdueTasks, isLoading } = useMockTaskList(filters);
-  const { data: statsData } = useMockTaskStats();
-  const stats = statsData ?? { total: 0, pending: 0, inProgress: 0, completed: 0, underReview: 0, overdue: 0 };
+  const apiFilters = useMemo(() => ({
+    status: filters.status === 'ALL' || filters.status === 'OVERDUE' ? undefined : filters.status,
+    priority: filters.priorities.length === 1 ? filters.priorities[0] : undefined,
+    search: filters.search || undefined,
+    sortBy: filters.sortBy,
+    order: filters.sortOrder,
+    limit: 100,
+  }), [filters]);
+
+  const { data: listData, isLoading, refetch } = useTasks(apiFilters);
+
+  const allTasks: TaskCardItem[] = useMemo(
+    () => (listData?.tasks ?? []).map((t: RichTask) => ({
+      id: t.id,
+      title: t.title,
+      status: t.status,
+      priority: t.priority,
+      dueDate: t.dueDate,
+      department: t.department ?? null,
+      assignee: t.assignee,
+    })),
+    [listData],
+  );
+
+  const tasks = useMemo(() => {
+    let result = allTasks;
+    if (filters.status === 'OVERDUE') {
+      result = result.filter((t) =>
+        !['COMPLETED', 'CANCELLED'].includes(t.status) &&
+        dayjs(t.dueDate).isBefore(dayjs()),
+      );
+    }
+    if (filters.priorities.length > 1) {
+      result = result.filter((t) => filters.priorities.includes(t.priority));
+    }
+    return result;
+  }, [allTasks, filters]);
+
+  const todayTasks = useMemo(
+    () => tasks.filter((t) => dayjs(t.dueDate).isSame(dayjs(), 'day')),
+    [tasks],
+  );
+
+  const overdueTasks = useMemo(
+    () => tasks.filter((t) =>
+      !['COMPLETED', 'CANCELLED'].includes(t.status) &&
+      dayjs(t.dueDate).isBefore(dayjs())),
+    [tasks],
+  );
+
+  const stats = {
+    total: listData?.meta?.total ?? 0,
+    overdue: overdueTasks.length,
+  };
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await new Promise((r) => setTimeout(r, 800));
+    await refetch();
     setRefreshing(false);
-  }, []);
+  }, [refetch]);
 
   const handleTaskPress = useCallback((id: string) => {
     router.push(`/(app)/tasks/${id}` as Parameters<typeof router.push>[0]);
   }, [router]);
 
-  const handleMorePress = useCallback((task: MockTask) => {
-    setOverflowTask(task);
+  const handleMorePress = useCallback((task: TaskCardItem) => {
+    setOverflowTask({ id: task.id, title: task.title, status: task.status });
   }, []);
 
-  const handleOverflowAction = useCallback((action: OverflowAction, task: MockTask) => {
+  const handleOverflowAction = useCallback((action: OverflowAction, task: TaskOverflowItem) => {
     if (action === 'view') {
       router.push(`/(app)/tasks/${task.id}` as Parameters<typeof router.push>[0]);
     }
   }, [router]);
 
   const showSections = filters.status === 'ALL' && !filters.search;
-  const upcomingTasks = useMemo(() => {
+  const sectionUpcoming = useMemo(() => {
     if (!showSections) return tasks;
     return tasks.filter((t) => !todayTasks.some((td) => td.id === t.id));
   }, [tasks, todayTasks, showSections]);
 
   const renderTask = useCallback(
-    ({ item }: { item: MockTask }) => (
+    ({ item }: { item: TaskCardItem }) => (
       <TaskCard task={item} onPress={handleTaskPress} onMorePress={handleMorePress} />
     ),
     [handleTaskPress, handleMorePress]
@@ -203,13 +254,13 @@ export default function TasksScreen() {
           <TaskCard task={task} onPress={handleTaskPress} onMorePress={handleMorePress} />
         </View>
       ))}
-      {upcomingTasks.length > 0 && (
-        <SectionHeader title="Upcoming Tasks" count={upcomingTasks.length} />
+      {sectionUpcoming.length > 0 && (
+        <SectionHeader title="Upcoming Tasks" count={sectionUpcoming.length} />
       )}
     </View>
   ) : null;
 
-  const currentTasks = showSections ? upcomingTasks : tasks;
+  const displayTasks = showSections ? sectionUpcoming : tasks;
   const noResults = !isLoading && tasks.length === 0;
 
   return (
@@ -219,7 +270,7 @@ export default function TasksScreen() {
         <View>
           <Text style={[styles.headerTitle, { color: colors.text.primary }]}>My Tasks</Text>
           <Text style={[styles.headerSub, { color: colors.text.tertiary }]}>
-            {isLoading ? 'Loading…' : `${stats.total} total · ${stats.overdue} overdue`}
+            {isLoading ? 'Loading…' : `${stats.total} task${stats.total !== 1 ? 's' : ''} · ${stats.overdue} overdue`}
           </Text>
         </View>
         <Pressable
@@ -253,7 +304,7 @@ export default function TasksScreen() {
 
       {/* ── Main List ── */}
       <FlatList
-        data={isLoading ? [] : currentTasks}
+        data={isLoading ? [] : displayTasks}
         keyExtractor={(item) => item.id}
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + Spacing[8] }]}
         showsVerticalScrollIndicator={false}

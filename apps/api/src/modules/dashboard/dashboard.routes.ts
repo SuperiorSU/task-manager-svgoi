@@ -22,7 +22,10 @@ export const dashboardRoutes = async (app: FastifyInstance): Promise<void> => {
       else if (user.role === 'ADMIN') baseWhere['departmentId'] = user.departmentId;
 
       const now = new Date();
-      const [total, pending, inProgress, completed, overdue] = await prisma.$transaction([
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+
+      const [total, pending, inProgress, completed, overdue, dueToday] = await prisma.$transaction([
         prisma.task.count({ where: baseWhere as never }),
         prisma.task.count({ where: { ...baseWhere, status: 'PENDING' } as never }),
         prisma.task.count({ where: { ...baseWhere, status: 'IN_PROGRESS' } as never }),
@@ -34,12 +37,53 @@ export const dashboardRoutes = async (app: FastifyInstance): Promise<void> => {
             status: { notIn: ['COMPLETED', 'CANCELLED'] },
           } as never,
         }),
+        prisma.task.count({
+          where: {
+            ...baseWhere,
+            dueDate: { gte: todayStart, lt: todayEnd },
+            status: { notIn: ['COMPLETED', 'CANCELLED'] },
+          } as never,
+        }),
       ]);
 
-      const stats = { total, pending, inProgress, completed, overdue };
+      const stats = { total, pending, inProgress, completed, overdue, dueToday };
       // Fire-and-forget cache write — don't await, don't fail the request if Redis is down
       void cache.set(cacheKey, stats, 300).catch(() => {});
       return sendSuccess(reply, stats);
+    },
+  });
+
+  app.get('/upcoming', {
+    preHandler: [requireAuth],
+    handler: async (req, reply) => {
+      const { user } = req;
+      const now = new Date();
+      const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+      const where: Record<string, unknown> = {
+        isDeleted: false,
+        dueDate: { gte: now, lte: sevenDaysLater },
+        status: { notIn: ['COMPLETED', 'CANCELLED'] },
+      };
+      if (user.role === 'EMPLOYEE') where['assigneeId'] = user.id;
+      else if (user.role === 'ADMIN') where['departmentId'] = user.departmentId;
+
+      const tasks = await prisma.task.findMany({
+        where: where as never,
+        orderBy: { dueDate: 'asc' },
+        take: 5,
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          priority: true,
+          dueDate: true,
+          assignee: { select: { id: true, name: true, avatarUrl: true } },
+          department: { select: { id: true, name: true } },
+        },
+      });
+
+      return sendSuccess(reply, tasks);
     },
   });
 

@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
-import type { MockTask } from '../../data/tasks.mock';
+import type { TaskStatus } from '@godigitify/types';
 import { Colors } from '../../constants/colors';
 import { Typography } from '../../constants/typography';
 import { Spacing } from '../../constants/spacing';
@@ -27,14 +27,21 @@ export type OverflowAction =
   | 'share'
   | 'delete';
 
+/** Minimal shape the overflow sheet needs from a task */
+export type TaskOverflowItem = {
+  id: string;
+  title: string;
+  status: TaskStatus;
+};
+
 type ActionDef = {
   id: OverflowAction;
   label: string;
   icon: keyof typeof Feather.glyphMap;
   color?: string;
   danger?: boolean;
-  showFor?: Array<MockTask['status']>;
-  hideFor?: Array<MockTask['status']>;
+  showFor?: TaskStatus[];
+  hideFor?: TaskStatus[];
 };
 
 const ACTIONS: ActionDef[] = [
@@ -51,8 +58,8 @@ const ACTIONS: ActionDef[] = [
 
 type Props = {
   visible: boolean;
-  task: MockTask | null;
-  onAction: (action: OverflowAction, task: MockTask) => void;
+  task: TaskOverflowItem | null;
+  onAction: (action: OverflowAction, task: TaskOverflowItem) => void;
   onClose: () => void;
 };
 

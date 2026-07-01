@@ -21,7 +21,7 @@ import {
   useEmployeeStats,
   useUpcomingTasks,
   useRecentActivity,
-  useMockUnreadCount,
+  useUnreadCount,
   useDashboardRefresh,
 } from '../../../src/hooks/useDashboard';
 
@@ -90,7 +90,7 @@ export default function EmployeeDashboardScreen() {
   const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useEmployeeStats();
   const { data: upcoming, isLoading: upcomingLoading, refetch: refetchUpcoming } = useUpcomingTasks();
   const { data: activity, isLoading: activityLoading, refetch: refetchActivity } = useRecentActivity();
-  const { data: unreadCount = 0 } = useMockUnreadCount();
+  const { data: unreadCount = 0 } = useUnreadCount();
 
   const refetchers = useMemo(
     () => [refetchStats, refetchUpcoming, refetchActivity],
@@ -145,7 +145,7 @@ export default function EmployeeDashboardScreen() {
           <View style={styles.statsGrid}>
             <View style={styles.statsRow}>
               <StatCard
-                value={stats?.myTasks ?? 0}
+                value={stats?.total ?? 0}
                 label="My Tasks"
                 icon="list"
                 variant="default"

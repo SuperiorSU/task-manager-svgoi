@@ -1,10 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import dayjs, { type Dayjs } from 'dayjs';
-
-import { buildTaskMap, type CalendarTask, PRIORITY_ORDER } from '../data/calendar.mock';
+import { tasksApi } from '@godigitify/api-client';
+import type { TaskPriority } from '@godigitify/types';
+import { type CalendarTask } from '../data/calendar.mock';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+export type { CalendarTask };
 
 export type CalendarView = 'Day' | 'Week' | 'Month';
 
@@ -21,29 +24,47 @@ export type DayMeta = {
   dots: Array<{ priority: CalendarTask['priority']; key: string }>;
 };
 
-// ─── Mock-first switch ────────────────────────────────────────────────────────
-
-const USE_MOCK = true;
-
-const fetchCalendarTasks = async (): Promise<Map<string, CalendarTask[]>> => {
-  if (USE_MOCK) {
-    await new Promise((r) => setTimeout(r, 400));
-    return buildTaskMap();
-  }
-  // Future: replace with API call
-  const res = await fetch('/api/tasks/calendar');
-  const data = await res.json();
-  return new Map(Object.entries(data));
-};
+const PRIORITY_ORDER: TaskPriority[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
 
 // ─── Data hook ────────────────────────────────────────────────────────────────
 
-export const useCalendarTasks = () =>
-  useQuery({
-    queryKey: ['calendarTasks'],
-    queryFn: fetchCalendarTasks,
+export const useCalendarTasks = (periodAnchor: Dayjs, view: CalendarView) => {
+  const from = useMemo(() => {
+    if (view === 'Month') return periodAnchor.startOf('month').subtract(1, 'week').toISOString();
+    if (view === 'Week') return periodAnchor.toISOString();
+    return periodAnchor.startOf('day').toISOString();
+  }, [periodAnchor, view]);
+
+  const to = useMemo(() => {
+    if (view === 'Month') return periodAnchor.endOf('month').add(1, 'week').toISOString();
+    if (view === 'Week') return periodAnchor.add(6, 'day').endOf('day').toISOString();
+    return periodAnchor.endOf('day').toISOString();
+  }, [periodAnchor, view]);
+
+  return useQuery({
+    queryKey: ['calendarTasks', from, to],
+    queryFn: async () => {
+      const res = await tasksApi.getCalendar(from, to);
+      const tasks: CalendarTask[] = (res.data?.tasks ?? []).map((t) => ({
+        id: t.id,
+        title: t.title,
+        status: t.status,
+        priority: t.priority,
+        dueDate: t.dueDate,
+        department: t.department?.name ?? null,
+      }));
+      const map = new Map<string, CalendarTask[]>();
+      for (const task of tasks) {
+        const key = dayjs(task.dueDate).format('YYYY-MM-DD');
+        const existing = map.get(key) ?? [];
+        existing.push(task);
+        map.set(key, existing);
+      }
+      return map;
+    },
     staleTime: 5 * 60 * 1000,
   });
+};
 
 // ─── Calendar state hook ──────────────────────────────────────────────────────
 
