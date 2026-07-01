@@ -1,5 +1,5 @@
-import { ManagerDashboardScreen } from '../../../src/screens/ManagerDashboardScreen';
+import { SuperAdminDashboardScreen as SuperAdminDashboard } from '../../../src/screens/SuperAdminDashboardScreen';
 
 export default function SuperAdminDashboardScreen() {
-  return <ManagerDashboardScreen role="SUPER_ADMIN" />;
+  return <SuperAdminDashboard />;
 }

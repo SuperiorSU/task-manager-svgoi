@@ -6,10 +6,10 @@ import { useColors } from '../../constants/colors';
 
 type Props = {
   icon: keyof typeof Feather.glyphMap;
-  iconColor?: string;
+  iconColor?: string | undefined;
   label: string;
-  labelColor?: string;
-  valueLabel?: string;
+  labelColor?: string | undefined;
+  valueLabel?: string | undefined;
   onPress: () => void;
   showDivider?: boolean;
 };

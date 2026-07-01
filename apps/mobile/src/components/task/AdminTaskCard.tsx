@@ -11,6 +11,7 @@
 import React, { useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Feather } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 
@@ -18,6 +19,7 @@ import type { MockTask } from '../../data/tasks.mock';
 import { isTaskOverdue } from '../../data/tasks.mock';
 import { useColors } from '../../constants/colors';
 import { Spacing, Layout } from '../../constants/spacing';
+import { avatarPalette } from '../../utils/avatarPalette';
 
 dayjs.extend(relativeTime);
 
@@ -46,18 +48,6 @@ function getStatusChip(status: string, overdue: boolean): ChipConfig {
     default:             return { bg: '#F1F5F9', text: '#475569', label: status };
   }
 }
-
-// ─── Avatar colour palette (deterministic by initials) ────────────────────────
-
-const AVATAR_PALETTES = [
-  { bg: '#EEF2FF', fg: '#4338CA' },
-  { bg: '#FDF2F8', fg: '#9D174D' },
-  { bg: '#F0FDF4', fg: '#15803D' },
-  { bg: '#FFFBEB', fg: '#B45309' },
-  { bg: '#F1F5F9', fg: '#475569' },
-];
-const avatarPalette = (initials: string) =>
-  AVATAR_PALETTES[initials.charCodeAt(0) % AVATAR_PALETTES.length]!;
 
 // ─── Meta label: "submitted Xh ago" for UNDER_REVIEW, else due date ──────────
 
@@ -139,6 +129,14 @@ export const AdminTaskCard = React.memo(({ task, isCrossDept = false, onPress }:
           {isCrossDept && (
             <View style={s.crossDeptDot}>
               <Text style={s.crossDeptLabel}>↗</Text>
+            </View>
+          )}
+
+          {/* Batch indicator — task is one copy of a duplicated batch (FR-23) */}
+          {task.batchId && (
+            <View style={[s.batchPill, { backgroundColor: colors.brand.primaryLight }]}>
+              <Feather name="copy" size={9} color={colors.brand.primary} />
+              <Text style={[s.batchPillText, { color: colors.brand.primary }]}>Batch</Text>
             </View>
           )}
         </View>
@@ -223,6 +221,20 @@ const s = StyleSheet.create({
     fontSize: 9,
     color: '#4338CA',
     fontFamily: 'Inter-Bold',
+  },
+  batchPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    height: 16,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+    flexShrink: 0,
+  },
+  batchPillText: {
+    fontSize: 9,
+    fontFamily: 'Inter-Bold',
+    letterSpacing: 0.2,
   },
   chip: {
     paddingHorizontal: 8,

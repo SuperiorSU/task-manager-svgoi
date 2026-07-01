@@ -27,6 +27,9 @@ export default function AppLayout() {
         <Stack.Screen name="tasks/[id]" />
         <Stack.Screen name="tasks/create" />
         <Stack.Screen name="tasks/[id]/comments" />
+        <Stack.Screen name="tasks/review/[id]" />
+        <Stack.Screen name="tasks/batch/[batchId]" />
+        <Stack.Screen name="tasks/batch/[batchId]/member/[taskId]" />
         <Stack.Screen name="notifications" />
         <Stack.Screen name="profile/edit" />
         <Stack.Screen name="profile/change-password" />

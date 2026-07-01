@@ -72,6 +72,14 @@ export type MockTask = {
   attachments: MockAttachment[];
   activity: MockActivityEvent[];
   comments: MockComment[];
+
+  /**
+   * Set when this task is one independent copy of a duplicated batch
+   * (FR-23 "assign to multiple people" → N single-assignee task copies
+   * sharing the same batchId). Undefined for ordinary single tasks.
+   */
+  batchId?: string;
+  batchLabel?: string;         // e.g. "Copy 1 of 6"
 };
 
 // ─── Reference data ───────────────────────────────────────────────────────────
@@ -112,6 +120,36 @@ export const MOCK_USERS = {
     name: 'Dr. R. Singh',
     designation: 'Head of CS',
     initials: 'RS',
+  },
+  anita: {
+    id: 'usr_007',
+    name: 'Anita Patel',
+    designation: 'Senior Analyst',
+    initials: 'AP',
+  },
+  meena: {
+    id: 'usr_008',
+    name: 'Meena Kulkarni',
+    designation: 'Lab Assistant',
+    initials: 'MK',
+  },
+  suresh: {
+    id: 'usr_009',
+    name: 'Suresh Verma',
+    designation: 'Lab Technician',
+    initials: 'SV',
+  },
+  deepa: {
+    id: 'usr_010',
+    name: 'Deepa Nair',
+    designation: 'Analyst',
+    initials: 'DN',
+  },
+  farhan: {
+    id: 'usr_011',
+    name: 'Farhan Khan',
+    designation: 'Lab Assistant',
+    initials: 'FK',
   },
 } satisfies Record<string, MockUser>;
 
@@ -1029,6 +1067,215 @@ export const MOCK_TASKS: MockTask[] = [
       },
     ],
     comments: [],
+  },
+
+  // ─── batch_001 — Fire-Drill Compliance Check (duplicated to 6 people) ──────
+  // Admin duplicated one task across the Physics team (FR-23). Each person
+  // gets an independent, private copy — tracked together via Batch Progress.
+  {
+    id: 'task_016',
+    title: 'Fire-Drill Compliance Check',
+    description:
+      'Run the scheduled fire-drill for your section of the Physics building. Record evacuation time, confirm the muster point headcount, and attach the signed log plus photo evidence.',
+    status: 'UNDER_REVIEW',
+    priority: 'MEDIUM',
+    dueDate: future(2, 17),
+    createdAt: past(3),
+    acceptedAt: past(3),
+    isRecurring: false,
+    progress: 90,
+    department: { id: 'dept_01', name: 'Physics' },
+    project: { id: 'proj_03', name: 'Safety Compliance' },
+    creator: MOCK_USERS.akumar,
+    assignee: MOCK_USERS.rajan,
+    labels: ['Safety', 'Fire Drill'],
+    subtasks: [
+      { id: 'sub_016a', title: 'Run evacuation drill', completed: true },
+      { id: 'sub_016b', title: 'Confirm muster point headcount', completed: true },
+      { id: 'sub_016c', title: 'Submit signed log + photos', completed: true },
+    ],
+    attachments: [
+      { id: 'att_016a', fileName: 'firedrill_log_signed.pdf', fileSize: 310_000, mimeType: 'application/pdf', isProof: true, uploadedBy: MOCK_USERS.rajan, createdAt: past(0) },
+      { id: 'att_016b', fileName: 'muster_point.jpg', fileSize: 980_000, mimeType: 'image/jpeg', isProof: true, uploadedBy: MOCK_USERS.rajan, createdAt: past(0) },
+      { id: 'att_016c', fileName: 'wiring_fix.jpg', fileSize: 1_050_000, mimeType: 'image/jpeg', isProof: true, uploadedBy: MOCK_USERS.rajan, createdAt: past(0) },
+    ],
+    activity: [
+      { id: 'act_016a', action: 'CREATE', description: 'Task duplicated to 6 people and assigned to Rajan Sharma', actor: MOCK_USERS.akumar, createdAt: past(3) },
+      { id: 'act_016b', action: 'STATUS_CHANGED', description: 'Status changed to Under Review', actor: MOCK_USERS.rajan, metadata: { from: 'IN_PROGRESS', to: 'UNDER_REVIEW' }, createdAt: past(0) },
+    ],
+    comments: [
+      {
+        id: 'cmt_016a',
+        content: 'Drill completed at 11:40 AM, full evacuation in 4m 20s. Photos of muster point and the signed log attached.',
+        author: MOCK_USERS.rajan,
+        mentions: [],
+        createdAt: past(0),
+        isEdited: false,
+      },
+    ],
+    batchId: 'batch_001',
+    batchLabel: 'Copy 1 of 6',
+  },
+  {
+    id: 'task_017',
+    title: 'Fire-Drill Compliance Check',
+    description:
+      'Run the scheduled fire-drill for your section of the Physics building. Record evacuation time, confirm the muster point headcount, and attach the signed log plus photo evidence.',
+    status: 'COMPLETED',
+    priority: 'MEDIUM',
+    dueDate: future(2, 17),
+    createdAt: past(3),
+    acceptedAt: past(3),
+    completedAt: past(1),
+    isRecurring: false,
+    progress: 100,
+    department: { id: 'dept_01', name: 'Physics' },
+    project: { id: 'proj_03', name: 'Safety Compliance' },
+    creator: MOCK_USERS.akumar,
+    assignee: MOCK_USERS.anita,
+    labels: ['Safety', 'Fire Drill'],
+    subtasks: [
+      { id: 'sub_017a', title: 'Run evacuation drill', completed: true },
+      { id: 'sub_017b', title: 'Confirm muster point headcount', completed: true },
+      { id: 'sub_017c', title: 'Submit signed log + photos', completed: true },
+    ],
+    attachments: [
+      { id: 'att_017a', fileName: 'firedrill_log_signed.pdf', fileSize: 298_000, mimeType: 'application/pdf', isProof: true, uploadedBy: MOCK_USERS.anita, createdAt: past(1) },
+    ],
+    activity: [
+      { id: 'act_017a', action: 'CREATE', description: 'Task duplicated to 6 people and assigned to Anita Patel', actor: MOCK_USERS.akumar, createdAt: past(3) },
+      { id: 'act_017b', action: 'STATUS_CHANGED', description: 'Approved and marked as completed', actor: MOCK_USERS.akumar, metadata: { from: 'UNDER_REVIEW', to: 'COMPLETED' }, createdAt: past(1) },
+    ],
+    comments: [],
+    batchId: 'batch_001',
+    batchLabel: 'Copy 2 of 6',
+  },
+  {
+    id: 'task_018',
+    title: 'Fire-Drill Compliance Check',
+    description:
+      'Run the scheduled fire-drill for your section of the Physics building. Record evacuation time, confirm the muster point headcount, and attach the signed log plus photo evidence.',
+    status: 'IN_PROGRESS',
+    priority: 'MEDIUM',
+    dueDate: future(2, 17),
+    createdAt: past(3),
+    acceptedAt: past(2),
+    isRecurring: false,
+    progress: 40,
+    department: { id: 'dept_01', name: 'Physics' },
+    project: { id: 'proj_03', name: 'Safety Compliance' },
+    creator: MOCK_USERS.akumar,
+    assignee: MOCK_USERS.meena,
+    labels: ['Safety', 'Fire Drill'],
+    subtasks: [
+      { id: 'sub_018a', title: 'Run evacuation drill', completed: true },
+      { id: 'sub_018b', title: 'Confirm muster point headcount', completed: false },
+      { id: 'sub_018c', title: 'Submit signed log + photos', completed: false },
+    ],
+    attachments: [
+      { id: 'att_018a', fileName: 'evacuation_photo.jpg', fileSize: 870_000, mimeType: 'image/jpeg', isProof: true, uploadedBy: MOCK_USERS.meena, createdAt: past(1) },
+    ],
+    activity: [
+      { id: 'act_018a', action: 'CREATE', description: 'Task duplicated to 6 people and assigned to Meena Kulkarni', actor: MOCK_USERS.akumar, createdAt: past(3) },
+      { id: 'act_018b', action: 'STATUS_CHANGED', description: 'Status changed to Accepted', actor: MOCK_USERS.meena, metadata: { from: 'PENDING', to: 'ACCEPTED' }, createdAt: past(2) },
+    ],
+    comments: [],
+    batchId: 'batch_001',
+    batchLabel: 'Copy 3 of 6',
+  },
+  {
+    id: 'task_019',
+    title: 'Fire-Drill Compliance Check',
+    description:
+      'Run the scheduled fire-drill for your section of the Physics building. Record evacuation time, confirm the muster point headcount, and attach the signed log plus photo evidence.',
+    status: 'IN_PROGRESS',
+    priority: 'MEDIUM',
+    dueDate: future(2, 17),
+    createdAt: past(3),
+    acceptedAt: past(2),
+    isRecurring: false,
+    progress: 20,
+    department: { id: 'dept_01', name: 'Physics' },
+    project: { id: 'proj_03', name: 'Safety Compliance' },
+    creator: MOCK_USERS.akumar,
+    assignee: MOCK_USERS.suresh,
+    labels: ['Safety', 'Fire Drill'],
+    subtasks: [
+      { id: 'sub_019a', title: 'Run evacuation drill', completed: true },
+      { id: 'sub_019b', title: 'Confirm muster point headcount', completed: false },
+      { id: 'sub_019c', title: 'Submit signed log + photos', completed: false },
+    ],
+    attachments: [],
+    activity: [
+      { id: 'act_019a', action: 'CREATE', description: 'Task duplicated to 6 people and assigned to Suresh Verma', actor: MOCK_USERS.akumar, createdAt: past(3) },
+      { id: 'act_019b', action: 'STATUS_CHANGED', description: 'Status changed to Accepted', actor: MOCK_USERS.suresh, metadata: { from: 'PENDING', to: 'ACCEPTED' }, createdAt: past(2) },
+    ],
+    comments: [],
+    batchId: 'batch_001',
+    batchLabel: 'Copy 4 of 6',
+  },
+  {
+    id: 'task_020',
+    title: 'Fire-Drill Compliance Check',
+    description:
+      'Run the scheduled fire-drill for your section of the Physics building. Record evacuation time, confirm the muster point headcount, and attach the signed log plus photo evidence.',
+    status: 'PENDING',
+    priority: 'MEDIUM',
+    dueDate: future(2, 17),
+    createdAt: past(3),
+    isRecurring: false,
+    progress: 0,
+    department: { id: 'dept_01', name: 'Physics' },
+    project: { id: 'proj_03', name: 'Safety Compliance' },
+    creator: MOCK_USERS.akumar,
+    assignee: MOCK_USERS.deepa,
+    labels: ['Safety', 'Fire Drill'],
+    subtasks: [
+      { id: 'sub_020a', title: 'Run evacuation drill', completed: false },
+      { id: 'sub_020b', title: 'Confirm muster point headcount', completed: false },
+      { id: 'sub_020c', title: 'Submit signed log + photos', completed: false },
+    ],
+    attachments: [],
+    activity: [
+      { id: 'act_020a', action: 'CREATE', description: 'Task duplicated to 6 people and assigned to Deepa Nair', actor: MOCK_USERS.akumar, createdAt: past(3) },
+    ],
+    comments: [],
+    batchId: 'batch_001',
+    batchLabel: 'Copy 5 of 6',
+  },
+  {
+    id: 'task_021',
+    title: 'Fire-Drill Compliance Check',
+    description:
+      'Run the scheduled fire-drill for your section of the Physics building. Record evacuation time, confirm the muster point headcount, and attach the signed log plus photo evidence.',
+    status: 'COMPLETED',
+    priority: 'MEDIUM',
+    dueDate: future(2, 17),
+    createdAt: past(3),
+    acceptedAt: past(3),
+    completedAt: past(0),
+    isRecurring: false,
+    progress: 100,
+    department: { id: 'dept_01', name: 'Physics' },
+    project: { id: 'proj_03', name: 'Safety Compliance' },
+    creator: MOCK_USERS.akumar,
+    assignee: MOCK_USERS.farhan,
+    labels: ['Safety', 'Fire Drill'],
+    subtasks: [
+      { id: 'sub_021a', title: 'Run evacuation drill', completed: true },
+      { id: 'sub_021b', title: 'Confirm muster point headcount', completed: true },
+      { id: 'sub_021c', title: 'Submit signed log + photos', completed: true },
+    ],
+    attachments: [
+      { id: 'att_021a', fileName: 'firedrill_log_signed.pdf', fileSize: 305_000, mimeType: 'application/pdf', isProof: true, uploadedBy: MOCK_USERS.farhan, createdAt: past(0) },
+    ],
+    activity: [
+      { id: 'act_021a', action: 'CREATE', description: 'Task duplicated to 6 people and assigned to Farhan Khan', actor: MOCK_USERS.akumar, createdAt: past(3) },
+      { id: 'act_021b', action: 'STATUS_CHANGED', description: 'Approved and marked as completed', actor: MOCK_USERS.akumar, metadata: { from: 'UNDER_REVIEW', to: 'COMPLETED' }, createdAt: past(0) },
+    ],
+    comments: [],
+    batchId: 'batch_001',
+    batchLabel: 'Copy 6 of 6',
   },
 ];
 

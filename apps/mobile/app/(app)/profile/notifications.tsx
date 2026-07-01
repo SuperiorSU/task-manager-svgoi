@@ -3,7 +3,6 @@ import {
   View,
   Text,
   ScrollView,
-  Switch,
   StyleSheet,
   ActivityIndicator,
   Pressable,
@@ -18,6 +17,7 @@ import type {
   NotificationPreferences,
   DeliveryMethod,
 } from '../../../src/data/profile.mock';
+import { SettingsToggleRow } from '../../../src/components/profile/SettingsToggleRow';
 
 const DELIVERY_ICONS: Record<DeliveryMethod['key'], keyof typeof Feather.glyphMap> = {
   inApp: 'bell',
@@ -56,44 +56,6 @@ export default function NotificationPreferencesScreen() {
     patch({ ...current, quietHoursEnabled: !current.quietHoursEnabled });
   };
 
-  const ToggleRow = ({
-    label,
-    subtitle,
-    icon,
-    enabled,
-    onToggle,
-    showDivider,
-  }: {
-    label: string;
-    subtitle?: string;
-    icon?: keyof typeof Feather.glyphMap;
-    enabled: boolean;
-    onToggle: () => void;
-    showDivider?: boolean;
-  }) => (
-    <>
-      <View style={s.toggleRow}>
-        {icon && (
-          <View style={s.toggleIconWrap}>
-            <Feather name={icon} size={20} color={colors.text.secondary} />
-          </View>
-        )}
-        <View style={s.toggleText}>
-          <Text style={[s.toggleLabel, { color: colors.text.primary }]}>{label}</Text>
-          {subtitle ? <Text style={[s.toggleSubtitle, { color: colors.text.tertiary }]}>{subtitle}</Text> : null}
-        </View>
-        <Switch
-          value={enabled}
-          onValueChange={onToggle}
-          trackColor={{ false: colors.surface.border, true: colors.brand.primary }}
-          thumbColor="#fff"
-          ios_backgroundColor={colors.surface.border}
-        />
-      </View>
-      {showDivider && <View style={[s.divider, { backgroundColor: colors.surface.border, marginLeft: icon ? 52 : 16 }]} />}
-    </>
-  );
-
   return (
     <View style={[s.screen, { paddingTop: insets.top, backgroundColor: colors.surface.background }]}>
       <View style={[s.headerBar, { backgroundColor: colors.surface.card, borderBottomColor: colors.surface.border }]}>
@@ -113,7 +75,7 @@ export default function NotificationPreferencesScreen() {
           <Text style={[s.sectionLabel, { color: colors.text.tertiary }]}>Delivery method</Text>
           <View style={[s.card, { backgroundColor: colors.surface.card }]}>
             {current.delivery.map((d, i) => (
-              <ToggleRow
+              <SettingsToggleRow
                 key={d.id}
                 icon={DELIVERY_ICONS[d.key]}
                 label={d.label}
@@ -127,7 +89,7 @@ export default function NotificationPreferencesScreen() {
           <Text style={[s.sectionLabel, { color: colors.text.tertiary }]}>Notify me about</Text>
           <View style={[s.card, { backgroundColor: colors.surface.card }]}>
             {current.types.map((t, i) => (
-              <ToggleRow
+              <SettingsToggleRow
                 key={t.id}
                 label={t.label}
                 enabled={t.enabled}
@@ -138,7 +100,7 @@ export default function NotificationPreferencesScreen() {
           </View>
 
           <View style={[s.card, { backgroundColor: colors.surface.card }]}>
-            <ToggleRow
+            <SettingsToggleRow
               icon="moon"
               label="Quiet hours"
               subtitle={`${current.quietHoursStart} – ${current.quietHoursEnd}`}
@@ -191,16 +153,4 @@ const s = StyleSheet.create({
     shadowRadius: 3,
     elevation: 1,
   },
-  toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 12,
-  },
-  toggleIconWrap: { width: 24, alignItems: 'center' },
-  toggleText: { flex: 1 },
-  toggleLabel: { fontSize: 14, fontFamily: 'Inter-Regular' },
-  toggleSubtitle: { fontSize: 11, fontFamily: 'Inter-Regular', marginTop: 1 },
-  divider: { height: 1, marginRight: 16 },
 });

@@ -20,6 +20,7 @@ import * as Haptics from 'expo-haptics';
 import type { MockTask } from '../../../src/data/tasks.mock';
 import { isTaskOverdue } from '../../../src/data/tasks.mock';
 import { useMockTaskDetail } from '../../../src/hooks/useTasksMock';
+import { useBatchProgress } from '../../../src/hooks/useBatchProgress';
 import { adminTasksService } from '../../../src/services/adminTasks.service';
 
 import { Colors } from '../../../src/constants/colors';
@@ -115,6 +116,7 @@ export default function TaskDetailScreen() {
 
   const displayed = localTask ?? task ?? null;
   const isAdminCreator = displayed ? adminTasksService.isAdminCreator(displayed) : false;
+  const { summary: batchSummary } = useBatchProgress(displayed?.batchId ?? '');
 
   // ── handlers ──
   const handleBack = useCallback(() => router.back(), [router]);
@@ -284,6 +286,47 @@ export default function TaskDetailScreen() {
             )}
           </View>
         </View>
+
+        {/* Batch progress entry point — this task is one copy of a duplicated batch (FR-23) */}
+        {t.batchId && (
+          <Pressable
+            onPress={() => router.push(`/(app)/tasks/batch/${t.batchId}` as Parameters<typeof router.push>[0])}
+            style={({ pressed }) => [styles.entryBanner, pressed && { opacity: 0.85 }]}
+            accessibilityRole="button"
+            accessibilityLabel="View batch progress"
+          >
+            <View style={styles.entryIconWrap}>
+              <Feather name="users" size={18} color={Colors.brand.primary} />
+            </View>
+            <View style={styles.entryTextCol}>
+              <Text style={styles.entryTitle}>Batch progress</Text>
+              <Text style={styles.entrySubtitle}>
+                {t.batchLabel ?? 'Part of a batch'}
+                {batchSummary ? ` · ${batchSummary.doneCount} of ${batchSummary.totalMembers} done` : ''}
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={18} color={Colors.text.tertiary} />
+          </Pressable>
+        )}
+
+        {/* Individual Progress entry point — richer review surface for the admin creator */}
+        {isAdminCreator && t.status === 'UNDER_REVIEW' && (
+          <Pressable
+            onPress={() => router.push(`/(app)/tasks/review/${t.id}` as Parameters<typeof router.push>[0])}
+            style={({ pressed }) => [styles.entryBanner, styles.entryBannerReview, pressed && { opacity: 0.85 }]}
+            accessibilityRole="button"
+            accessibilityLabel="Open full review"
+          >
+            <View style={[styles.entryIconWrap, { backgroundColor: Colors.status.underReview.bg }]}>
+              <Feather name="clipboard" size={18} color={Colors.status.underReview.text} />
+            </View>
+            <View style={styles.entryTextCol}>
+              <Text style={styles.entryTitle}>Open full review</Text>
+              <Text style={styles.entrySubtitle}>Submission proof, activity &amp; approval decision</Text>
+            </View>
+            <Feather name="chevron-right" size={18} color={Colors.text.tertiary} />
+          </Pressable>
+        )}
 
         {/* Description */}
         {t.description && (
@@ -516,6 +559,38 @@ const styles = StyleSheet.create({
     ...Typography.labelSm,
     fontFamily: 'Inter-SemiBold',
     color: Colors.semantic.error,
+  },
+  entryBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[3],
+    backgroundColor: Colors.surface.card,
+    borderRadius: Layout.cardRadius,
+    padding: Spacing[4],
+    borderWidth: 1,
+    borderColor: Colors.brand.primaryLight,
+  },
+  entryBannerReview: {
+    borderColor: Colors.status.underReview.bg,
+  },
+  entryIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    backgroundColor: Colors.brand.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  entryTextCol: { flex: 1, gap: 2 },
+  entryTitle: {
+    ...Typography.labelLg,
+    fontFamily: 'Inter-SemiBold',
+    color: Colors.text.primary,
+  },
+  entrySubtitle: {
+    ...Typography.captionSm,
+    fontFamily: 'Inter-Regular',
+    color: Colors.text.tertiary,
   },
   card: {
     backgroundColor: Colors.surface.card,

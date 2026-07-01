@@ -107,7 +107,6 @@ WeekStrip.displayName = 'WeekStrip';
 const styles = StyleSheet.create({
   strip: {
     flexDirection: 'row',
-    paddingHorizontal: Spacing[2],
     paddingVertical: Spacing[3],
     borderBottomWidth: 1,
   },
