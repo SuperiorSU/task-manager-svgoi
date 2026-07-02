@@ -22,6 +22,7 @@ export type ProfileUser = {
   department: string;
   role: string;
   reportingManager: string;
+  reportingManagerRole?: string;
   avatarUrl?: string;
 };
 
@@ -78,7 +79,8 @@ export const MOCK_ADMIN_PROFILE_USER: ProfileUser = {
   designation: 'Head of Department',
   department: 'Physics',
   role: 'Admin',
-  reportingManager: 'Dr. R. K. Sharma, Principal',
+  reportingManager: 'Dr. R. K. Sharma',
+  reportingManagerRole: 'Super Admin',
 };
 
 export const MOCK_ADMIN_PROFILE_STATS: ProfileStats = {

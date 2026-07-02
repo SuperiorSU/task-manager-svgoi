@@ -325,6 +325,25 @@ export default function TaskDetailScreen() {
           </View>
         </View>
 
+        {/* Individual Progress entry point — richer review surface for the admin creator */}
+        {isAdminCreator && t.status === 'UNDER_REVIEW' && (
+          <Pressable
+            onPress={() => router.push(`/(app)/tasks/review/${t.id}` as Parameters<typeof router.push>[0])}
+            style={({ pressed }) => [styles.entryBanner, styles.entryBannerReview, pressed && { opacity: 0.85 }]}
+            accessibilityRole="button"
+            accessibilityLabel="Open full review"
+          >
+            <View style={[styles.entryIconWrap, { backgroundColor: Colors.status.underReview.bg }]}>
+              <Feather name="clipboard" size={18} color={Colors.status.underReview.text} />
+            </View>
+            <View style={styles.entryTextCol}>
+              <Text style={styles.entryTitle}>Open full review</Text>
+              <Text style={styles.entrySubtitle}>Submission proof, activity &amp; approval decision</Text>
+            </View>
+            <Feather name="chevron-right" size={18} color={Colors.text.tertiary} />
+          </Pressable>
+        )}
+
         {/* Description */}
         {t.description && (
           <View style={styles.card}>
@@ -541,6 +560,38 @@ const styles = StyleSheet.create({
     ...Typography.labelSm,
     fontFamily: 'Inter-SemiBold',
     color: Colors.semantic.error,
+  },
+  entryBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[3],
+    backgroundColor: Colors.surface.card,
+    borderRadius: Layout.cardRadius,
+    padding: Spacing[4],
+    borderWidth: 1,
+    borderColor: Colors.brand.primaryLight,
+  },
+  entryBannerReview: {
+    borderColor: Colors.status.underReview.bg,
+  },
+  entryIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    backgroundColor: Colors.brand.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  entryTextCol: { flex: 1, gap: 2 },
+  entryTitle: {
+    ...Typography.labelLg,
+    fontFamily: 'Inter-SemiBold',
+    color: Colors.text.primary,
+  },
+  entrySubtitle: {
+    ...Typography.captionSm,
+    fontFamily: 'Inter-Regular',
+    color: Colors.text.tertiary,
   },
   card: {
     backgroundColor: Colors.surface.card,

@@ -31,14 +31,18 @@ type Props = {
   onAdd?: () => void;
   canAdd?: boolean;
   onOpen?: (attachment: TaskAttachment) => void;
+  title?: string;
+  icon?: keyof typeof Feather.glyphMap;
+  emptyLabel?: string;
 };
 
-export const TaskAttachmentsSection = React.memo(({ attachments, onAdd, canAdd, onOpen }: Props) => (
+export const TaskAttachmentsSection = React.memo(
+  ({ attachments, onAdd, canAdd, onOpen, title = 'Attachments', icon = 'paperclip', emptyLabel = 'No attachments yet' }: Props) => (
   <View style={styles.card}>
     <View style={styles.header}>
       <View style={styles.titleRow}>
-        <Feather name="paperclip" size={16} color={Colors.brand.primary} />
-        <Text style={styles.title}>Attachments</Text>
+        <Feather name={icon} size={16} color={Colors.brand.primary} />
+        <Text style={styles.title}>{title}</Text>
         <View style={styles.countBadge}>
           <Text style={styles.countText}>{attachments.length}</Text>
         </View>
@@ -56,7 +60,7 @@ export const TaskAttachmentsSection = React.memo(({ attachments, onAdd, canAdd, 
     </View>
 
     {attachments.length === 0 ? (
-      <Text style={styles.emptyText}>No attachments yet</Text>
+      <Text style={styles.emptyText}>{emptyLabel}</Text>
     ) : (
       <ScrollView
         horizontal
@@ -87,7 +91,8 @@ export const TaskAttachmentsSection = React.memo(({ attachments, onAdd, canAdd, 
       </ScrollView>
     )}
   </View>
-));
+  ),
+);
 
 TaskAttachmentsSection.displayName = 'TaskAttachmentsSection';
 

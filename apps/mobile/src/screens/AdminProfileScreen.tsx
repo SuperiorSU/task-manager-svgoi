@@ -12,6 +12,8 @@ import { LogoutModal } from '../components/profile/LogoutModal';
 import { ProfileHeaderBar } from '../components/profile/ProfileHeaderBar';
 import { ProfileHeaderCard } from '../components/profile/ProfileHeaderCard';
 import { ProfileAccountSection } from '../components/profile/ProfileAccountSection';
+import { ProfileManagementSection } from '../components/profile/ProfileManagementSection';
+import { ProfileReportingCard } from '../components/profile/ProfileReportingCard';
 import { ProfileSettingsSection } from '../components/profile/ProfileSettingsSection';
 import { ProfileSettingsItem } from '../components/profile/ProfileSettingsItem';
 import { ProfileLogoutCard } from '../components/profile/ProfileLogoutCard';
@@ -114,7 +116,16 @@ export function AdminProfileScreen() {
         >
           <ProfileHeaderCard profile={headerProfile} stats={headerStats} onEditPress={handleEditPress} />
 
+          <ProfileManagementSection />
+
           <ProfileAccountSection profile={profile} />
+
+          {profile?.reportingManager && (
+            <ProfileReportingCard
+              managerName={profile.reportingManager}
+              managerRoleLabel={profile.reportingManagerRole ?? 'Super Admin'}
+            />
+          )}
 
           <ProfileReportsSection />
 

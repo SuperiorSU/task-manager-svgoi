@@ -1,1 +1,5 @@
-export { default } from '../(tabs)/calendar';
+import { SuperAdminCalendarScreen } from '../../../src/screens/SuperAdminCalendarScreen';
+
+export default function SuperAdminCalendarRoute() {
+  return <SuperAdminCalendarScreen />;
+}

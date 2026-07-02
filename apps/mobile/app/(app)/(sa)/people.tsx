@@ -1,5 +1,5 @@
-import { TeamDirectoryScreen } from '../../../src/screens/TeamDirectoryScreen';
+import { SuperAdminPeopleScreen } from '../../../src/screens/SuperAdminPeopleScreen';
 
-export default function SuperAdminPeopleScreen() {
-  return <TeamDirectoryScreen role="SUPER_ADMIN" />;
+export default function SuperAdminPeopleRoute() {
+  return <SuperAdminPeopleScreen />;
 }

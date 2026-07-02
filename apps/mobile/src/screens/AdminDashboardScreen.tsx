@@ -32,7 +32,17 @@ dayjs.extend(relativeTime);
 const isOverdue = (t: RichTask) =>
   !['COMPLETED', 'CANCELLED'].includes(t.status) && dayjs(t.dueDate).isBefore(dayjs());
 
-// ─── Donut Ring (pure RN, no SVG library) ─────────────────────────────────────
+// ─── Donut Ring ────────────────────────────────────────────────────────────────
+// Circular "fill level" gauge — no SVG dependency, no border-rotation geometry.
+// (The previous pure-View implementation used a uniformly single-colored border
+// on all four sides for its "fill" ring, so clipping + rotating it was a visual
+// no-op — a circle is rotationally symmetric, so it always rendered fully
+// colored regardless of the actual percentage.)
+//
+// This version clips a bottom-anchored fill rectangle to a circle, i.e. a
+// circular thermometer: the ring fills upward from 6 o'clock as the
+// percentage increases. Every value here is a plain height percentage —
+// no trigonometry, so there's no rotation math that can be silently wrong.
 
 function DonutRing({
   percentage,
@@ -49,71 +59,33 @@ function DonutRing({
   trackColor?: string;
   bgColor?: string;
 }) {
+  const clamped = Math.min(Math.max(percentage, 0), 100);
   const half = size / 2;
-  const fillDeg = (Math.min(Math.max(percentage, 0), 100) / 100) * 360;
-
-  // Right clip: reveals first 0°→180° of the arc (clockwise from 12 o'clock through 3 to 6)
-  const rightRotation = fillDeg <= 180 ? fillDeg - 180 : 0;
-  // Left clip: reveals 180°→360° (only activates after 50%)
-  const leftRotation = fillDeg > 180 ? fillDeg - 360 : -180;
-
-  const ringBase: object = {
-    position: 'absolute',
-    width: size,
-    height: size,
-    borderRadius: half,
-    borderWidth: strokeWidth,
-  };
-
   const innerSize = size - strokeWidth * 2;
   const innerRadius = innerSize / 2;
 
   return (
     <View style={{ width: size, height: size }}>
-      {/* Gray track ring */}
-      <View style={[ringBase, { borderColor: trackColor }]} />
-
-      {/* Right half – reveals 0 → 180° */}
+      {/* Outer disc, clipped to a circle: track color background + fill
+          rectangle rising from the bottom by `clamped`% of the height */}
       <View
         style={{
-          position: 'absolute',
-          top: 0,
-          right: 0,
-          width: half,
+          width: size,
           height: size,
+          borderRadius: half,
           overflow: 'hidden',
+          backgroundColor: trackColor,
         }}
       >
         <View
-          style={[
-            ringBase,
-            {
-              borderColor: fillColor,
-              transform: [{ rotate: `${rightRotation}deg` }],
-            },
-          ]}
-        />
-      </View>
-
-      {/* Left half – reveals 180 → 360° (>50%) */}
-      <View
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: half,
-          height: size,
-          overflow: 'hidden',
-        }}
-      >
-        <View
-          style={[
-            ringBase,
-            {
-              borderColor: fillColor,
-              transform: [{ rotate: `${leftRotation}deg` }],
-            },
-          ]}
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: `${clamped}%`,
+            backgroundColor: fillColor,
+          }}
         />
       </View>
 

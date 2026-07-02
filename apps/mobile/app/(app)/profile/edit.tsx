@@ -42,6 +42,12 @@ export default function EditProfileScreen() {
   const { data: profile } = useProfileData();
   const { mutate: updateProfile, isPending } = useUpdateProfile();
 
+  const isAdmin = profile?.role === 'ADMIN' || profile?.role === 'SUPER_ADMIN';
+  const idLabel = isAdmin ? 'Admin ID' : 'Employee ID';
+  const managedByLabel = isAdmin ? 'Managed by Super Admin · read-only' : 'Managed by admin · read-only';
+  const reportingLabel = isAdmin ? 'Reports to' : 'Reporting manager';
+  const roleValue = profile?.designation ? `${profile.role} · ${profile.designation}` : profile?.role ?? '';
+
   const [name, setName] = useState(profile?.name ?? '');
   const [email, setEmail] = useState(profile?.email ?? '');
   const [phone, setPhone] = useState(profile?.phone ?? '');
@@ -145,17 +151,17 @@ export default function EditProfileScreen() {
           <View style={s.readOnlyHeader}>
             <Feather name="lock" size={14} color={colors.text.tertiary} />
             <Text style={[s.readOnlyHeaderText, { color: colors.text.tertiary }]}>
-              Managed by admin · read-only
+              {managedByLabel}
             </Text>
           </View>
           <View style={[s.readOnlyDivider, { backgroundColor: colors.surface.border }]} />
-          <ReadOnlyRow label="Employee ID" value={profile?.employeeId ?? ''} />
+          <ReadOnlyRow label={idLabel} value={profile?.employeeId ?? ''} />
           <View style={[s.readOnlyDivider, { backgroundColor: colors.surface.border }]} />
           <ReadOnlyRow label="Department" value={profile?.department?.name ?? ''} />
           <View style={[s.readOnlyDivider, { backgroundColor: colors.surface.border }]} />
-          <ReadOnlyRow label="Role" value={profile?.role ?? ''} />
+          <ReadOnlyRow label="Role" value={roleValue} />
           <View style={[s.readOnlyDivider, { backgroundColor: colors.surface.border }]} />
-          <ReadOnlyRow label="Reporting manager" value={profile?.manager?.name ?? ''} />
+          <ReadOnlyRow label={reportingLabel} value={profile?.manager?.name ?? ''} />
         </View>
       </ScrollView>
 
