@@ -34,6 +34,22 @@ export const useUnreadCount = () =>
     staleTime: 60 * 1_000,
   });
 
+// ─── Admin / SA only ────────────────────────────────────────────────────────
+
+export const useDeptStats = () =>
+  useQuery({
+    queryKey: queryKeys.dashboard.deptStats(),
+    queryFn: () => dashboardApi.getDeptStats().then((r) => r.data),
+    staleTime: 5 * 60 * 1_000,
+  });
+
+export const useWorkload = () =>
+  useQuery({
+    queryKey: queryKeys.dashboard.workload(),
+    queryFn: () => dashboardApi.getWorkload().then((r) => r.data),
+    staleTime: 5 * 60 * 1_000,
+  });
+
 // ─── Aggregate refresh ────────────────────────────────────────────────────────
 
 export const useDashboardRefresh = (

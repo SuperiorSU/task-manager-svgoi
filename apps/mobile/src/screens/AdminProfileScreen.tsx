@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 
 import { useColors } from '../constants/colors';
 import { Spacing } from '../constants/spacing';
-import { useAdminProfileData, useAdminProfileStats } from '../hooks/useProfile';
+import { useProfileData, useProfileStats } from '../hooks/useProfile';
 import { useLogout } from '../hooks/useAuth';
 
 import { LogoutModal } from '../components/profile/LogoutModal';
@@ -75,14 +75,31 @@ export function AdminProfileScreen() {
   const insets = useSafeAreaInsets();
   const colors = useColors();
 
-  const { data: profile, isLoading: profileLoading } = useAdminProfileData();
-  const { data: stats, isLoading: statsLoading } = useAdminProfileStats();
+  const { data: profile, isLoading: profileLoading } = useProfileData();
+  const { data: stats, isLoading: statsLoading } = useProfileStats();
   const { mutate: logout, isPending: logoutPending } = useLogout();
 
   const [logoutVisible, setLogoutVisible] = useState(false);
 
   const isLoading = profileLoading || statsLoading;
   const handleEditPress = () => router.push('/(app)/profile/edit');
+
+  const headerProfile = profile
+    ? {
+        name: profile.name,
+        ...(profile.designation !== undefined ? { designation: profile.designation } : {}),
+        ...(profile.department ? { department: profile.department.name } : {}),
+        role: profile.role,
+      }
+    : undefined;
+
+  const headerStats = stats
+    ? {
+        onTimeRate: stats.completed > 0 ? Math.round(((stats.completed - stats.overdue) / stats.completed) * 100) : 0,
+        completed: stats.completed,
+        active: stats.pending + stats.inProgress,
+      }
+    : undefined;
 
   return (
     <View style={[s.screen, { paddingTop: insets.top, backgroundColor: colors.surface.background }]}>
@@ -95,7 +112,7 @@ export function AdminProfileScreen() {
           contentContainerStyle={s.scroll}
           showsVerticalScrollIndicator={false}
         >
-          <ProfileHeaderCard profile={profile} stats={stats} onEditPress={handleEditPress} />
+          <ProfileHeaderCard profile={headerProfile} stats={headerStats} onEditPress={handleEditPress} />
 
           <ProfileAccountSection profile={profile} />
 

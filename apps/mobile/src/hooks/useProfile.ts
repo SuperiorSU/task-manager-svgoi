@@ -4,12 +4,7 @@ import { authApi, usersApi, dashboardApi } from '@godigitify/api-client';
 import { useAuthStore } from '../stores/auth.store';
 import { queryKeys } from '../constants/queryKeys';
 import {
-  USE_MOCK,
   MOCK_NOTIFICATION_PREFS,
-  MOCK_ADMIN_PROFILE_USER,
-  MOCK_ADMIN_PROFILE_STATS,
-  type ProfileUser,
-  type ProfileStats,
   type NotificationPreferences,
 } from '../data/profile.mock';
 
@@ -75,42 +70,8 @@ export const useUpdateProfile = () => {
   });
 };
 
-// ─── Admin profile queries ────────────────────────────────────────────────────
-
-const adminQK = {
-  profile: ['admin', 'profile'] as const,
-  stats:   ['admin', 'profile', 'stats'] as const,
-};
-
-async function fetchAdminProfile(): Promise<ProfileUser> {
-  if (USE_MOCK) {
-    await new Promise((r) => setTimeout(r, 350));
-    return MOCK_ADMIN_PROFILE_USER;
-  }
-  throw new Error('API not implemented');
-}
-
-async function fetchAdminProfileStats(): Promise<ProfileStats> {
-  if (USE_MOCK) {
-    await new Promise((r) => setTimeout(r, 300));
-    return MOCK_ADMIN_PROFILE_STATS;
-  }
-  throw new Error('API not implemented');
-}
-
-export const useAdminProfileData = () =>
-  useQuery({
-    queryKey: adminQK.profile,
-    queryFn: fetchAdminProfile,
-    staleTime: 5 * 60 * 1000,
-  });
-
-export const useAdminProfileStats = () =>
-  useQuery({
-    queryKey: adminQK.stats,
-    queryFn: fetchAdminProfileStats,
-    staleTime: 5 * 60 * 1000,
-  });
+// Admin/SA profile screens reuse useProfileData/useProfileStats above directly —
+// the backend already scopes /users/me and /dashboard/stats by the caller's role.
 
 // ─── Change password mutation ─────────────────────────────────────────────────
 

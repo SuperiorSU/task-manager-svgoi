@@ -3,12 +3,37 @@ import type { RichTask } from '@godigitify/types';
 import { getApiClient } from './client';
 
 export type DashboardStats = {
-  total: number;
+  totalTasks: number;
   pending: number;
+  accepted: number;
   inProgress: number;
+  underReview: number;
+  completed: number;
+  cancelled: number;
+  overdue: number;
+  completedThisWeek: number;
+  dueToday: number;
+  activeUsers: number;
+  departments: number;
+  completionRate: number;
+};
+
+export type DeptStat = {
+  id: string;
+  name: string;
+  code: string;
+  total: number;
   completed: number;
   overdue: number;
-  dueToday: number;
+  completionRate: number;
+};
+
+export type WorkloadEntry = {
+  userId: string;
+  name: string;
+  assigned: number;
+  completed: number;
+  overdue: number;
 };
 
 export type DashboardActivityItem = {
@@ -37,4 +62,10 @@ export const dashboardApi = {
 
   getUnreadCount: () =>
     getApiClient().get<number>('/notifications/unread-count'),
+
+  getDeptStats: () =>
+    getApiClient().get<DeptStat[]>('/dashboard/dept-stats'),
+
+  getWorkload: () =>
+    getApiClient().get<WorkloadEntry[]>('/dashboard/workload'),
 };

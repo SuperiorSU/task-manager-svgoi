@@ -5,16 +5,18 @@ import dayjs from 'dayjs';
 import { Feather } from '@expo/vector-icons';
 
 import type { Role } from '@godigitify/types';
-import { MOCK_DEPARTMENTS, MOCK_TASKS, MOCK_USERS, isTaskDueToday, isTaskOverdue } from '../data/tasks.mock';
 import { useAuthStore } from '../stores/auth.store';
 import { useColors } from '../constants/colors';
 import { Layout, Spacing } from '../constants/spacing';
 import { Typography } from '../constants/typography';
 import { buildGreeting } from '../utils/greeting';
-import { useUnreadCount } from '../hooks/useDashboard';
+import { useUnreadCount, useEmployeeStats, useWorkload } from '../hooks/useDashboard';
+import { useTasks } from '../hooks/useTasks';
+import { getInitials } from '../utils/initial';
 import { DashboardHeader } from '../components/dashboard/DashboardHeader';
 import { OverdueAlertBanner } from '../components/dashboard/OverdueAlertBanner';
 import { StatCard } from '../components/dashboard/StatCard';
+import { StatsSkeleton } from '../components/dashboard/StatsSkeleton';
 import { DashboardSectionHeader } from '../components/dashboard/DashboardSectionHeader';
 import { EmptyState } from '../components/ui/EmptyState';
 import { TaskStatusBadge } from '../components/task/TaskStatusBadge';
@@ -47,68 +49,60 @@ export function ManagerDashboardScreen({ role }: Props) {
   const colors = useColors();
   const user = useAuthStore((s) => s.user);
   const { data: unreadCount = 0 } = useUnreadCount();
-  const [refreshing, setRefreshing] = useState(false);
 
   const routeGroup = routeGroupByRole[role];
   const copy = roleCopy[role];
+
+  const { data: rawStats, isLoading: statsLoading, refetch: refetchStats } = useEmployeeStats();
+  const { data: workloadData, refetch: refetchWorkload } = useWorkload();
+  const {
+    data: taskListData,
+    refetch: refetchTasks,
+  } = useTasks({ limit: 4, sortBy: 'createdAt', order: 'desc' });
+
+  const [refreshing, setRefreshing] = useState(false);
 
   const pushRoute = (path: string) => {
     router.push(path as Parameters<typeof router.push>[0]);
   };
 
-  const stats = useMemo(() => {
-    const totalTasks = MOCK_TASKS.length;
-    const completed = MOCK_TASKS.filter((task) => task.status === 'COMPLETED').length;
-    const inProgress = MOCK_TASKS.filter((task) => task.status === 'IN_PROGRESS').length;
-    const underReview = MOCK_TASKS.filter((task) => task.status === 'UNDER_REVIEW').length;
-    const overdue = MOCK_TASKS.filter(isTaskOverdue).length;
-    const dueToday = MOCK_TASKS.filter(isTaskDueToday).length;
+  const stats = useMemo(() => ({
+    totalTasks: rawStats?.totalTasks ?? 0,
+    completed: rawStats?.completed ?? 0,
+    inProgress: rawStats?.inProgress ?? 0,
+    underReview: rawStats?.underReview ?? 0,
+    overdue: rawStats?.overdue ?? 0,
+    dueToday: rawStats?.dueToday ?? 0,
+    completionRate: rawStats?.completionRate ?? 0,
+    activeUsers: rawStats?.activeUsers ?? 0,
+    departments: rawStats?.departments ?? 0,
+  }), [rawStats]);
 
-    return {
-      totalTasks,
-      completed,
-      inProgress,
-      underReview,
-      overdue,
-      dueToday,
-      completionRate: totalTasks ? Math.round((completed / totalTasks) * 100) : 0,
-      activeUsers: Object.keys(MOCK_USERS).length,
-      departments: MOCK_DEPARTMENTS.length,
-    };
-  }, []);
+  const workload = useMemo(
+    () =>
+      (workloadData ?? [])
+        .map((w) => ({
+          id: w.userId,
+          name: w.name,
+          initials: getInitials(w.name),
+          designation: '',
+          assigned: w.assigned,
+          completed: w.completed,
+          overdue: w.overdue,
+          progress: w.assigned > 0 ? Math.round((w.completed / w.assigned) * 100) : 0,
+        }))
+        .slice(0, role === 'SUPER_ADMIN' ? 5 : 4),
+    [workloadData, role],
+  );
 
-  const workload = useMemo(() => {
-    return Object.values(MOCK_USERS)
-      .map((member) => {
-        const assigned = MOCK_TASKS.filter((task) => task.assignee.id === member.id);
-        const completed = assigned.filter((task) => task.status === 'COMPLETED').length;
-        const overdue = assigned.filter(isTaskOverdue).length;
-        const progress = assigned.length ? Math.round((completed / assigned.length) * 100) : 0;
-
-        return {
-          ...member,
-          assigned: assigned.length,
-          completed,
-          overdue,
-          progress,
-        };
-      })
-      .sort((a, b) => b.assigned - a.assigned)
-      .slice(0, role === 'SUPER_ADMIN' ? 5 : 4);
-  }, [role]);
-
-  const recentTasks = useMemo(() => {
-    return [...MOCK_TASKS]
-      .sort((a, b) => dayjs(b.createdAt).valueOf() - dayjs(a.createdAt).valueOf())
-      .slice(0, 4);
-  }, []);
+  const recentTasks = taskListData?.tasks ?? [];
 
   const firstName = user?.name?.split(' ')[0] ?? (role === 'SUPER_ADMIN' ? 'Super Admin' : 'Admin');
   const dateLabel = dayjs().format('dddd, D MMMM');
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await Promise.all([refetchStats(), refetchWorkload(), refetchTasks()]);
     setRefreshing(false);
   };
 
@@ -165,6 +159,9 @@ export function ManagerDashboardScreen({ role }: Props) {
           />
         )}
 
+        {statsLoading ? (
+          <StatsSkeleton />
+        ) : (
         <View style={styles.statsGrid}>
           <View style={styles.statsRow}>
             <StatCard
@@ -201,6 +198,7 @@ export function ManagerDashboardScreen({ role }: Props) {
             />
           </View>
         </View>
+        )}
 
         {role === 'SUPER_ADMIN' && (
           <View style={styles.statsRow}>
@@ -301,7 +299,7 @@ export function ManagerDashboardScreen({ role }: Props) {
                 <View style={styles.taskFooter}>
                   <TaskStatusBadge status={task.status} />
                   <Text style={[styles.taskMeta, { color: colors.text.tertiary }]} numberOfLines={1}>
-                    {task.department.name} | {task.assignee.name}
+                    {task.department?.name ?? "—"} | {task.assignee.name}
                   </Text>
                 </View>
               </Pressable>

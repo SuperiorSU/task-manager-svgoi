@@ -12,7 +12,9 @@ import { Feather } from '@expo/vector-icons';
 
 import type { TaskPriority } from '@godigitify/types';
 import type { SortBy, TaskFilters } from '../../hooks/useTasksMock';
-import { MOCK_DEPARTMENTS } from '../../data/tasks.mock';
+import { useQuery } from '@tanstack/react-query';
+import { departmentsApi } from '@godigitify/api-client';
+import { queryKeys } from '../../constants/queryKeys';
 
 import { useColors } from '../../constants/colors';
 import { Typography } from '../../constants/typography';
@@ -95,6 +97,11 @@ export const FilterBottomSheet = ({ visible, current, onApply, onClose }: Props)
     { label: 'Low',      value: 'LOW',      color: colors.priority.low.solid },
   ];
   const [draft, setDraft] = React.useState<SheetFilters>(current);
+  const { data: departments = [] } = useQuery({
+    queryKey: queryKeys.departments.list(),
+    queryFn: () => departmentsApi.getList().then((r) => r.data),
+    staleTime: 10 * 60 * 1_000,
+  });
 
   React.useEffect(() => {
     if (visible) setDraft(current);
@@ -197,7 +204,7 @@ export const FilterBottomSheet = ({ visible, current, onApply, onClose }: Props)
             {/* ── Department ── */}
             <SectionLabel label="Department" />
             <View style={s.pillRow}>
-              {MOCK_DEPARTMENTS.map((dept) => (
+              {departments.map((dept) => (
                 <OptionPill
                   key={dept.id}
                   label={dept.name}

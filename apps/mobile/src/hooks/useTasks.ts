@@ -35,6 +35,14 @@ export const useTaskComments = (taskId: string) =>
     enabled: !!taskId,
   });
 
+export const useTaskAttachments = (taskId: string) =>
+  useQuery({
+    queryKey: queryKeys.tasks.attachments(taskId),
+    queryFn: () => tasksApi.getAttachments(taskId),
+    select: (res) => res.data,
+    enabled: !!taskId,
+  });
+
 export const useUpdateTaskStatus = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -43,6 +51,7 @@ export const useUpdateTaskStatus = () => {
     onSuccess: (_, { id }) => {
       void qc.invalidateQueries({ queryKey: queryKeys.tasks.all() });
       void qc.invalidateQueries({ queryKey: queryKeys.tasks.detail(id) });
+      void qc.invalidateQueries({ queryKey: queryKeys.tasks.activity(id) });
       void qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats('week') });
     },
   });
@@ -59,6 +68,18 @@ export const useCreateTask = () => {
   });
 };
 
+export const useDeleteTask = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => tasksApi.delete(id),
+    onSuccess: (_, id) => {
+      void qc.invalidateQueries({ queryKey: queryKeys.tasks.all() });
+      void qc.invalidateQueries({ queryKey: queryKeys.tasks.detail(id) });
+      void qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats('week') });
+    },
+  });
+};
+
 export const useAddComment = (taskId: string) => {
   const qc = useQueryClient();
   return useMutation({
@@ -66,6 +87,7 @@ export const useAddComment = (taskId: string) => {
       tasksApi.addComment(taskId, content, parentId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.tasks.comments(taskId) });
+      void qc.invalidateQueries({ queryKey: queryKeys.tasks.activity(taskId) });
     },
   });
 };

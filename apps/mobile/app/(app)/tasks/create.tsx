@@ -3,12 +3,9 @@
  *
  * Step 1: Title · Description · Department · Assignee(s) · Priority
  * Step 2: Due date & time · Category · Reference attachments · Recurring
- *
- * All data is driven by createTaskService (mock). Swap the service body for
- * real API calls to go live — no screen code changes required.
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -32,13 +29,35 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import dayjs from 'dayjs';
 
-import type { TaskPriority } from '@godigitify/types';
-import { createTaskService, TASK_CATEGORIES } from '../../../src/services/createTask.service';
-import type { CreateTaskDraft, PickedFile, TaskCategory } from '../../../src/services/createTask.service';
-import type { MockUser, MockDepartment } from '../../../src/data/tasks.mock';
+import type { TaskPriority, User, Department, CreateTaskDto } from '@godigitify/types';
+import { departmentsApi, usersApi, getApiClient } from '@godigitify/api-client';
+import { useCreateTask } from '../../../src/hooks/useTasks';
+import { useAuthStore } from '../../../src/stores/auth.store';
 import { useColors } from '../../../src/constants/colors';
 import { Typography } from '../../../src/constants/typography';
 import { Layout, Spacing } from '../../../src/constants/spacing';
+
+type PickedFile = {
+  uri: string;
+  name: string;
+  size: number;
+  mimeType: string;
+};
+
+type TaskCategory = { id: string; label: string };
+
+// UI-only tagging — the Task schema has no category field, so these are folded
+// into the description on submit rather than sent as a separate field.
+const TASK_CATEGORIES: TaskCategory[] = [
+  { id: 'cat_01', label: 'Maintenance' },
+  { id: 'cat_02', label: 'Reporting' },
+  { id: 'cat_03', label: 'Audit' },
+  { id: 'cat_04', label: 'Administration' },
+  { id: 'cat_05', label: 'Training' },
+  { id: 'cat_06', label: 'Procurement' },
+  { id: 'cat_07', label: 'Safety' },
+  { id: 'cat_08', label: 'Compliance' },
+];
 
 // ─── Priority config ─────────────────────────────────────────────────────────
 
@@ -126,17 +145,20 @@ export default function CreateTaskScreen() {
   const [step, setStep] = useState<1 | 2>(1);
 
   // ── Remote data ──────────────────────────────────────────────────────────
-  const [departments, setDepartments] = useState<MockDepartment[]>([]);
-  const [deptUsers, setDeptUsers] = useState<MockUser[]>([]);
-  const [categories, setCategories] = useState<TaskCategory[]>([]);
+  const currentUser = useAuthStore((s) => s.user);
+  const createTask = useCreateTask();
+
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [deptUsers, setDeptUsers] = useState<User[]>([]);
+  const [categories] = useState<TaskCategory[]>(TASK_CATEGORIES);
   const [dataLoading, setDataLoading] = useState(true);
 
   // ── Step 1 form fields ────────────────────────────────────────────────────
   const [title, setTitle] = useState('');
   const [titleError, setTitleError] = useState('');
   const [description, setDescription] = useState('');
-  const [departmentId, setDepartmentId] = useState('dept_01');
-  const [assignees, setAssignees] = useState<MockUser[]>([]);
+  const [departmentId, setDepartmentId] = useState(currentUser?.departmentId ?? '');
+  const [assignees, setAssignees] = useState<User[]>([]);
   const [assigneeError, setAssigneeError] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('MEDIUM');
 
@@ -159,36 +181,36 @@ export default function CreateTaskScreen() {
   // ── Submitting ────────────────────────────────────────────────────────────
   const [submitting, setSubmitting] = useState(false);
 
-  // ─── Load reference data on mount ────────────────────────────────────────
+  // ─── Load departments on mount ────────────────────────────────────────────
   useEffect(() => {
     let mounted = true;
     void (async () => {
       try {
-        const [deps, cats] = await Promise.all([
-          createTaskService.getDepartments(),
-          createTaskService.getCategories(),
-        ]);
+        const res = await departmentsApi.getList();
         if (!mounted) return;
-        setDepartments(deps);
-        setCategories(cats);
-        if (deps.length > 0 && deps[0]) setDepartmentId(deps[0].id);
+        setDepartments(res.data);
+        if (!departmentId && res.data.length > 0 && res.data[0]) {
+          setDepartmentId(res.data[0].id);
+        }
       } finally {
         if (mounted) setDataLoading(false);
       }
     })();
     return () => { mounted = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ─── Reload users when department changes ─────────────────────────────────
   useEffect(() => {
+    if (!departmentId) return;
     let mounted = true;
     void (async () => {
-      const users = await createTaskService.getUsersByDepartment(departmentId);
+      const res = await usersApi.getList({ departmentId, isActive: true, limit: 100 });
       if (mounted) {
-        setDeptUsers(users);
+        setDeptUsers(res.data.items);
         // Remove selected assignees who are no longer in this dept
         setAssignees((prev) =>
-          prev.filter((a) => users.some((u) => u.id === a.id)),
+          prev.filter((a) => res.data.items.some((u) => u.id === a.id)),
         );
       }
     })();
@@ -223,26 +245,78 @@ export default function CreateTaskScreen() {
   };
 
   // ─── Submit ───────────────────────────────────────────────────────────────
+  const buildDueDateIso = (): string => {
+    const hour24 = isAfternoon
+      ? (dueHour === 12 ? 12 : dueHour + 12)
+      : (dueHour === 12 ? 0 : dueHour);
+    return pickedDate.hour(hour24).minute(dueMinute).second(0).toISOString();
+  };
+
+  const uploadAttachmentsTo = async (taskId: string) => {
+    const client = getApiClient();
+    for (const file of attachments) {
+      try {
+        const presign = await client.post<{ uploadUrl: string; storageKey: string }>(
+          '/files/presign',
+          { taskId, fileName: file.name, mimeType: file.mimeType, isProof: false },
+        );
+        await fetch(presign.data.uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': file.mimeType },
+          body: await (await fetch(file.uri)).blob(),
+        });
+        await client.post('/files/confirm', {
+          taskId,
+          storageKey: presign.data.storageKey,
+          fileName: file.name,
+          fileSize: file.size,
+          mimeType: file.mimeType,
+          isProof: false,
+        });
+      } catch {
+        // Best-effort: task creation already succeeded; surface nothing blocking here.
+      }
+    }
+  };
+
   const handleSubmit = async () => {
+    const dueDate = buildDueDateIso();
+    if (dayjs(dueDate).isBefore(dayjs())) {
+      Alert.alert('Error', 'Due date must be in the future');
+      return;
+    }
+
+    const categoryLabels = categories
+      .filter((c) => categoryIds.includes(c.id))
+      .map((c) => c.label);
+    const fullDescription = categoryLabels.length
+      ? `${description.trim()}${description.trim() ? '\n\n' : ''}Category: ${categoryLabels.join(', ')}`
+      : description.trim();
+
     setSubmitting(true);
-    const draft: CreateTaskDraft = {
-      title: title.trim(),
-      description: description.trim(),
-      departmentId,
-      assigneeIds: assignees.map((a) => a.id),
-      priority,
-      dueDate: pickedDate.format('YYYY-MM-DD'),
-      dueHour,
-      dueMinute,
-      isAfternoon,
-      categoryIds,
-      attachments,
-      isRecurring,
-    };
     try {
-      await createTaskService.submitTask(draft);
+      // One task per assignee — the backend models a single assignee per task.
+      const created = await Promise.all(
+        assignees.map((assignee) => {
+          const dto: CreateTaskDto = {
+            title: title.trim(),
+            priority,
+            dueDate,
+            assigneeId: assignee.id,
+            ...(fullDescription ? { description: fullDescription } : {}),
+            ...(departmentId ? { departmentId } : {}),
+            ...(isRecurring ? { isRecurring: true } : {}),
+          };
+          return createTask.mutateAsync(dto);
+        }),
+      );
+
+      if (attachments.length > 0) {
+        await Promise.all(created.map((res) => uploadAttachmentsTo(res.data.id)));
+      }
+
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace('/(app)/(admin)/tasks' as Parameters<typeof router.replace>[0]);
+      router.back();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Something went wrong';
       Alert.alert('Error', msg);
@@ -270,7 +344,7 @@ export default function CreateTaskScreen() {
   };
 
   // ─── Assignee helpers ─────────────────────────────────────────────────────
-  const addAssignee = (user: MockUser) => {
+  const addAssignee = (user: User) => {
     if (assignees.find((a) => a.id === user.id)) return;
     setAssignees((prev) => [...prev, user]);
     setAssigneeError('');
@@ -492,7 +566,7 @@ type Step1Props = {
   onDescriptionChange: (v: string) => void;
   departmentName: string;
   onDeptPress: () => void;
-  assignees: MockUser[];
+  assignees: User[];
   assigneeError: string;
   onAddAssigneePress: () => void;
   onRemoveAssignee: (id: string) => void;
@@ -814,7 +888,7 @@ function Step2({
 
 // ─── Assignee chip ────────────────────────────────────────────────────────────
 
-function AssigneeChip({ user, onRemove, C }: { user: MockUser; onRemove: () => void; C: ColorsShape }) {
+function AssigneeChip({ user, onRemove, C }: { user: User; onRemove: () => void; C: ColorsShape }) {
   const initials = user.name
     .split(' ')
     .slice(0, 2)
@@ -890,7 +964,7 @@ function FieldError({ msg }: { msg: string }) {
 
 type DeptPickerProps = {
   visible: boolean;
-  departments: MockDepartment[];
+  departments: Department[];
   selectedId: string;
   onSelect: (id: string) => void;
   onClose: () => void;
@@ -943,9 +1017,9 @@ function DepartmentPickerModal({ visible, departments, selectedId, onSelect, onC
 
 type AssigneePickerProps = {
   visible: boolean;
-  users: MockUser[];
+  users: User[];
   selectedIds: string[];
-  onSelect: (user: MockUser) => void;
+  onSelect: (user: User) => void;
   onClose: () => void;
   C: ColorsShape;
 };
@@ -959,7 +1033,7 @@ function AssigneePickerModal({ visible, users, selectedIds, onSelect, onClose, C
     return users.filter(
       (u) =>
         u.name.toLowerCase().includes(q) ||
-        u.designation.toLowerCase().includes(q),
+        (u.designation ?? '').toLowerCase().includes(q),
     );
   }, [search, users]);
 

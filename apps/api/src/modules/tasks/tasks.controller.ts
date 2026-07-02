@@ -113,4 +113,15 @@ export const tasksController = {
     );
     return sendSuccess(reply, activity);
   },
+
+  async getAttachments(request: FastifyRequest, reply: FastifyReply) {
+    const { id } = request.params as { id: string };
+    const attachments = await tasksService.getAttachments(
+      id,
+      request.user.id,
+      request.user.role,
+      request.user.departmentId
+    );
+    return sendSuccess(reply, attachments);
+  },
 };

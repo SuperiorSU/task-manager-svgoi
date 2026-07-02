@@ -1,4 +1,12 @@
-import type { RichTask, TaskFilters, CreateTaskDto, UpdateTaskStatusDto } from '@godigitify/types';
+import type {
+  RichTask,
+  TaskFilters,
+  CreateTaskDto,
+  UpdateTaskStatusDto,
+  TaskComment,
+  TaskActivityEvent,
+  TaskAttachment,
+} from '@godigitify/types';
 
 import { getApiClient } from './client';
 
@@ -25,13 +33,16 @@ export const tasksApi = {
     getApiClient().post<RichTask>(`/tasks/${id}/assign`, { assigneeId }),
 
   getComments: (taskId: string) =>
-    getApiClient().get<unknown[]>(`/tasks/${taskId}/comments`),
+    getApiClient().get<TaskComment[]>(`/tasks/${taskId}/comments`),
 
   addComment: (taskId: string, content: string, parentId?: string) =>
-    getApiClient().post<unknown>(`/tasks/${taskId}/comments`, { content, parentId }),
+    getApiClient().post<TaskComment>(`/tasks/${taskId}/comments`, { content, parentId }),
 
   getActivity: (taskId: string) =>
-    getApiClient().get<unknown[]>(`/tasks/${taskId}/activity`),
+    getApiClient().get<TaskActivityEvent[]>(`/tasks/${taskId}/activity`),
+
+  getAttachments: (taskId: string) =>
+    getApiClient().get<TaskAttachment[]>(`/tasks/${taskId}/attachments`),
 
   bulkUpdateStatus: (ids: string[], status: string) =>
     getApiClient().post<void>('/tasks/bulk/status', { ids, status }),

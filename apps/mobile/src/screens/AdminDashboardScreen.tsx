@@ -13,21 +13,24 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { Feather } from '@expo/vector-icons';
 
-import { MOCK_TASKS, MOCK_USERS, isTaskOverdue } from '../data/tasks.mock';
+import type { RichTask } from '@godigitify/types';
 import { useAuthStore } from '../stores/auth.store';
 import { useColors } from '../constants/colors';
 import { Layout, Spacing } from '../constants/spacing';
 import { Typography } from '../constants/typography';
 import { buildGreeting } from '../utils/greeting';
-import { useUnreadCount } from '../hooks/useDashboard';
+import { useUnreadCount, useEmployeeStats, useWorkload } from '../hooks/useDashboard';
+import { useTasks } from '../hooks/useTasks';
+import { getInitials } from '../utils/initial';
 import { DashboardHeader } from '../components/dashboard/DashboardHeader';
 import { OverdueAlertBanner } from '../components/dashboard/OverdueAlertBanner';
+import { StatsSkeleton } from '../components/dashboard/StatsSkeleton';
 import { TaskStatusBadge } from '../components/task/TaskStatusBadge';
 
 dayjs.extend(relativeTime);
 
-const ADMIN_DEPT = { id: 'dept_01', name: 'Physics' };
-const ADMIN_CREATOR_ID = MOCK_USERS.akumar.id;
+const isOverdue = (t: RichTask) =>
+  !['COMPLETED', 'CANCELLED'].includes(t.status) && dayjs(t.dueDate).isBefore(dayjs());
 
 // ─── Donut Ring (pure RN, no SVG library) ─────────────────────────────────────
 
@@ -160,84 +163,73 @@ export function AdminDashboardScreen() {
   const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
   const { data: unreadCount = 0 } = useUnreadCount();
+
+  const adminDept = { id: user?.departmentId ?? '', name: user?.department?.name ?? 'Department' };
+  const adminId = user?.id ?? '';
+
+  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useEmployeeStats();
+  const { data: workloadData, isLoading: workloadLoading, refetch: refetchWorkload } = useWorkload();
+  const {
+    data: taskListData,
+    isLoading: tasksLoading,
+    refetch: refetchTasks,
+  } = useTasks({ limit: 100, sortBy: 'createdAt', order: 'desc' });
+
   const [refreshing, setRefreshing] = useState(false);
 
   const push = (path: string) =>
     router.push(path as Parameters<typeof router.push>[0]);
 
   // ── Derived data ───────────────────────────────────────────────────────────
+  // Server already scopes ADMIN task queries to own-dept + self-created cross-dept tasks.
 
-  const deptTasks = useMemo(
-    () => MOCK_TASKS.filter((t) => t.department.id === ADMIN_DEPT.id),
-    [],
-  );
+  const allTasks: RichTask[] = taskListData?.tasks ?? [];
 
   const assignedOutTasks = useMemo(
-    () =>
-      MOCK_TASKS.filter(
-        (t) => t.creator.id === ADMIN_CREATOR_ID && t.department.id !== ADMIN_DEPT.id,
-      ),
-    [],
+    () => allTasks.filter((t) => t.creatorId === adminId && t.departmentId !== adminDept.id),
+    [allTasks, adminId, adminDept.id],
   );
 
-  // Tasks awaiting review: created by admin, status UNDER_REVIEW, in admin's dept
   const reviewQueue = useMemo(
     () =>
-      deptTasks
-        .filter(
-          (t) => t.creator.id === ADMIN_CREATOR_ID && t.status === 'UNDER_REVIEW',
-        )
+      allTasks
+        .filter((t) => t.creatorId === adminId && t.status === 'UNDER_REVIEW')
         .slice(0, 5),
-    [deptTasks],
+    [allTasks, adminId],
   );
 
-  const stats = useMemo(() => {
-    const teamPending = deptTasks.filter((t) =>
-      ['PENDING', 'ACCEPTED'].includes(t.status),
-    ).length;
-    const teamDone = deptTasks.filter((t) => t.status === 'COMPLETED').length;
-    const teamOverdue = deptTasks.filter(isTaskOverdue).length;
-    const inFlight = deptTasks.filter((t) =>
-      ['PENDING', 'ACCEPTED', 'IN_PROGRESS', 'UNDER_REVIEW'].includes(t.status),
-    ).length;
-    const outPending = assignedOutTasks.filter(
-      (t) => t.status !== 'COMPLETED',
-    ).length;
-    const completionRate = deptTasks.length
-      ? Math.round((teamDone / deptTasks.length) * 100)
-      : 0;
+  const derivedStats = useMemo(() => {
+    const teamPending = (stats?.pending ?? 0) + (stats?.accepted ?? 0);
+    const teamDone = stats?.completed ?? 0;
+    const teamOverdue = stats?.overdue ?? 0;
+    const inFlight = teamPending + (stats?.inProgress ?? 0) + (stats?.underReview ?? 0);
+    const outPending = assignedOutTasks.filter((t) => t.status !== 'COMPLETED').length;
 
     return {
-      deptTasks: deptTasks.length,
+      deptTasks: stats?.totalTasks ?? 0,
       teamPending,
       teamDone,
       teamOverdue,
       inFlight,
       assignedOut: assignedOutTasks.length,
       outPending,
-      completionRate,
+      completionRate: stats?.completionRate ?? 0,
     };
-  }, [assignedOutTasks, deptTasks]);
+  }, [stats, assignedOutTasks]);
 
-  // Workload — top 5 members with at least one dept task
   const workload = useMemo(
     () =>
-      Object.values(MOCK_USERS)
-        .map((m) => {
-          const assigned = deptTasks.filter((t) => t.assignee.id === m.id);
-          const active = assigned.filter(
-            (t) => !['COMPLETED', 'CANCELLED'].includes(t.status),
-          );
-          const completed = assigned.filter((t) => t.status === 'COMPLETED').length;
-          const progress = assigned.length
-            ? Math.round((completed / assigned.length) * 100)
-            : 0;
-          return { ...m, activeCount: active.length, total: assigned.length, progress };
-        })
-        .filter((m) => m.total > 0)
-        .sort((a, b) => b.activeCount - a.activeCount)
+      (workloadData ?? [])
+        .map((w) => ({
+          id: w.userId,
+          name: w.name,
+          initials: getInitials(w.name),
+          activeCount: w.assigned - w.completed,
+          total: w.assigned,
+          progress: w.assigned > 0 ? Math.round((w.completed / w.assigned) * 100) : 0,
+        }))
         .slice(0, 5),
-    [deptTasks],
+    [workloadData],
   );
 
   const firstName = user?.name?.split(' ')[0] ?? 'Admin';
@@ -245,7 +237,7 @@ export function AdminDashboardScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await new Promise((r) => setTimeout(r, 500));
+    await Promise.all([refetchStats(), refetchWorkload(), refetchTasks()]);
     setRefreshing(false);
   };
 
@@ -295,11 +287,11 @@ export function AdminDashboardScreen() {
             </Text>
             <View style={s.deptRow}>
               <Text style={[s.pageSubtitle, { color: colors.text.secondary }]}>
-                {ADMIN_DEPT.name} department
+                {adminDept.name} department
               </Text>
               <View style={[s.deptChip, { backgroundColor: '#EEF2FF' }]}>
                 <Text style={[s.deptChipText, { color: '#4338CA' }]}>
-                  {ADMIN_DEPT.name} Dept
+                  {adminDept.name} Dept
                 </Text>
               </View>
             </View>
@@ -320,18 +312,21 @@ export function AdminDashboardScreen() {
         </View>
 
         {/* ── Overdue banner ─────────────────────────────────────────────── */}
-        {stats.teamOverdue > 0 && (
+        {derivedStats.teamOverdue > 0 && (
           <OverdueAlertBanner
-            count={stats.teamOverdue}
+            count={derivedStats.teamOverdue}
             onPress={() => push('/(app)/(admin)/tasks')}
           />
         )}
 
         {/* ── 2×2 Stat grid ──────────────────────────────────────────────── */}
+        {statsLoading ? (
+          <StatsSkeleton />
+        ) : (
         <View style={s.statsGrid}>
           <View style={s.statsRow}>
             <StatCard
-              value={stats.deptTasks}
+              value={derivedStats.deptTasks}
               label="Dept Tasks"
               icon="briefcase"
               iconBg="#EEF2FF"
@@ -340,7 +335,7 @@ export function AdminDashboardScreen() {
               colors={colors}
             />
             <StatCard
-              value={stats.teamPending}
+              value={derivedStats.teamPending}
               label="Team Pending"
               icon="clock"
               iconBg="#FFFBEB"
@@ -351,7 +346,7 @@ export function AdminDashboardScreen() {
           </View>
           <View style={s.statsRow}>
             <StatCard
-              value={stats.teamDone}
+              value={derivedStats.teamDone}
               label="Team Done"
               icon="check-circle"
               iconBg="#F0FDF4"
@@ -360,21 +355,22 @@ export function AdminDashboardScreen() {
               colors={colors}
             />
             <StatCard
-              value={stats.teamOverdue}
+              value={derivedStats.teamOverdue}
               label="Team Overdue"
               icon="alert-circle"
-              iconBg={stats.teamOverdue > 0 ? '#FEF2F2' : '#F1F5F9'}
-              iconColor={stats.teamOverdue > 0 ? '#B91C1C' : '#64748B'}
-              cardBg={stats.teamOverdue > 0 ? '#FEF2F2' : undefined}
-              cardBorder={stats.teamOverdue > 0 ? '#FECACA' : undefined}
+              iconBg={derivedStats.teamOverdue > 0 ? '#FEF2F2' : '#F1F5F9'}
+              iconColor={derivedStats.teamOverdue > 0 ? '#B91C1C' : '#64748B'}
+              cardBg={derivedStats.teamOverdue > 0 ? '#FEF2F2' : undefined}
+              cardBorder={derivedStats.teamOverdue > 0 ? '#FECACA' : undefined}
               onPress={() => push('/(app)/(admin)/tasks')}
               colors={colors}
             />
           </View>
         </View>
+        )}
 
         {/* ── Cross-dept strip ───────────────────────────────────────────── */}
-        {stats.assignedOut > 0 && (
+        {derivedStats.assignedOut > 0 && (
           <Pressable
             onPress={() => push('/(app)/(admin)/tasks')}
             style={({ pressed }) => [
@@ -398,7 +394,7 @@ export function AdminDashboardScreen() {
             <View style={s.crossDeptStats}>
               <View style={s.crossDeptStat}>
                 <Text style={[s.crossDeptNum, { color: colors.text.primary }]}>
-                  {stats.assignedOut}
+                  {derivedStats.assignedOut}
                 </Text>
                 <Text style={[s.crossDeptMeta, { color: colors.text.tertiary }]}>
                   Out
@@ -407,7 +403,7 @@ export function AdminDashboardScreen() {
               <View style={[s.crossDeptDivider, { backgroundColor: colors.surface.border }]} />
               <View style={s.crossDeptStat}>
                 <Text style={[s.crossDeptNum, { color: '#F59E0B' }]}>
-                  {stats.outPending}
+                  {derivedStats.outPending}
                 </Text>
                 <Text style={[s.crossDeptMeta, { color: colors.text.tertiary }]}>
                   Pending
@@ -435,7 +431,7 @@ export function AdminDashboardScreen() {
             ]}
           >
             <DonutRing
-              percentage={stats.completionRate}
+              percentage={derivedStats.completionRate}
               bgColor={colors.surface.card}
             />
             <View style={s.completionRight}>
@@ -446,19 +442,19 @@ export function AdminDashboardScreen() {
                 Department completion rate
               </Text>
               <Text style={[s.completionSub, { color: colors.text.tertiary }]}>
-                This month · {ADMIN_DEPT.name}
+                This month · {adminDept.name}
               </Text>
               <View style={s.completionLegend}>
                 <View style={s.legendRow}>
                   <View style={[s.legendDot, { backgroundColor: '#1A5CF8' }]} />
                   <Text style={[s.legendText, { color: colors.text.secondary }]}>
-                    Completed {stats.teamDone}
+                    Completed {derivedStats.teamDone}
                   </Text>
                 </View>
                 <View style={s.legendRow}>
                   <View style={[s.legendDot, { backgroundColor: '#E2E8F0' }]} />
                   <Text style={[s.legendText, { color: colors.text.secondary }]}>
-                    In flight {stats.inFlight}
+                    In flight {derivedStats.inFlight}
                   </Text>
                 </View>
               </View>
@@ -478,7 +474,8 @@ export function AdminDashboardScreen() {
             />
             <View style={s.list}>
               {reviewQueue.map((task) => {
-                const pal = palette(task.assignee.initials);
+                const assigneeInitials = getInitials(task.assignee.name);
+                const pal = palette(assigneeInitials);
                 return (
                   <Pressable
                     key={task.id}
@@ -512,7 +509,7 @@ export function AdminDashboardScreen() {
                         </Text>
                         <TaskStatusBadge
                           status={task.status}
-                          isOverdue={isTaskOverdue(task)}
+                          isOverdue={isOverdue(task)}
                         />
                       </View>
                       <View style={s.reviewMeta}>
@@ -523,7 +520,7 @@ export function AdminDashboardScreen() {
                           ]}
                         >
                           <Text style={[s.assigneeInitials, { color: pal.fg }]}>
-                            {task.assignee.initials}
+                            {assigneeInitials}
                           </Text>
                         </View>
                         <Text
@@ -531,7 +528,7 @@ export function AdminDashboardScreen() {
                         >
                           {task.assignee.name}
                         </Text>
-                        {task.attachments.length > 0 && (
+                        {task._count.attachments > 0 && (
                           <View style={s.fileChip}>
                             <Feather
                               name="paperclip"
@@ -544,7 +541,7 @@ export function AdminDashboardScreen() {
                                 { color: colors.text.tertiary },
                               ]}
                             >
-                              {task.attachments.length}
+                              {task._count.attachments}
                             </Text>
                           </View>
                         )}
@@ -554,10 +551,7 @@ export function AdminDashboardScreen() {
                             { color: colors.text.tertiary, marginLeft: 'auto' },
                           ]}
                         >
-                          {dayjs(
-                            task.activity[task.activity.length - 1]?.createdAt ??
-                              task.createdAt,
-                          ).fromNow()}
+                          {dayjs(task.updatedAt).fromNow()}
                         </Text>
                       </View>
                     </View>
@@ -694,7 +688,7 @@ export function AdminDashboardScreen() {
                       </Text>
                       <TaskStatusBadge
                         status={task.status}
-                        isOverdue={isTaskOverdue(task)}
+                        isOverdue={isOverdue(task)}
                       />
                     </View>
                     <View style={s.crossTaskMeta}>
@@ -706,7 +700,7 @@ export function AdminDashboardScreen() {
                       >
                         <Feather name="corner-up-right" size={10} color="#4338CA" />
                         <Text style={[s.deptBadgeText, { color: '#4338CA' }]}>
-                          {task.department.name}
+                          {task.department?.name ?? "—"}
                         </Text>
                       </View>
                       <Text

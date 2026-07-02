@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
-import type { MockAttachment } from '../../../data/tasks.mock';
+import type { TaskAttachment } from '@godigitify/types';
 
 import { Colors } from '../../../constants/colors';
 import { Typography } from '../../../constants/typography';
@@ -27,12 +27,13 @@ const fileIconColor = (mimeType: string): string => {
 };
 
 type Props = {
-  attachments: MockAttachment[];
+  attachments: TaskAttachment[];
   onAdd?: () => void;
   canAdd?: boolean;
+  onOpen?: (attachment: TaskAttachment) => void;
 };
 
-export const TaskAttachmentsSection = React.memo(({ attachments, onAdd, canAdd }: Props) => (
+export const TaskAttachmentsSection = React.memo(({ attachments, onAdd, canAdd, onOpen }: Props) => (
   <View style={styles.card}>
     <View style={styles.header}>
       <View style={styles.titleRow}>
@@ -65,6 +66,7 @@ export const TaskAttachmentsSection = React.memo(({ attachments, onAdd, canAdd }
         {attachments.map((att) => (
           <Pressable
             key={att.id}
+            onPress={() => onOpen?.(att)}
             style={({ pressed }) => [styles.chip, pressed && styles.chipPressed]}
             accessibilityLabel={`Open ${att.fileName}`}
           >

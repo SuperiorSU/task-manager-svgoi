@@ -12,10 +12,11 @@
  *  - [Create & send invite] primary CTA
  */
 
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -29,11 +30,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
-import { ADMIN_DEPT } from '../../../src/data/team.mock';
-import { teamService } from '../../../src/services/team.service';
+import type { Department } from '@godigitify/types';
+import { departmentsApi, usersApi } from '@godigitify/api-client';
+import { useCreateUser } from '../../../src/hooks/usePeople';
+import { useAuthStore } from '../../../src/stores/auth.store';
 import { useColors } from '../../../src/constants/colors';
 import { Layout, Spacing } from '../../../src/constants/spacing';
-import { Typography } from '../../../src/constants/typography';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -173,6 +175,9 @@ export default function CreateMemberScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const currentUser = useAuthStore((s) => s.user);
+  const isSA = currentUser?.role === 'SUPER_ADMIN';
+  const createUser = useCreateUser();
 
   // Form state
   const [name, setName] = useState('');
@@ -180,6 +185,24 @@ export default function CreateMemberScreen() {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [designation, setDesignation] = useState('');
+  const [role, setRole] = useState<'EMPLOYEE' | 'ADMIN'>('EMPLOYEE');
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [departmentId, setDepartmentId] = useState(currentUser?.departmentId ?? '');
+  const [showDeptPicker, setShowDeptPicker] = useState(false);
+
+  // SA can pick any department; Admin is always locked to their own.
+  useEffect(() => {
+    if (!isSA) return;
+    void departmentsApi.getList().then((res) => {
+      setDepartments(res.data);
+      if (!departmentId && res.data[0]) setDepartmentId(res.data[0].id);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSA]);
+
+  const departmentName = departments.find((d) => d.id === departmentId)?.name
+    ?? currentUser?.department?.name
+    ?? '—';
 
   // Focus tracking
   const [focused, setFocused] = useState<string | null>('name');
@@ -204,7 +227,10 @@ export default function CreateMemberScreen() {
     if (!employeeId.trim()) {
       errs.employeeId = 'Employee ID is required';
     } else {
-      const taken = await teamService.isEmployeeIdTaken(employeeId.trim());
+      const existing = await usersApi.getList({ search: employeeId.trim(), limit: 1 });
+      const taken = existing.data.items.some(
+        (u) => u.employeeId?.toLowerCase() === employeeId.trim().toLowerCase(),
+      );
       if (taken) errs.employeeId = 'This Employee ID is already in use';
     }
 
@@ -226,14 +252,14 @@ export default function CreateMemberScreen() {
       const valid = await validate();
       if (!valid) return;
 
-      await teamService.createMember({
+      await createUser.mutateAsync({
         name: name.trim(),
         employeeId: employeeId.trim().toUpperCase(),
         email: email.trim().toLowerCase(),
         ...(phone.trim() ? { phone: phone.trim() } : {}),
         ...(designation.trim() ? { designation: designation.trim() } : {}),
-        role: 'EMPLOYEE',
-        departmentId: ADMIN_DEPT.id,
+        role: isSA ? role : 'EMPLOYEE',
+        departmentId,
       });
 
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -241,7 +267,7 @@ export default function CreateMemberScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [validate, name, employeeId, email, phone, designation, router]);
+  }, [validate, createUser, name, employeeId, email, phone, designation, isSA, role, departmentId, router]);
 
   // ─── Render ────────────────────────────────────────────────────────────
 
@@ -349,48 +375,84 @@ export default function CreateMemberScreen() {
             onSubmit={() => designationRef.current?.focus()}
           />
 
-          {/* Role (locked) */}
+          {/* Role — locked to EMPLOYEE for Admin; selectable for SA */}
           <View style={{ marginBottom: 18 }}>
             <FieldLabel>Role</FieldLabel>
-            <View
-              style={[
-                s.lockedField,
-                {
-                  backgroundColor: '#F8FAFC',
-                  borderColor: colors.surface.border,
-                },
-              ]}
-            >
-              <View style={[s.rolePill, { backgroundColor: '#F1F5F9' }]}>
-                <Text style={[s.rolePillText, { color: '#475569' }]}>EMPLOYEE</Text>
+            {isSA ? (
+              <View style={s.twoUp}>
+                {(['EMPLOYEE', 'ADMIN'] as const).map((r) => (
+                  <Pressable
+                    key={r}
+                    onPress={() => setRole(r)}
+                    style={[
+                      s.roleOption,
+                      {
+                        backgroundColor: role === r ? colors.brand.primaryLight : colors.surface.card,
+                        borderColor: role === r ? colors.brand.primary : colors.surface.border,
+                      },
+                    ]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: role === r }}
+                  >
+                    <Text style={[s.roleOptionText, { color: role === r ? colors.brand.primary : colors.text.secondary }]}>
+                      {r === 'EMPLOYEE' ? 'Employee' : 'Admin'}
+                    </Text>
+                  </Pressable>
+                ))}
               </View>
-              <Text style={[s.lockedHint, { color: colors.text.tertiary }]}>
-                Admins are created by Super Admin
-              </Text>
-              <Feather name="lock" size={16} color={colors.text.tertiary} />
-            </View>
+            ) : (
+              <View
+                style={[
+                  s.lockedField,
+                  {
+                    backgroundColor: '#F8FAFC',
+                    borderColor: colors.surface.border,
+                  },
+                ]}
+              >
+                <View style={[s.rolePill, { backgroundColor: '#F1F5F9' }]}>
+                  <Text style={[s.rolePillText, { color: '#475569' }]}>EMPLOYEE</Text>
+                </View>
+                <Text style={[s.lockedHint, { color: colors.text.tertiary }]}>
+                  Admins are created by Super Admin
+                </Text>
+                <Feather name="lock" size={16} color={colors.text.tertiary} />
+              </View>
+            )}
           </View>
 
-          {/* Department (locked) */}
+          {/* Department — locked to own dept for Admin; pickable for SA */}
           <View style={{ marginBottom: 18 }}>
             <FieldLabel>Department</FieldLabel>
-            <View
-              style={[
-                s.lockedField,
-                {
-                  backgroundColor: '#F8FAFC',
-                  borderColor: colors.surface.border,
-                },
-              ]}
-            >
-              <Text style={[s.lockedValue, { color: colors.text.primary }]}>
-                {ADMIN_DEPT.name}{' '}
-                <Text style={{ color: colors.text.tertiary, fontSize: 12 }}>
-                  · your department
+            {isSA ? (
+              <Pressable
+                onPress={() => setShowDeptPicker(true)}
+                style={[s.lockedField, { backgroundColor: colors.surface.card, borderColor: colors.surface.border }]}
+                accessibilityRole="button"
+                accessibilityLabel={`Department: ${departmentName}`}
+              >
+                <Text style={[s.lockedValue, { color: colors.text.primary }]}>{departmentName}</Text>
+                <Feather name="chevron-down" size={16} color={colors.text.tertiary} />
+              </Pressable>
+            ) : (
+              <View
+                style={[
+                  s.lockedField,
+                  {
+                    backgroundColor: '#F8FAFC',
+                    borderColor: colors.surface.border,
+                  },
+                ]}
+              >
+                <Text style={[s.lockedValue, { color: colors.text.primary }]}>
+                  {departmentName}{' '}
+                  <Text style={{ color: colors.text.tertiary, fontSize: 12 }}>
+                    · your department
+                  </Text>
                 </Text>
-              </Text>
-              <Feather name="lock" size={16} color={colors.text.tertiary} />
-            </View>
+                <Feather name="lock" size={16} color={colors.text.tertiary} />
+              </View>
+            )}
           </View>
 
           {/* Designation */}
@@ -451,6 +513,36 @@ export default function CreateMemberScreen() {
           </Pressable>
         </View>
       </View>
+
+      {/* ── Department picker (SA only) ─────────────────────────────────── */}
+      <Modal
+        visible={showDeptPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowDeptPicker(false)}
+      >
+        <Pressable style={s.modalBackdrop} onPress={() => setShowDeptPicker(false)}>
+          <Pressable
+            style={[s.modalSheet, { backgroundColor: colors.surface.card }]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={[s.modalHandle, { backgroundColor: colors.surface.border }]} />
+            <Text style={[s.modalTitle, { color: colors.text.primary }]}>Select Department</Text>
+            {departments.map((dept) => (
+              <Pressable
+                key={dept.id}
+                onPress={() => { setDepartmentId(dept.id); setShowDeptPicker(false); }}
+                style={s.modalRow}
+              >
+                <Text style={[s.modalRowText, { color: dept.id === departmentId ? colors.brand.primary : colors.text.primary }]}>
+                  {dept.name}
+                </Text>
+                {dept.id === departmentId && <Feather name="check" size={18} color={colors.brand.primary} />}
+              </Pressable>
+            ))}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -553,5 +645,52 @@ const s = StyleSheet.create({
     fontFamily: 'Inter-SemiBold',
     color: '#FFFFFF',
     letterSpacing: 0,
+  },
+  roleOption: {
+    flex: 1,
+    height: 44,
+    borderRadius: Layout.inputRadius,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roleOptionText: {
+    fontSize: 13,
+    fontFamily: 'Inter-SemiBold',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.42)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 32,
+    paddingHorizontal: 20,
+  },
+  modalHandle: {
+    width: 38,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginVertical: 12,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+    marginBottom: 16,
+  },
+  modalRow: {
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+  },
+  modalRowText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
   },
 });

@@ -25,12 +25,13 @@ import dayjs, { type Dayjs } from 'dayjs';
 import * as Haptics from 'expo-haptics';
 
 import type { CalendarTask } from '../data/calendar.mock';
-import type { AdminCalendarTask } from '../data/adminCalendar.mock';
+import type { AdminCalendarTask } from '../hooks/useAdminCalendar';
 import {
   useAdminCalendarTasks,
   useAdminCalendarMembers,
   useAdminCalendarState,
 } from '../hooks/useAdminCalendar';
+import { useAuthStore } from '../stores/auth.store';
 import { useColors } from '../constants/colors';
 import { Layout, Spacing } from '../constants/spacing';
 
@@ -125,6 +126,7 @@ export function AdminCalendarScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const currentUser = useAuthStore((s) => s.user);
 
   // Person filter
   const [selectedMemberId, setSelectedMemberId] = useState<string | undefined>(undefined);
@@ -145,12 +147,12 @@ export function AdminCalendarScreen() {
     isLoading: tasksLoading,
     refetch: refetchTasks,
     isRefetching,
-  } = useAdminCalendarTasks(selectedMemberId);
+  } = useAdminCalendarTasks(periodAnchor, selectedMemberId);
 
   const {
     data: members = [],
     isLoading: membersLoading,
-  } = useAdminCalendarMembers();
+  } = useAdminCalendarMembers(currentUser?.departmentId);
 
   // Convert admin tasks to CalendarTask for MonthGrid dot rendering
   const dotTaskMap = useMemo(() => {

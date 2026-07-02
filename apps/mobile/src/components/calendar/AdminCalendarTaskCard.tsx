@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import dayjs from 'dayjs';
 
-import type { AdminCalendarTask } from '../../data/adminCalendar.mock';
+import type { AdminCalendarTask } from '../../hooks/useAdminCalendar';
 import { useColors } from '../../constants/colors';
 
 // ─── Status → readable label ──────────────────────────────────────────────────

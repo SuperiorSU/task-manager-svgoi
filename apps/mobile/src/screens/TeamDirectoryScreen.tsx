@@ -15,7 +15,7 @@
  *  - Pull-to-refresh
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   FlatList,
   Pressable,
@@ -24,7 +24,6 @@ import {
   Text,
   TextInput,
   View,
-  Animated,
   Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -33,17 +32,17 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 import type { Role } from '@godigitify/types';
-import type { TeamMember } from '../data/team.mock';
-import { ADMIN_DEPT } from '../data/team.mock';
+import { useAuthStore } from '../stores/auth.store';
 import {
-  teamService,
-  type TeamFilter,
-  type TeamListResult,
-} from '../services/team.service';
+  useUsers,
+  useDeactivateUser,
+  useReactivateUser,
+  useResetUserPassword,
+} from '../hooks/usePeople';
 import { useColors } from '../constants/colors';
 import { Layout, Spacing } from '../constants/spacing';
-import { Typography } from '../constants/typography';
 import { useDebounce } from '../hooks/useDebounce';
+import { toTeamMemberView, type TeamMemberView, type TeamFilter } from '../utils/teamMemberView';
 
 import { TeamMemberCard } from '../components/team/TeamMemberCard';
 import { TeamFilterBar } from '../components/team/TeamFilterBar';
@@ -103,78 +102,89 @@ export function TeamDirectoryScreen({ role }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const currentUser = useAuthStore((s) => s.user);
 
   // State
   const [filter, setFilter] = useState<TeamFilter>('ALL');
   const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [result, setResult] = useState<TeamListResult>({
-    members: [],
-    activeCount: 0,
-    suspendedCount: 0,
-  });
 
   // Modals
-  const [suspendTarget, setSuspendTarget] = useState<TeamMember | null>(null);
-  const [resetTarget, setResetTarget] = useState<TeamMember | null>(null);
+  const [suspendTarget, setSuspendTarget] = useState<TeamMemberView | null>(null);
+  const [resetTarget, setResetTarget] = useState<TeamMemberView | null>(null);
 
   // Search
   const debouncedSearch = useDebounce(search, 300);
 
-  // Scoped dept: Admin → own dept, SA → all
-  const deptId = role === 'ADMIN' ? ADMIN_DEPT.id : undefined;
+  // Scoped dept: Admin → own dept (server also enforces this), SA → org-wide
+  const deptId = role === 'ADMIN' ? currentUser?.departmentId : undefined;
   const title = role === 'SUPER_ADMIN' ? 'People' : 'My Team';
+  const departmentName = currentUser?.department?.name ?? 'Department';
+
+  const filters = useMemo(() => ({
+    ...(deptId ? { departmentId: deptId } : {}),
+    ...(filter === 'EMPLOYEES' ? { role: 'EMPLOYEE' as const } : {}),
+    ...(filter === 'ADMINS' ? { role: 'ADMIN' as const } : {}),
+    ...(filter === 'SUSPENDED' ? { isActive: false } : { isActive: true }),
+    ...(debouncedSearch ? { search: debouncedSearch } : {}),
+    limit: 100,
+  }), [deptId, filter, debouncedSearch]);
+
+  // Active/suspended counts always reflect the unfiltered-by-status scope
+  const countFilters = useMemo(() => ({
+    ...(deptId ? { departmentId: deptId } : {}),
+    limit: 100,
+  }), [deptId]);
+
+  const { data: listData, isLoading, refetch } = useUsers(filters);
+  const { data: activeData } = useUsers({ ...countFilters, isActive: true });
+  const { data: suspendedData } = useUsers({ ...countFilters, isActive: false });
+
+  const members: TeamMemberView[] = useMemo(
+    () => (listData?.items ?? []).map((u) => toTeamMemberView(u)),
+    [listData],
+  );
+  const activeCount = activeData?.total ?? 0;
+  const suspendedCount = suspendedData?.total ?? 0;
+
   const sectionLabel =
     role === 'ADMIN'
-      ? `${ADMIN_DEPT.name} · ${result.activeCount + result.suspendedCount} people`
-      : `${result.activeCount + result.suspendedCount} people across departments`;
+      ? `${departmentName} · ${activeCount + suspendedCount} people`
+      : `${activeCount + suspendedCount} people across departments`;
 
-  // ─── Data loading ──────────────────────────────────────────────────────────
+  const deactivateUser = useDeactivateUser();
+  const reactivateUser = useReactivateUser();
+  const resetPassword = useResetUserPassword();
 
-  const load = useCallback(async (isRefresh = false) => {
-    if (!isRefresh) setLoading(true);
-    try {
-      const data = await teamService.getTeamList(filter, debouncedSearch, deptId);
-      setResult(data);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [filter, debouncedSearch, deptId]);
-
-  useEffect(() => { load(); }, [load]);
-
-  const onRefresh = useCallback(() => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    load(true);
-  }, [load]);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
 
   // ─── Actions ───────────────────────────────────────────────────────────────
 
-  const handleMemberPress = useCallback((member: TeamMember) => {
+  const handleMemberPress = useCallback((member: TeamMemberView) => {
     router.push(`/(app)/people/${member.id}` as Parameters<typeof router.push>[0]);
   }, [router]);
 
-  const handleSuspendConfirm = useCallback(async (member: TeamMember) => {
-    await teamService.suspendMember(member.id);
+  const handleSuspendConfirm = useCallback(async (member: TeamMemberView) => {
+    await deactivateUser.mutateAsync(member.id);
     setSuspendTarget(null);
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    load();
-  }, [load]);
+  }, [deactivateUser]);
 
-  const handleReactivate = useCallback(async (member: TeamMember) => {
-    await teamService.reactivateMember(member.id);
+  const handleReactivate = useCallback(async (member: TeamMemberView) => {
+    await reactivateUser.mutateAsync(member.id);
     setSuspendTarget(null);
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    load();
-  }, [load]);
+  }, [reactivateUser]);
 
-  const handleResetConfirm = useCallback(async (member: TeamMember) => {
-    await teamService.resetPassword(member.id);
+  const handleResetConfirm = useCallback(async (member: TeamMemberView) => {
+    await resetPassword.mutateAsync(member.id);
     setResetTarget(null);
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, []);
+  }, [resetPassword]);
 
   const handleAddUser = useCallback(() => {
     router.push('/(app)/people/create' as Parameters<typeof router.push>[0]);
@@ -182,17 +192,17 @@ export function TeamDirectoryScreen({ role }: Props) {
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
-  const renderMember = useCallback(({ item }: { item: TeamMember }) => (
+  const renderMember = useCallback(({ item }: { item: TeamMemberView }) => (
     <TeamMemberCard member={item} onPress={handleMemberPress} />
   ), [handleMemberPress]);
 
-  const keyExtractor = useCallback((m: TeamMember) => m.id, []);
+  const keyExtractor = useCallback((m: TeamMemberView) => m.id, []);
 
   const separator = useCallback(() => <View style={{ height: 8 }} />, []);
 
   const listFooter = <View style={{ height: Spacing[8] }} />;
 
-  const emptyContent = loading
+  const emptyContent = isLoading
     ? (
       <View style={{ gap: 8, paddingTop: 8 }}>
         {[0, 1, 2, 3, 4].map((i) => (
@@ -235,7 +245,7 @@ export function TeamDirectoryScreen({ role }: Props) {
           <Text style={[s.title, { color: colors.text.primary }]}>{title}</Text>
 
           {/* Active · Suspended chip */}
-          {!loading && (
+          {!isLoading && (
             <Pressable
               onPress={() =>
                 setFilter((f) => (f === 'SUSPENDED' ? 'ALL' : 'SUSPENDED'))
@@ -252,11 +262,11 @@ export function TeamDirectoryScreen({ role }: Props) {
               accessibilityLabel="Toggle suspended filter"
             >
               <Text style={[s.statusChipActive, { color: '#16A34A' }]}>
-                {result.activeCount} Active
+                {activeCount} Active
               </Text>
               <Text style={[s.statusChipDot, { color: colors.surface.borderStrong }]}>·</Text>
               <Text style={[s.statusChipSuspended, { color: '#B45309' }]}>
-                {result.suspendedCount} Suspended
+                {suspendedCount} Suspended
               </Text>
             </Pressable>
           )}
@@ -297,7 +307,7 @@ export function TeamDirectoryScreen({ role }: Props) {
       </View>
 
       {/* ── Section label ────────────────────────────────────────────────── */}
-      {!loading && result.members.length > 0 && (
+      {!isLoading && members.length > 0 && (
         <Text style={[s.sectionLabel, { color: colors.text.tertiary }]}>
           {sectionLabel}
         </Text>
@@ -305,7 +315,7 @@ export function TeamDirectoryScreen({ role }: Props) {
 
       {/* ── Member list ──────────────────────────────────────────────────── */}
       <FlatList
-        data={loading ? [] : result.members}
+        data={isLoading ? [] : members}
         keyExtractor={keyExtractor}
         renderItem={renderMember}
         ItemSeparatorComponent={separator}

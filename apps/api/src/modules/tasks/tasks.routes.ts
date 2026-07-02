@@ -74,4 +74,9 @@ export const tasksRoutes = async (app: FastifyInstance): Promise<void> => {
     preHandler: [requireAuth],
     handler: tasksController.getActivity,
   });
+
+  app.get('/:id/attachments', {
+    preHandler: [requireAuth],
+    handler: tasksController.getAttachments,
+  });
 };

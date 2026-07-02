@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   View,
@@ -15,20 +15,30 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import dayjs from 'dayjs';
 
-import type { MockTask } from '../data/tasks.mock';
+import type { RichTask } from '@godigitify/types';
+import { useAuthStore } from '../stores/auth.store';
+import { useTasks } from '../hooks/useTasks';
 import { useColors } from '../constants/colors';
 import { Layout, Spacing } from '../constants/spacing';
 import { Typography } from '../constants/typography';
 import { AdminTaskCard } from '../components/task/AdminTaskCard';
 import { EmptyState } from '../components/ui/EmptyState';
-import {
-  adminTasksService,
-  type AdminTaskFilter,
-  type AdminTaskScope,
-  type AdminTaskGroup,
-  type AdminTaskStats,
-} from '../services/adminTasks.service';
+
+type AdminTaskScope = 'managed' | 'assigned';
+type AdminTaskFilter = 'ALL' | 'TO_REVIEW' | 'CROSS_DEPT' | 'OVERDUE';
+
+type AdminTaskStats = {
+  total: number;
+  toReview: number;
+  crossDept: number;
+  overdue: number;
+  assignedToMe: number;
+};
+
+const isOverdue = (t: RichTask) =>
+  !['COMPLETED', 'CANCELLED'].includes(t.status) && dayjs(t.dueDate).isBefore(dayjs());
 
 // ─── Filter chip config ───────────────────────────────────────────────────────
 
@@ -48,17 +58,25 @@ const FILTER_CHIPS: FilterChip[] = [
 
 // ─── Section list item type ───────────────────────────────────────────────────
 
-type SectionItem = { id: string; task: MockTask };
+type SectionItem = { id: string; task: RichTask };
 type Section = { key: string; label: string; count: number; accentColor: string; data: SectionItem[] };
 
-function groupsToSections(groups: AdminTaskGroup[]): Section[] {
-  return groups.map((g) => ({
-    key: g.id,
-    label: g.label,
-    count: g.count,
-    accentColor: g.accentColor,
-    data: g.tasks.map((t) => ({ id: t.id, task: t })),
-  }));
+function groupTasks(tasks: RichTask[]): Section[] {
+  const reviewTasks = tasks.filter((t) => t.status === 'UNDER_REVIEW');
+  const inProgressTasks = tasks.filter((t) => t.status === 'IN_PROGRESS');
+  const pendingTasks = tasks.filter((t) => t.status === 'PENDING' || t.status === 'ACCEPTED');
+  const completedTasks = tasks.filter((t) => t.status === 'COMPLETED');
+  const cancelledTasks = tasks.filter((t) => t.status === 'CANCELLED');
+
+  const toItems = (list: RichTask[]): SectionItem[] => list.map((t) => ({ id: t.id, task: t }));
+
+  const sections: Section[] = [];
+  if (reviewTasks.length > 0) sections.push({ key: 'review', label: 'Needs your review', count: reviewTasks.length, accentColor: '#7C3AED', data: toItems(reviewTasks) });
+  if (inProgressTasks.length > 0) sections.push({ key: 'in_progress', label: 'In progress', count: inProgressTasks.length, accentColor: '#94A3B8', data: toItems(inProgressTasks) });
+  if (pendingTasks.length > 0) sections.push({ key: 'pending', label: 'Pending', count: pendingTasks.length, accentColor: '#94A3B8', data: toItems(pendingTasks) });
+  if (completedTasks.length > 0) sections.push({ key: 'completed', label: 'Completed', count: completedTasks.length, accentColor: '#22C55E', data: toItems(completedTasks) });
+  if (cancelledTasks.length > 0) sections.push({ key: 'cancelled', label: 'Cancelled', count: cancelledTasks.length, accentColor: '#94A3B8', data: toItems(cancelledTasks) });
+  return sections;
 }
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -67,53 +85,72 @@ export function AdminTasksScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colors = useColors();
+  const currentUser = useAuthStore((s) => s.user);
+  const adminId = currentUser?.id ?? '';
+  const adminDeptId = currentUser?.departmentId ?? '';
 
   const [scope, setScope] = useState<AdminTaskScope>('managed');
   const [filter, setFilter] = useState<AdminTaskFilter>('ALL');
   const [search, setSearch] = useState('');
   const [searchVisible, setSearchVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [groups, setGroups] = useState<AdminTaskGroup[]>([]);
-  const [stats, setStats] = useState<AdminTaskStats>({
-    total: 0,
-    toReview: 0,
-    crossDept: 0,
-    overdue: 0,
-    assignedToMe: 0,
-  });
 
   const searchRef = useRef<TextInput>(null);
   const searchAnim = useRef(new Animated.Value(0)).current;
 
   // ── Data loading ──────────────────────────────────────────────────────────
+  // Server scopes ADMIN queries to: own dept + self-created cross-dept + assigned-to-me.
 
-  const loadData = useCallback(
-    async (silent = false) => {
-      if (!silent) setLoading(true);
-      try {
-        const [groupData, statsData] = await Promise.all([
-          adminTasksService.getGroupedTasks(scope, filter, search),
-          adminTasksService.getTaskStats(),
-        ]);
-        setGroups(groupData);
-        setStats(statsData);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [scope, filter, search],
+  const {
+    data: listData,
+    isLoading: loading,
+    refetch,
+  } = useTasks({
+    limit: 100,
+    sortBy: 'createdAt',
+    order: 'desc',
+    ...(search ? { search } : {}),
+  });
+
+  const allTasks: RichTask[] = listData?.tasks ?? [];
+
+  // "I manage" = tasks in my own dept, or tasks I created for another dept.
+  // "Assigned to me" = tasks someone else assigned to me personally.
+  const managedTasks = useMemo(
+    () => allTasks.filter((t) => t.departmentId === adminDeptId || t.creatorId === adminId),
+    [allTasks, adminDeptId, adminId],
+  );
+  const assignedToMeTasks = useMemo(
+    () => allTasks.filter((t) => t.assigneeId === adminId && t.creatorId !== adminId),
+    [allTasks, adminId],
   );
 
-  useEffect(() => {
-    void loadData();
-  }, [loadData]);
+  const stats: AdminTaskStats = useMemo(() => ({
+    total: managedTasks.length,
+    toReview: managedTasks.filter((t) => t.status === 'UNDER_REVIEW').length,
+    crossDept: managedTasks.filter((t) => t.creatorId === adminId && t.departmentId !== adminDeptId).length,
+    overdue: managedTasks.filter(isOverdue).length,
+    assignedToMe: assignedToMeTasks.length,
+  }), [managedTasks, assignedToMeTasks, adminId, adminDeptId]);
+
+  const scopedTasks = scope === 'managed' ? managedTasks : assignedToMeTasks;
+
+  const filteredTasks = useMemo(() => {
+    switch (filter) {
+      case 'TO_REVIEW': return scopedTasks.filter((t) => t.status === 'UNDER_REVIEW');
+      case 'CROSS_DEPT': return scopedTasks.filter((t) => t.creatorId === adminId && t.departmentId !== adminDeptId);
+      case 'OVERDUE': return scopedTasks.filter(isOverdue);
+      default: return scopedTasks;
+    }
+  }, [scopedTasks, filter, adminId, adminDeptId]);
+
+  const groups = useMemo(() => groupTasks(filteredTasks), [filteredTasks]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadData(true);
+    await refetch();
     setRefreshing(false);
-  }, [loadData]);
+  }, [refetch]);
 
   // ── Search toggle ─────────────────────────────────────────────────────────
 
@@ -174,7 +211,7 @@ export function AdminTasksScreen() {
 
   // ── Section data ──────────────────────────────────────────────────────────
 
-  const sections = useMemo(() => groupsToSections(groups), [groups]);
+  const sections = groups;
 
   const totalShowing = useMemo(
     () => groups.reduce((sum, g) => sum + g.count, 0),
@@ -224,11 +261,11 @@ export function AdminTasksScreen() {
     ({ item }: { item: SectionItem }) => (
       <AdminTaskCard
         task={item.task}
-        isCrossDept={adminTasksService.isCrossDept(item.task)}
+        isCrossDept={item.task.creatorId === adminId && item.task.departmentId !== adminDeptId}
         onPress={handleTaskPress}
       />
     ),
-    [handleTaskPress],
+    [handleTaskPress, adminId, adminDeptId],
   );
 
   const keyExtractor = useCallback((item: SectionItem) => item.id, []);

@@ -95,7 +95,7 @@ export default function EmployeeDashboardScreen() {
           <View style={styles.statsGrid}>
             <View style={styles.statsRow}>
               <StatCard
-                value={stats?.total ?? 0}
+                value={stats?.totalTasks ?? 0}
                 label="My Tasks"
                 icon="list"
                 variant="default"

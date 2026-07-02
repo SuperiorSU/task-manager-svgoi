@@ -12,7 +12,6 @@ import * as Haptics from 'expo-haptics';
 
 import type { TaskStatus } from '@godigitify/types';
 
-import type { MockTask } from '../../data/tasks.mock';
 import { useColors } from '../../constants/colors';
 import { Typography } from '../../constants/typography';
 import { Spacing } from '../../constants/spacing';
@@ -41,8 +40,8 @@ type ActionDef = {
   icon: keyof typeof Feather.glyphMap;
   color?: string;
   danger?: boolean;
-  showFor?: Array<MockTask['status']>;
-  hideFor?: Array<MockTask['status']>;
+  showFor?: Array<TaskStatus>;
+  hideFor?: Array<TaskStatus>;
 };
 
 type Props = {

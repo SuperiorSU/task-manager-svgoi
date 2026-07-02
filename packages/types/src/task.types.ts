@@ -93,3 +93,47 @@ export type CreateTaskDto = {
   isRecurring?: boolean;
   recurringConfig?: RecurringConfig;
 };
+
+export type TaskCommentAuthor = { id: string; name: string; avatarUrl?: string | null };
+
+export type TaskComment = {
+  id: string;
+  content: string;
+  parentId?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+  author: TaskCommentAuthor;
+};
+
+export type TaskActivityAction =
+  | 'CREATE'
+  | 'READ'
+  | 'UPDATE'
+  | 'DELETE'
+  | 'LOGIN'
+  | 'LOGOUT'
+  | 'LOGIN_FAILED'
+  | 'PASSWORD_CHANGED'
+  | 'ROLE_CHANGED'
+  | 'STATUS_CHANGED'
+  | 'ASSIGNED'
+  | 'REASSIGNED';
+
+export type TaskActivityEvent = {
+  id: string;
+  action: TaskActivityAction;
+  description: string;
+  metadata?: { from?: string; to?: string } | null;
+  createdAt: string;
+  actor: { id: string; name: string; avatarUrl?: string | null };
+};
+
+export type TaskAttachment = {
+  id: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  isProof: boolean;
+  createdAt: string;
+  uploadedBy: string;
+};

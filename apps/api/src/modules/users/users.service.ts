@@ -2,6 +2,7 @@ import { prisma } from '../../config/database.js';
 import { hashPassword } from '../../utils/bcrypt.utils.js';
 import { writeAuditLog } from '../../utils/audit.utils.js';
 import { ROLE_PERMISSIONS } from '../../shared/guards/permissions.js';
+import { authService } from '../auth/auth.service.js';
 
 const safeUserSelect = {
   id: true,
@@ -158,6 +159,28 @@ export const usersService = {
       entityType: 'User',
       entityId: id,
       description: `User ${user.name} deactivated`,
+      actorId,
+    });
+  },
+
+  async resetPassword(id: string, actorId: string, actorDeptId?: string) {
+    const user = await prisma.user.findUnique({ where: { id }, select: { email: true, name: true, departmentId: true } });
+    if (!user) throw Object.assign(new Error('User not found'), { statusCode: 404, code: 'NOT_FOUND' });
+
+    // Admin can only reset passwords for users in their own department
+    if (actorDeptId && user.departmentId !== actorDeptId) {
+      throw Object.assign(new Error('User not found'), { statusCode: 404, code: 'NOT_FOUND' });
+    }
+
+    // Reuses the self-service flow: generates + emails a 15-min single-use reset token
+    // and revokes the target's active sessions.
+    await authService.forgotPassword(user.email);
+
+    await writeAuditLog({
+      action: 'UPDATE',
+      entityType: 'User',
+      entityId: id,
+      description: `Password reset triggered for ${user.name}`,
       actorId,
     });
   },

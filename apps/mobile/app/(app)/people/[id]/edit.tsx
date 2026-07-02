@@ -20,8 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
-import type { TeamMember } from '../../../../src/data/team.mock';
-import { teamService } from '../../../../src/services/team.service';
+import { useUser, useUpdateUser } from '../../../../src/hooks/usePeople';
 import { useColors } from '../../../../src/constants/colors';
 import { Layout, Spacing } from '../../../../src/constants/spacing';
 
@@ -49,8 +48,8 @@ export default function EditMemberScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
 
-  const [member, setMember] = useState<TeamMember | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: member, isLoading } = useUser(id ?? '');
+  const updateUser = useUpdateUser();
   const [saving, setSaving] = useState(false);
 
   const [name, setName] = useState('');
@@ -62,26 +61,24 @@ export default function EditMemberScreen() {
   const designationRef = useRef<TextInput>(null);
 
   useEffect(() => {
-    if (!id) return;
-    teamService.getMemberById(id).then((m) => {
-      if (m) {
-        setMember(m);
-        setName(m.name);
-        setPhone(m.phone ?? '');
-        setDesignation(m.designation);
-      }
-      setLoading(false);
-    });
-  }, [id]);
+    if (member) {
+      setName(member.name);
+      setPhone(member.phone ?? '');
+      setDesignation(member.designation ?? '');
+    }
+  }, [member]);
 
   const handleSave = async () => {
     if (!member || !name.trim()) return;
     setSaving(true);
     try {
-      await teamService.updateMember(member.id, {
-        name: name.trim(),
-        ...(phone.trim() ? { phone: phone.trim() } : {}),
-        designation: designation.trim(),
+      await updateUser.mutateAsync({
+        id: member.id,
+        dto: {
+          name: name.trim(),
+          ...(phone.trim() ? { phone: phone.trim() } : {}),
+          designation: designation.trim(),
+        },
       });
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
@@ -90,7 +87,7 @@ export default function EditMemberScreen() {
     }
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <View style={[s.center, { backgroundColor: colors.surface.background, paddingTop: insets.top }]}>
         <ActivityIndicator color={colors.brand.primary} size="large" />
@@ -214,7 +211,7 @@ export default function EditMemberScreen() {
 
               <FieldLabel>Department</FieldLabel>
               <View style={[s.input, { backgroundColor: '#F8FAFC', borderColor: colors.surface.border }]}>
-                <Text style={[s.textInput, { color: colors.text.secondary }]}>{member.department.name}</Text>
+                <Text style={[s.textInput, { color: colors.text.secondary }]}>{member.department?.name ?? '—'}</Text>
               </View>
             </>
           )}

@@ -13,11 +13,7 @@ import * as Haptics from 'expo-haptics';
 
 dayjs.extend(relativeTime);
 
-import type { MockComment, MockUser } from '../../../data/tasks.mock';
-import { MOCK_USERS } from '../../../data/tasks.mock';
-
-// Cast once — rajan is a known key in the demo dataset
-const CURRENT_USER: MockUser = MOCK_USERS['rajan'] as MockUser;
+import type { TaskComment } from '@godigitify/types';
 
 import { Colors } from '../../../constants/colors';
 import { Typography } from '../../../constants/typography';
@@ -27,37 +23,31 @@ import { Avatar } from '../../ui/Avatar';
 const PREVIEW_COUNT = 3;
 
 type Props = {
-  comments: MockComment[];
+  comments: TaskComment[];
+  currentUserId: string;
+  currentUserName: string;
+  onSubmit: (content: string) => void | Promise<void>;
+  isSubmitting?: boolean;
   onSeeAll?: () => void;
 };
 
-export const TaskCommentsSection = React.memo(({ comments, onSeeAll }: Props) => {
+export const TaskCommentsSection = React.memo(
+  ({ comments, currentUserId, currentUserName, onSubmit, isSubmitting, onSeeAll }: Props) => {
   const [text, setText] = useState('');
-  const [localComments, setLocalComments] = useState<MockComment[]>(comments);
   const inputRef = useRef<TextInput>(null);
 
   const handleSend = useCallback(async () => {
     const trimmed = text.trim();
-    if (!trimmed) return;
+    if (!trimmed || isSubmitting) return;
 
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    const newComment: MockComment = {
-      id: `cmt_local_${Date.now()}`,
-      content: trimmed,
-      author: CURRENT_USER,
-      mentions: [],
-      createdAt: new Date().toISOString(),
-      isEdited: false,
-    };
-
-    setLocalComments((prev) => [...prev, newComment]);
+    await onSubmit(trimmed);
     setText('');
     inputRef.current?.blur();
-  }, [text]);
+  }, [text, isSubmitting, onSubmit]);
 
-  const preview = localComments.slice(0, PREVIEW_COUNT);
-  const hasMore = localComments.length > PREVIEW_COUNT;
+  const preview = comments.slice(0, PREVIEW_COUNT);
+  const hasMore = comments.length > PREVIEW_COUNT;
 
   return (
     <View style={styles.card}>
@@ -67,7 +57,7 @@ export const TaskCommentsSection = React.memo(({ comments, onSeeAll }: Props) =>
           <Feather name="message-circle" size={16} color={Colors.brand.primary} />
           <Text style={styles.title}>Comments</Text>
           <View style={styles.countBadge}>
-            <Text style={styles.countText}>{localComments.length}</Text>
+            <Text style={styles.countText}>{comments.length}</Text>
           </View>
         </View>
         {hasMore && onSeeAll && (
@@ -78,7 +68,7 @@ export const TaskCommentsSection = React.memo(({ comments, onSeeAll }: Props) =>
       </View>
 
       {/* Comment list */}
-      {localComments.length === 0 ? (
+      {comments.length === 0 ? (
         <View style={styles.emptyWrap}>
           <Feather name="message-circle" size={28} color={Colors.text.tertiary} />
           <Text style={styles.emptyText}>No comments yet. Be the first!</Text>
@@ -86,12 +76,12 @@ export const TaskCommentsSection = React.memo(({ comments, onSeeAll }: Props) =>
       ) : (
         <View style={styles.list}>
           {preview.map((comment) => (
-            <CommentRow key={comment.id} comment={comment} />
+            <CommentRow key={comment.id} comment={comment} currentUserId={currentUserId} />
           ))}
           {hasMore && (
             <Pressable onPress={onSeeAll} style={styles.moreBtn}>
               <Text style={styles.moreText}>
-                +{localComments.length - PREVIEW_COUNT} more comments
+                +{comments.length - PREVIEW_COUNT} more comments
               </Text>
               <Feather name="chevron-right" size={14} color={Colors.brand.primary} />
             </Pressable>
@@ -101,7 +91,7 @@ export const TaskCommentsSection = React.memo(({ comments, onSeeAll }: Props) =>
 
       {/* Comment input */}
       <View style={styles.inputRow}>
-        <Avatar name={CURRENT_USER.name} size={32} />
+        <Avatar name={currentUserName} size={32} />
         <View style={styles.inputWrap}>
           <TextInput
             ref={inputRef}
@@ -116,7 +106,7 @@ export const TaskCommentsSection = React.memo(({ comments, onSeeAll }: Props) =>
         </View>
         <Pressable
           onPress={handleSend}
-          disabled={!text.trim()}
+          disabled={!text.trim() || isSubmitting}
           style={({ pressed }) => [
             styles.sendBtn,
             { backgroundColor: text.trim() ? Colors.brand.primary : Colors.surface.background },
@@ -136,8 +126,8 @@ export const TaskCommentsSection = React.memo(({ comments, onSeeAll }: Props) =>
 });
 
 // ─── CommentRow ───────────────────────────────────────────────────────────────
-const CommentRow = React.memo(({ comment }: { comment: MockComment }) => {
-  const isMe = comment.author.id === CURRENT_USER.id;
+const CommentRow = React.memo(({ comment, currentUserId }: { comment: TaskComment; currentUserId: string }) => {
+  const isMe = comment.author.id === currentUserId;
 
   const renderContent = (content: string) => {
     const parts = content.split(/(@\w[\w\s.]+)/g);
@@ -160,7 +150,7 @@ const CommentRow = React.memo(({ comment }: { comment: MockComment }) => {
           <Text style={styles.authorName}>
             {isMe ? 'You' : comment.author.name}
           </Text>
-          {comment.isEdited && (
+          {comment.updatedAt && comment.updatedAt !== comment.createdAt && (
             <Text style={styles.editedTag}>(edited)</Text>
           )}
           <Text style={styles.timestamp}>

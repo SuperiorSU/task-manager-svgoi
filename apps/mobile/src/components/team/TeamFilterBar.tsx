@@ -6,7 +6,7 @@
 import React from 'react';
 import { ScrollView, Pressable, Text, StyleSheet, View } from 'react-native';
 
-import type { TeamFilter } from '../../services/team.service';
+import type { TeamFilter } from '../../utils/teamMemberView';
 import { useColors } from '../../constants/colors';
 import { Spacing } from '../../constants/spacing';
 

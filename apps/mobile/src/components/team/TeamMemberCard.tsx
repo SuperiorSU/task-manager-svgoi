@@ -12,7 +12,7 @@
 import React, { useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import type { TeamMember } from '../../data/team.mock';
+import type { TeamMemberView } from '../../utils/teamMemberView';
 import { useColors } from '../../constants/colors';
 import { Spacing } from '../../constants/spacing';
 import { Typography } from '../../constants/typography';
@@ -27,8 +27,8 @@ const ROLE_BADGE: Record<string, { bg: string; text: string; label: string }> = 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 type Props = {
-  member: TeamMember;
-  onPress: (member: TeamMember) => void;
+  member: TeamMemberView;
+  onPress: (member: TeamMemberView) => void;
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────

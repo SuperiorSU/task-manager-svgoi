@@ -8,15 +8,20 @@ export const queryKeys = {
     detail: (id: string) => ['tasks', 'detail', id] as const,
     comments: (taskId: string) => ['tasks', taskId, 'comments'] as const,
     activity: (taskId: string) => ['tasks', taskId, 'activity'] as const,
+    attachments: (taskId: string) => ['tasks', taskId, 'attachments'] as const,
   },
   users: {
     all: () => ['users'] as const,
-    list: (deptId?: string) => ['users', 'list', deptId] as const,
+    list: (filters?: Record<string, unknown>) => ['users', 'list', filters] as const,
     profile: (id: string) => ['users', id] as const,
+    taskStats: (id: string) => ['users', id, 'task-stats'] as const,
+    recentTasks: (id: string) => ['users', id, 'recent-tasks'] as const,
   },
   dashboard: {
     stats: (period: string) => ['dashboard', 'stats', period] as const,
     activity: () => ['dashboard', 'activity'] as const,
+    deptStats: () => ['dashboard', 'dept-stats'] as const,
+    workload: () => ['dashboard', 'workload'] as const,
   },
   notifications: {
     list: () => ['notifications'] as const,

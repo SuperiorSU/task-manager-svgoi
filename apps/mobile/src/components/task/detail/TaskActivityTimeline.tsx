@@ -6,29 +6,31 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 
 dayjs.extend(relativeTime);
 
-import type { MockActivityEvent } from '../../../data/tasks.mock';
+import type { TaskActivityEvent, TaskActivityAction } from '@godigitify/types';
 
 import { Colors } from '../../../constants/colors';
 import { Typography } from '../../../constants/typography';
 import { Spacing, Layout } from '../../../constants/spacing';
 
-const EVENT_CONFIG: Record<
-  MockActivityEvent['action'],
-  { icon: keyof typeof Feather.glyphMap; color: string; bg: string }
-> = {
-  CREATE:        { icon: 'plus-circle',    color: Colors.brand.primary,          bg: Colors.brand.primaryLight },
-  UPDATE:        { icon: 'edit-3',         color: Colors.text.secondary,         bg: Colors.surface.background },
-  STATUS_CHANGED:{ icon: 'refresh-cw',     color: Colors.status.inProgress.text, bg: Colors.status.inProgress.bg },
-  ASSIGNED:      { icon: 'user-plus',      color: Colors.brand.primary,          bg: Colors.brand.primaryLight },
-  COMMENT_ADDED: { icon: 'message-circle', color: Colors.status.underReview.text, bg: Colors.status.underReview.bg },
-  FILE_UPLOADED: { icon: 'paperclip',      color: Colors.semantic.success,       bg: Colors.semantic.successBg },
-  REASSIGNED:    { icon: 'corner-up-right',color: Colors.status.accepted.text,   bg: Colors.status.accepted.bg },
+type EventConfig = { icon: keyof typeof Feather.glyphMap; color: string; bg: string };
+
+const DEFAULT_EVENT_CONFIG: EventConfig = {
+  icon: 'edit-3',
+  color: Colors.text.secondary,
+  bg: Colors.surface.background,
+};
+
+const EVENT_CONFIG: Partial<Record<TaskActivityAction, EventConfig>> = {
+  CREATE:         { icon: 'plus-circle',     color: Colors.brand.primary,           bg: Colors.brand.primaryLight },
+  STATUS_CHANGED: { icon: 'refresh-cw',      color: Colors.status.inProgress.text,  bg: Colors.status.inProgress.bg },
+  ASSIGNED:       { icon: 'user-plus',       color: Colors.brand.primary,           bg: Colors.brand.primaryLight },
+  REASSIGNED:     { icon: 'corner-up-right', color: Colors.status.accepted.text,    bg: Colors.status.accepted.bg },
 };
 
 const PREVIEW_COUNT = 4;
 
 type Props = {
-  events: MockActivityEvent[];
+  events: TaskActivityEvent[];
 };
 
 export const TaskActivityTimeline = React.memo(({ events }: Props) => {
@@ -63,7 +65,7 @@ export const TaskActivityTimeline = React.memo(({ events }: Props) => {
       {/* Timeline */}
       <View style={styles.timeline}>
         {displayed.map((event, idx) => {
-          const config = EVENT_CONFIG[event.action];
+          const config = EVENT_CONFIG[event.action] ?? DEFAULT_EVENT_CONFIG;
           const isLast = idx === displayed.length - 1;
           return (
             <View key={event.id} style={styles.row}>

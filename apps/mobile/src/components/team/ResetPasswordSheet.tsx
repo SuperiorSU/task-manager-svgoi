@@ -17,16 +17,16 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
-import type { TeamMember } from '../../data/team.mock';
+import type { TeamMemberView } from '../../utils/teamMemberView';
 import { useColors } from '../../constants/colors';
 import { Spacing } from '../../constants/spacing';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 type Props = {
-  member: TeamMember | null;
+  member: TeamMemberView | null;
   visible: boolean;
-  onConfirm: (member: TeamMember) => Promise<void>;
+  onConfirm: (member: TeamMemberView) => Promise<void>;
   onDismiss: () => void;
 };
 

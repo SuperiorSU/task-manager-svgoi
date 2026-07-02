@@ -14,10 +14,13 @@ import { useRouter } from 'expo-router';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 
-import type { MockTask } from '../../data/tasks.mock';
-import { isTaskOverdue } from '../../data/tasks.mock';
+import type { RichTask } from '@godigitify/types';
 import { useColors } from '../../constants/colors';
 import { Spacing, Layout } from '../../constants/spacing';
+import { getInitials } from '../../utils/initial';
+
+const isTaskOverdue = (t: RichTask) =>
+  !['COMPLETED', 'CANCELLED'].includes(t.status) && dayjs(t.dueDate).isBefore(dayjs());
 
 dayjs.extend(relativeTime);
 
@@ -61,11 +64,9 @@ const avatarPalette = (initials: string) =>
 
 // ─── Meta label: "submitted Xh ago" for UNDER_REVIEW, else due date ──────────
 
-function getMetaLabel(task: MockTask): string {
+function getMetaLabel(task: RichTask): string {
   if (task.status === 'UNDER_REVIEW') {
-    const lastActivity = task.activity[task.activity.length - 1];
-    const ts = lastActivity?.createdAt ?? task.createdAt;
-    return `submitted ${dayjs(ts).fromNow()}`;
+    return `submitted ${dayjs(task.updatedAt).fromNow()}`;
   }
   const overdue = isTaskOverdue(task);
   if (overdue) return `Overdue · ${dayjs(task.dueDate).format('MMM D')}`;
@@ -75,7 +76,7 @@ function getMetaLabel(task: MockTask): string {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 type Props = {
-  task: MockTask;
+  task: RichTask;
   isCrossDept?: boolean;
   onPress?: (id: string) => void;
 };
@@ -85,9 +86,10 @@ export const AdminTaskCard = React.memo(({ task, isCrossDept = false, onPress }:
   const colors = useColors();
   const overdue = isTaskOverdue(task);
 
+  const assigneeInitials = getInitials(task.assignee.name);
   const stripeColor = PRIORITY_STRIPE[task.priority] ?? '#94A3B8';
   const chip = getStatusChip(task.status, overdue);
-  const pal = avatarPalette(task.assignee.initials);
+  const pal = avatarPalette(assigneeInitials);
   const meta = getMetaLabel(task);
 
   const handlePress = useCallback(() => {
@@ -126,7 +128,7 @@ export const AdminTaskCard = React.memo(({ task, isCrossDept = false, onPress }:
           {/* Assignee avatar */}
           <View style={[s.avatar, { backgroundColor: pal.bg }]}>
             <Text style={[s.avatarText, { color: pal.fg }]}>
-              {task.assignee.initials}
+              {assigneeInitials}
             </Text>
           </View>
 

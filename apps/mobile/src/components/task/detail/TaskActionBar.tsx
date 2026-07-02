@@ -4,15 +4,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
-import type { MockTask } from '../../../data/tasks.mock';
+import type { RichTask, TaskStatus } from '@godigitify/types';
 import { Colors } from '../../../constants/colors';
 import { Typography } from '../../../constants/typography';
 import { Spacing } from '../../../constants/spacing';
 
 // Map current status → what the primary CTA should be (assignee/employee flow)
 const STATUS_CTA: Record<
-  MockTask['status'],
-  { label: string; icon: keyof typeof Feather.glyphMap; nextStatus: MockTask['status'] | null; color: string } | null
+  TaskStatus,
+  { label: string; icon: keyof typeof Feather.glyphMap; nextStatus: TaskStatus | null; color: string } | null
 > = {
   PENDING:      { label: 'Accept Task',         icon: 'check-circle',    nextStatus: 'ACCEPTED',     color: Colors.semantic.success },
   ACCEPTED:     { label: 'Start Working',        icon: 'zap',             nextStatus: 'IN_PROGRESS',  color: Colors.status.inProgress.text },
@@ -23,14 +23,14 @@ const STATUS_CTA: Record<
 };
 
 type Props = {
-  task: MockTask;
+  task: RichTask;
   /** When true, renders the admin creator approval bar (Approve & Complete / Revise) */
   isAdminCreator?: boolean;
-  onStatusChange: (task: MockTask, nextStatus: MockTask['status']) => void;
-  onApprove?: (task: MockTask) => void;
-  onRevise?: (task: MockTask) => void;
-  onUploadProof: (task: MockTask) => void;
-  onAddComment: (task: MockTask) => void;
+  onStatusChange: (task: RichTask, nextStatus: TaskStatus) => void;
+  onApprove?: (task: RichTask) => void;
+  onRevise?: (task: RichTask) => void;
+  onUploadProof: (task: RichTask) => void;
+  onAddComment: (task: RichTask) => void;
 };
 
 export const TaskActionBar = React.memo(

@@ -2,7 +2,7 @@ import React from 'react';
 import { ScrollView, Pressable, Text, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
-import type { AdminCalendarAssignee } from '../../data/adminCalendar.mock';
+import type { AdminCalendarAssignee } from '../../hooks/useAdminCalendar';
 import { useColors } from '../../constants/colors';
 import { Spacing } from '../../constants/spacing';
 

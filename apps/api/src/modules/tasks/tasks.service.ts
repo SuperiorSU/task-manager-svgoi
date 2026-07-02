@@ -87,11 +87,19 @@ export const tasksService = {
       : 'dueDate';
 
     const where: Record<string, unknown> = { isDeleted: false };
+    // Scope and search both need an OR clause — combine them under AND so
+    // neither silently clobbers the other.
+    const andConditions: Record<string, unknown>[] = [];
 
     if (viewerRole === 'EMPLOYEE') {
       where['assigneeId'] = viewerId;
     } else if (viewerRole === 'ADMIN' && viewerDeptId) {
-      where['departmentId'] = viewerDeptId;
+      // Admin sees their own department's tasks, tasks they created for other
+      // departments (cross-dept assignment), and tasks assigned TO them by
+      // another Admin/SA regardless of department — per 8_overview.md §2/§4.3.
+      andConditions.push({
+        OR: [{ departmentId: viewerDeptId }, { creatorId: viewerId }, { assigneeId: viewerId }],
+      });
     }
 
     if (rest.status) where['status'] = rest.status;
@@ -99,10 +107,12 @@ export const tasksService = {
     if (rest.departmentId && viewerRole === 'SUPER_ADMIN') where['departmentId'] = rest.departmentId;
     if (rest.assigneeId && viewerRole !== 'EMPLOYEE') where['assigneeId'] = rest.assigneeId;
     if (rest.search) {
-      where['OR'] = [
-        { title: { contains: rest.search, mode: 'insensitive' } },
-        { description: { contains: rest.search, mode: 'insensitive' } },
-      ];
+      andConditions.push({
+        OR: [
+          { title: { contains: rest.search, mode: 'insensitive' } },
+          { description: { contains: rest.search, mode: 'insensitive' } },
+        ],
+      });
     }
     if (rest.dueAfter || rest.dueBefore) {
       const dueDateFilter: Record<string, Date> = {};
@@ -110,6 +120,7 @@ export const tasksService = {
       if (rest.dueBefore) dueDateFilter['lte'] = new Date(rest.dueBefore);
       where['dueDate'] = dueDateFilter;
     }
+    if (andConditions.length > 0) where['AND'] = andConditions;
 
     const [tasks, total] = await prisma.$transaction([
       prisma.task.findMany({
@@ -136,7 +147,7 @@ export const tasksService = {
         ...(viewerRole === 'EMPLOYEE'
           ? { assigneeId: viewerId }
           : viewerRole === 'ADMIN' && viewerDeptId
-          ? { departmentId: viewerDeptId }
+          ? { OR: [{ departmentId: viewerDeptId }, { creatorId: viewerId }, { assigneeId: viewerId }] }
           : {}),
       },
       select: taskSelect,
@@ -426,6 +437,24 @@ export const tasksService = {
         metadata: true,
         createdAt: true,
         actor: { select: { id: true, name: true, avatarUrl: true } },
+      },
+    });
+  },
+
+  async getAttachments(taskId: string, viewerId: string, viewerRole: string, viewerDeptId?: string) {
+    await tasksService.getById(taskId, viewerId, viewerRole, viewerDeptId);
+
+    return prisma.fileAttachment.findMany({
+      where: { taskId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        fileName: true,
+        fileSize: true,
+        mimeType: true,
+        isProof: true,
+        createdAt: true,
+        uploadedBy: true,
       },
     });
   },

@@ -10,11 +10,10 @@
  *  - Manage: Edit profile · Reset password · Suspend / Reactivate
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -27,11 +26,19 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import dayjs from 'dayjs';
 
-import type { TeamMember, RecentTaskItem } from '../../../src/data/team.mock';
-import { teamService } from '../../../src/services/team.service';
+import type { RichTask } from '@godigitify/types';
+import {
+  useUser,
+  useUserTaskStats,
+  useUserRecentTasks,
+  useDeactivateUser,
+  useReactivateUser,
+  useResetUserPassword,
+} from '../../../src/hooks/usePeople';
+import { useAuthStore } from '../../../src/stores/auth.store';
+import { toTeamMemberView, type TeamMemberView } from '../../../src/utils/teamMemberView';
 import { useColors } from '../../../src/constants/colors';
-import { Layout, Spacing } from '../../../src/constants/spacing';
-import { Typography } from '../../../src/constants/typography';
+import { Spacing } from '../../../src/constants/spacing';
 import { SuspendConfirmModal } from '../../../src/components/team/SuspendConfirmModal';
 import { ResetPasswordSheet } from '../../../src/components/team/ResetPasswordSheet';
 
@@ -89,7 +96,7 @@ const sl = StyleSheet.create({
 
 type OverflowMenuProps = {
   visible: boolean;
-  member: TeamMember;
+  member: TeamMemberView;
   onEdit: () => void;
   onResetPwd: () => void;
   onSuspend: () => void;
@@ -175,43 +182,50 @@ export default function MemberDetailScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const currentUser = useAuthStore((s) => s.user);
 
-  const [member, setMember] = useState<TeamMember | null>(null);
-  const [loading, setLoading] = useState(true);
   const [overflowVisible, setOverflowVisible] = useState(false);
   const [suspendVisible, setSuspendVisible] = useState(false);
   const [resetVisible, setResetVisible] = useState(false);
 
-  useEffect(() => {
-    if (!id) return;
-    teamService.getMemberById(id).then((m) => {
-      setMember(m);
-      setLoading(false);
-    });
-  }, [id]);
+  const { data: user, isLoading } = useUser(id ?? '');
+  const { data: taskStats } = useUserTaskStats(id ?? '');
+  const { data: recentTasks = [] } = useUserRecentTasks(id ?? '');
 
-  const handleSuspendConfirm = useCallback(async (m: TeamMember) => {
-    await teamService.suspendMember(m.id);
-    setMember((prev) => prev ? { ...prev, isActive: false } : prev);
+  const deactivateUser = useDeactivateUser();
+  const reactivateUser = useReactivateUser();
+  const resetPassword = useResetUserPassword();
+
+  const member: TeamMemberView | null = user
+    ? toTeamMemberView(user, taskStats)
+    : null;
+
+  // Admin viewing a user outside their own department: read-only (§4.13)
+  const isReadOnly =
+    currentUser?.role === 'ADMIN' &&
+    member?.department?.id !== undefined &&
+    member.department.id !== currentUser.departmentId;
+
+  const handleSuspendConfirm = useCallback(async (m: TeamMemberView) => {
+    await deactivateUser.mutateAsync(m.id);
     setSuspendVisible(false);
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, []);
+  }, [deactivateUser]);
 
   const handleReactivate = useCallback(async () => {
     if (!member) return;
-    await teamService.reactivateMember(member.id);
-    setMember((prev) => prev ? { ...prev, isActive: true } : prev);
+    await reactivateUser.mutateAsync(member.id);
     setOverflowVisible(false);
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [member]);
+  }, [member, reactivateUser]);
 
-  const handleResetConfirm = useCallback(async (m: TeamMember) => {
-    await teamService.resetPassword(m.id);
+  const handleResetConfirm = useCallback(async (m: TeamMemberView) => {
+    await resetPassword.mutateAsync(m.id);
     setResetVisible(false);
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, []);
+  }, [resetPassword]);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <View style={[s.loadWrap, { backgroundColor: colors.surface.background, paddingTop: insets.top }]}>
         <ActivityIndicator color={colors.brand.primary} size="large" />
@@ -259,15 +273,19 @@ export default function MemberDetailScreen() {
 
         <Text style={[s.headerTitle, { color: colors.text.primary }]}>Team member</Text>
 
-        <Pressable
-          onPress={() => setOverflowVisible(true)}
-          style={s.headerBtn}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel="More actions"
-        >
-          <Feather name="more-vertical" size={20} color={colors.text.tertiary} />
-        </Pressable>
+        {isReadOnly ? (
+          <View style={s.headerBtn} />
+        ) : (
+          <Pressable
+            onPress={() => setOverflowVisible(true)}
+            style={s.headerBtn}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="More actions"
+          >
+            <Feather name="more-vertical" size={20} color={colors.text.tertiary} />
+          </Pressable>
+        )}
       </View>
 
       <ScrollView
@@ -306,7 +324,7 @@ export default function MemberDetailScreen() {
 
             {/* Dept · EmpID */}
             <View style={s.metaRow}>
-              <Text style={[s.metaDept, { color: colors.text.tertiary }]}>{member.department.name}</Text>
+              <Text style={[s.metaDept, { color: colors.text.tertiary }]}>{member.department?.name ?? '—'}</Text>
               <Text style={[s.metaSep, { color: colors.surface.borderStrong }]}>·</Text>
               <Text style={[s.metaEmpId, { color: colors.text.tertiary }]}>{member.employeeId}</Text>
             </View>
@@ -353,7 +371,7 @@ export default function MemberDetailScreen() {
         </View>
 
         {/* ── Recent tasks ─────────────────────────────────────────────── */}
-        {member.recentTasks.length > 0 && (
+        {recentTasks.length > 0 && (
           <>
             <SectionLabel>Recent tasks</SectionLabel>
             <View
@@ -362,7 +380,7 @@ export default function MemberDetailScreen() {
                 { backgroundColor: colors.surface.card, marginHorizontal: Spacing[4] },
               ]}
             >
-              {member.recentTasks.map((task, idx) => (
+              {recentTasks.map((task, idx) => (
                 <React.Fragment key={task.id}>
                   {idx > 0 && (
                     <View style={[s.cardDivider, { backgroundColor: '#F4F6FA' }]} />
@@ -375,55 +393,59 @@ export default function MemberDetailScreen() {
         )}
 
         {/* ── Manage ───────────────────────────────────────────────────── */}
-        <SectionLabel>Manage</SectionLabel>
-        <View
-          style={[
-            s.card,
-            { backgroundColor: colors.surface.card, marginHorizontal: Spacing[4] },
-          ]}
-        >
-          <ManageRow
-            icon="edit-2"
-            label="Edit profile"
-            onPress={() => {
-              setOverflowVisible(false);
-              router.push(`/(app)/people/${member.id}/edit` as Parameters<typeof router.push>[0]);
-            }}
-            colors={colors}
-          />
-          <View style={[s.cardDivider, { backgroundColor: '#F4F6FA' }]} />
-          <ManageRow
-            icon="lock"
-            label="Reset password"
-            accent={colors.brand.primary}
-            onPress={() => {
-              setOverflowVisible(false);
-              setResetVisible(true);
-            }}
-            colors={colors}
-          />
-          <View style={[s.cardDivider, { backgroundColor: '#F4F6FA' }]} />
-          {member.isActive ? (
-            <ManageRow
-              icon="user-x"
-              label="Suspend account"
-              danger
-              onPress={() => {
-                setOverflowVisible(false);
-                setSuspendVisible(true);
-              }}
-              colors={colors}
-            />
-          ) : (
-            <ManageRow
-              icon="user-check"
-              label="Reactivate account"
-              accent="#16A34A"
-              onPress={handleReactivate}
-              colors={colors}
-            />
-          )}
-        </View>
+        {!isReadOnly && (
+          <>
+            <SectionLabel>Manage</SectionLabel>
+            <View
+              style={[
+                s.card,
+                { backgroundColor: colors.surface.card, marginHorizontal: Spacing[4] },
+              ]}
+            >
+              <ManageRow
+                icon="edit-2"
+                label="Edit profile"
+                onPress={() => {
+                  setOverflowVisible(false);
+                  router.push(`/(app)/people/${member.id}/edit` as Parameters<typeof router.push>[0]);
+                }}
+                colors={colors}
+              />
+              <View style={[s.cardDivider, { backgroundColor: '#F4F6FA' }]} />
+              <ManageRow
+                icon="lock"
+                label="Reset password"
+                accent={colors.brand.primary}
+                onPress={() => {
+                  setOverflowVisible(false);
+                  setResetVisible(true);
+                }}
+                colors={colors}
+              />
+              <View style={[s.cardDivider, { backgroundColor: '#F4F6FA' }]} />
+              {member.isActive ? (
+                <ManageRow
+                  icon="user-x"
+                  label="Suspend account"
+                  danger
+                  onPress={() => {
+                    setOverflowVisible(false);
+                    setSuspendVisible(true);
+                  }}
+                  colors={colors}
+                />
+              ) : (
+                <ManageRow
+                  icon="user-check"
+                  label="Reactivate account"
+                  accent="#16A34A"
+                  onPress={handleReactivate}
+                  colors={colors}
+                />
+              )}
+            </View>
+          </>
+        )}
       </ScrollView>
 
       {/* ── Overflow menu ────────────────────────────────────────────────── */}
@@ -517,7 +539,7 @@ function RecentTaskRow({
   task,
   colors,
 }: {
-  task: RecentTaskItem;
+  task: Pick<RichTask, 'id' | 'title' | 'priority' | 'status' | 'dueDate'>;
   colors: ReturnType<typeof useColors>;
 }) {
   const stripe = PRIORITY_COLOR[task.priority] ?? '#94A3B8';

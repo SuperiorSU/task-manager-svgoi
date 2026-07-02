@@ -125,6 +125,17 @@ export const usersRoutes = async (app: FastifyInstance): Promise<void> => {
     },
   });
 
+  // ─── Admin-triggered password reset ────────────────────────────────
+  app.patch('/:id/reset-password', {
+    config: { rateLimit: { max: 3, timeWindow: '1 hour' } },
+    preHandler: [requireAuth, requirePermission(PERMISSIONS.USER_UPDATE)],
+    handler: async (req, reply) => {
+      const { id } = req.params as { id: string };
+      await usersService.resetPassword(id, req.user.id, req.user.role === 'ADMIN' ? req.user.departmentId : undefined);
+      return sendSuccess(reply, null);
+    },
+  });
+
   // ─── Reactivate ───────────────────────────────────────────────────
   app.patch('/:id/reactivate', {
     preHandler: [requireAuth, requirePermission(PERMISSIONS.USER_DEACTIVATE)],

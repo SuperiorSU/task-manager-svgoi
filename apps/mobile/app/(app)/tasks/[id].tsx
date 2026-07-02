@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  Linking,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,10 +18,21 @@ import { Feather } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 import * as Haptics from 'expo-haptics';
 
-import type { MockTask } from '../../../src/data/tasks.mock';
-import { isTaskOverdue } from '../../../src/data/tasks.mock';
-import { useMockTaskDetail } from '../../../src/hooks/useTasksMock';
-import { adminTasksService } from '../../../src/services/adminTasks.service';
+import type { RichTask, TaskStatus, TaskAttachment } from '@godigitify/types';
+import {
+  useTask,
+  useTaskComments,
+  useTaskActivity,
+  useTaskAttachments,
+  useUpdateTaskStatus,
+  useAddComment,
+  useDeleteTask,
+} from '../../../src/hooks/useTasks';
+import { useFileUpload } from '../../../src/hooks/useFileUpload';
+import { useAuthStore } from '../../../src/stores/auth.store';
+import { filesApi } from '@godigitify/api-client';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../../../src/constants/queryKeys';
 
 import { Colors } from '../../../src/constants/colors';
 import { Typography } from '../../../src/constants/typography';
@@ -28,8 +40,6 @@ import { Spacing, Layout } from '../../../src/constants/spacing';
 
 import { TaskStatusBadge } from '../../../src/components/task/TaskStatusBadge';
 import { TaskPriorityIndicator } from '../../../src/components/task/TaskPriorityIndicator';
-import { TaskProgressBar } from '../../../src/components/task/detail/TaskProgressBar';
-import { TaskSubtasksSection } from '../../../src/components/task/detail/TaskSubtasksSection';
 import { TaskAttachmentsSection } from '../../../src/components/task/detail/TaskAttachmentsSection';
 import { TaskActivityTimeline } from '../../../src/components/task/detail/TaskActivityTimeline';
 import { TaskCommentsSection } from '../../../src/components/task/detail/TaskCommentsSection';
@@ -37,6 +47,9 @@ import { TaskActionBar } from '../../../src/components/task/detail/TaskActionBar
 import { TaskOverflowSheet, type OverflowAction } from '../../../src/components/task/TaskOverflowSheet';
 import { Avatar } from '../../../src/components/ui/Avatar';
 import { Skeleton } from '../../../src/components/ui/Skeleton';
+
+const isOverdue = (task: RichTask) =>
+  !['COMPLETED', 'CANCELLED'].includes(task.status) && dayjs(task.dueDate).isBefore(dayjs());
 
 // ─── MetaRow ─────────────────────────────────────────────────────────────────
 const MetaRow = ({
@@ -103,23 +116,32 @@ const sk = StyleSheet.create({
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function TaskDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const taskId = id ?? '';
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const qc = useQueryClient();
+  const currentUser = useAuthStore((s) => s.user);
 
-  const { data: task, isLoading } = useMockTaskDetail(id ?? '');
-  const [localTask, setLocalTask] = useState<MockTask | null>(null);
+  const { data: task, isLoading } = useTask(taskId);
+  const { data: comments = [] } = useTaskComments(taskId);
+  const { data: activity = [] } = useTaskActivity(taskId);
+  const { data: attachments = [] } = useTaskAttachments(taskId);
+
+  const updateStatus = useUpdateTaskStatus();
+  const addComment = useAddComment(taskId);
+  const deleteTask = useDeleteTask();
+  const { uploadFile, uploading } = useFileUpload(taskId);
+
   const [overflowVisible, setOverflowVisible] = useState(false);
   const [revisionModalVisible, setRevisionModalVisible] = useState(false);
   const [revisionNote, setRevisionNote] = useState('');
-  const [actionLoading, setActionLoading] = useState(false);
 
-  const displayed = localTask ?? task ?? null;
-  const isAdminCreator = displayed ? adminTasksService.isAdminCreator(displayed) : false;
+  const isAdminCreator = task ? task.creatorId === currentUser?.id : false;
 
   // ── handlers ──
   const handleBack = useCallback(() => router.back(), [router]);
 
-  const handleStatusChange = useCallback(async (t: MockTask, nextStatus: MockTask['status']) => {
+  const handleStatusChange = useCallback(async (t: RichTask, nextStatus: TaskStatus) => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       'Update Status',
@@ -128,76 +150,96 @@ export default function TaskDetailScreen() {
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Confirm',
-          onPress: () => setLocalTask((prev) => ({ ...(prev ?? t), status: nextStatus })),
+          onPress: () => updateStatus.mutate({ id: t.id, dto: { status: nextStatus } }),
         },
       ]
     );
-  }, []);
+  }, [updateStatus]);
 
-  const handleApprove = useCallback(async (t: MockTask) => {
-    setActionLoading(true);
-    try {
-      await adminTasksService.approveTask(t.id);
-      setLocalTask((prev) => ({ ...(prev ?? t), status: 'COMPLETED' }));
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace('/(app)/(admin)/tasks' as Parameters<typeof router.replace>[0]);
-    } catch {
-      Alert.alert('Error', 'Could not approve the task. Please try again.');
-    } finally {
-      setActionLoading(false);
-    }
-  }, [router]);
+  const handleApprove = useCallback((t: RichTask) => {
+    updateStatus.mutate(
+      { id: t.id, dto: { status: 'COMPLETED' } },
+      {
+        onSuccess: async () => {
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          router.back();
+        },
+        onError: () => Alert.alert('Error', 'Could not approve the task. Please try again.'),
+      }
+    );
+  }, [updateStatus, router]);
 
-  const handleRevise = useCallback((_t: MockTask) => {
+  const handleRevise = useCallback((_t: RichTask) => {
     setRevisionNote('');
     setRevisionModalVisible(true);
   }, []);
 
-  const handleRevisionSubmit = useCallback(async () => {
-    const t = displayed;
-    if (!t) return;
-    setActionLoading(true);
-    try {
-      await adminTasksService.requestRevision(t.id, revisionNote.trim());
-      setLocalTask((prev) => ({ ...(prev ?? t), status: 'IN_PROGRESS' }));
-      setRevisionModalVisible(false);
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      router.replace('/(app)/(admin)/tasks' as Parameters<typeof router.replace>[0]);
-    } catch {
-      Alert.alert('Error', 'Could not request revision. Please try again.');
-    } finally {
-      setActionLoading(false);
-    }
-  }, [displayed, revisionNote, router]);
+  const handleRevisionSubmit = useCallback(() => {
+    if (!task) return;
+    const trimmedNote = revisionNote.trim();
+    updateStatus.mutate(
+      { id: task.id, dto: { status: 'IN_PROGRESS', ...(trimmedNote ? { comment: trimmedNote } : {}) } },
+      {
+        onSuccess: async () => {
+          setRevisionModalVisible(false);
+          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          router.back();
+        },
+        onError: () => Alert.alert('Error', 'Could not request revision. Please try again.'),
+      }
+    );
+  }, [task, revisionNote, updateStatus, router]);
 
-  const handleUploadProof = useCallback((_t: MockTask) => {
-    Alert.alert('Upload Proof', 'File picker would open here in production.');
+  const handleUploadProof = useCallback(async (t: RichTask) => {
+    const result = await uploadFile(true);
+    if (result) {
+      void qc.invalidateQueries({ queryKey: queryKeys.tasks.attachments(t.id) });
+      void qc.invalidateQueries({ queryKey: queryKeys.tasks.activity(t.id) });
+    }
+  }, [uploadFile, qc]);
+
+  const handleAddComment = useCallback((_t: RichTask) => {
+    // No-op: comment composer is always visible in the Comments section below.
   }, []);
 
-  const handleAddComment = useCallback((_t: MockTask) => {
-    // scroll to comments — handled inline in screen
+  const handleSubmitComment = useCallback(
+    async (content: string) => {
+      await addComment.mutateAsync({ content });
+    },
+    [addComment],
+  );
+
+  const handleOpenAttachment = useCallback(async (attachment: TaskAttachment) => {
+    try {
+      const res = await filesApi.getDownloadUrl(attachment.id);
+      await Linking.openURL(res.data.url);
+    } catch {
+      Alert.alert('Error', 'Could not open this file. Please try again.');
+    }
   }, []);
 
   const handleOverflowAction = useCallback((action: OverflowAction) => {
+    if (!task) return;
     if (action === 'delete') {
       Alert.alert('Delete Task', 'This action cannot be undone.', [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => router.back() },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => deleteTask.mutate(task.id, { onSuccess: () => router.back() }),
+        },
       ]);
     }
     if (action === 'mark_complete') {
-      setLocalTask((prev) => {
-        const base = prev ?? displayed;
-        return base ? { ...base, status: 'COMPLETED' } : prev;
-      });
+      updateStatus.mutate({ id: task.id, dto: { status: 'COMPLETED' } });
     }
-  }, [router, displayed]);
+  }, [task, deleteTask, updateStatus, router]);
 
   if (isLoading) {
     return <DetailSkeleton insets={insets} />;
   }
 
-  if (!displayed) {
+  if (!task) {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         <View style={styles.header}>
@@ -230,10 +272,8 @@ export default function TaskDetailScreen() {
     );
   }
 
-  const t = displayed;
-  const overdue = isTaskOverdue(t);
-  const completedSubtasks = t.subtasks.filter((s) => s.completed).length;
-
+  const t = task;
+  const overdue = isOverdue(t);
   const priorityColor = Colors.priority[t.priority.toLowerCase() as keyof typeof Colors.priority];
 
   return (
@@ -295,15 +335,14 @@ export default function TaskDetailScreen() {
 
         {/* Meta info card */}
         <View style={[styles.card, styles.metaCard]}>
-          <MetaRow icon="layers" label="Project">
-            <Text style={styles.metaValue}>{t.project.name}</Text>
-          </MetaRow>
-          <View style={styles.divider} />
-
-          <MetaRow icon="briefcase" label="Department">
-            <Text style={styles.metaValue}>{t.department.name}</Text>
-          </MetaRow>
-          <View style={styles.divider} />
+          {t.department && (
+            <>
+              <MetaRow icon="briefcase" label="Department">
+                <Text style={styles.metaValue}>{t.department.name}</Text>
+              </MetaRow>
+              <View style={styles.divider} />
+            </>
+          )}
 
           <MetaRow icon="user-plus" label="Assigned by">
             <View style={styles.userRow}>
@@ -334,39 +373,25 @@ export default function TaskDetailScreen() {
           </MetaRow>
         </View>
 
-        {/* Labels */}
-        {t.labels.length > 0 && (
-          <View style={styles.labelsRow}>
-            {t.labels.map((label) => (
-              <View key={label} style={styles.labelChip}>
-                <Text style={styles.labelText}>{label}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* Progress */}
-        <TaskProgressBar
-          progress={t.progress}
-          completedSubtasks={completedSubtasks}
-          totalSubtasks={t.subtasks.length}
-        />
-
-        {/* Subtasks */}
-        <TaskSubtasksSection subtasks={t.subtasks} />
-
         {/* Attachments */}
         <TaskAttachmentsSection
-          attachments={t.attachments}
-          canAdd={!['COMPLETED', 'CANCELLED'].includes(t.status)}
+          attachments={attachments}
+          canAdd={!uploading && !['COMPLETED', 'CANCELLED'].includes(t.status)}
           onAdd={() => handleUploadProof(t)}
+          onOpen={handleOpenAttachment}
         />
 
         {/* Comments */}
-        <TaskCommentsSection comments={t.comments} />
+        <TaskCommentsSection
+          comments={comments}
+          currentUserId={currentUser?.id ?? ''}
+          currentUserName={currentUser?.name ?? 'You'}
+          onSubmit={handleSubmitComment}
+          isSubmitting={addComment.isPending}
+        />
 
         {/* Activity Timeline */}
-        <TaskActivityTimeline events={t.activity} />
+        <TaskActivityTimeline events={activity} />
       </ScrollView>
 
       {/* ── Fixed action bar ── */}
@@ -425,15 +450,15 @@ export default function TaskDetailScreen() {
               </Pressable>
               <Pressable
                 onPress={handleRevisionSubmit}
-                disabled={actionLoading}
+                disabled={updateStatus.isPending}
                 style={({ pressed }) => [
                   revisionModal.submitBtn,
                   pressed && { opacity: 0.85 },
-                  actionLoading && { opacity: 0.6 },
+                  updateStatus.isPending && { opacity: 0.6 },
                 ]}
               >
                 <Text style={revisionModal.submitLabel}>
-                  {actionLoading ? 'Sending…' : 'Send for Revision'}
+                  {updateStatus.isPending ? 'Sending…' : 'Send for Revision'}
                 </Text>
               </Pressable>
             </View>
@@ -551,22 +576,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing[2],
-  },
-  labelsRow: {
-    flexDirection: 'row',
-    gap: Spacing[2],
-    flexWrap: 'wrap',
-  },
-  labelChip: {
-    backgroundColor: Colors.brand.primaryLight,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  labelText: {
-    ...Typography.labelSm,
-    fontFamily: 'Inter-Medium',
-    color: Colors.brand.primary,
   },
 });
 
