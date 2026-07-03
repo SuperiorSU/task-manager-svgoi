@@ -74,8 +74,35 @@ model Department {
   headId      String?  @unique
   users       User[]   @relation("DeptMembers")
   tasks       Task[]
+  batches     TaskBatch[]
+  settings    DepartmentSettings?
 
   @@index([code])
+}
+
+model DepartmentSettings {
+  id           String   @id @default(cuid())
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  departmentId String   @unique
+
+  workingDays           Json         @default("[1,2,3,4,5]")
+  workingHoursStart     String       @default("09:00")
+  workingHoursEnd       String       @default("18:00")
+  weeklyHoliday         Int          @default(0)
+  defaultPriority       TaskPriority @default(MEDIUM)
+  defaultDueWindowDays  Int          @default(3)
+  membersSeeOnlyOwnTasks Boolean     @default(false)
+  taskCategories        Json         @default("[]")
+
+  requireProofOfWork      Boolean @default(true)
+  autoApproveLowPriority  Boolean @default(false)
+  onRejection             String  @default("REASSIGN_TO_CREATOR")
+  approverScope           String  @default("DEPT_ADMIN")
+  reviewWithinHours       Int     @default(24)
+  escalateOverdueReviews  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model User {
@@ -104,6 +131,7 @@ model User {
 
   assignedTasks  Task[]         @relation("TaskAssignee")
   createdTasks   Task[]         @relation("TaskCreator")
+  taskBatches    TaskBatch[]
   taskComments   Comment[]
   notifications  Notification[]
   pushTokens     PushToken[]
@@ -141,6 +169,7 @@ model Task {
   updatedAt       DateTime     @updatedAt
   acceptedAt      DateTime?
   completedAt     DateTime?
+  isGovernance    Boolean      @default(false)
 
   creator      User        @relation("TaskCreator", fields: [creatorId], references: [id])
   creatorId    String
@@ -148,6 +177,8 @@ model Task {
   assigneeId   String
   department   Department? @relation(fields: [departmentId], references: [id])
   departmentId String?
+  batch        TaskBatch?  @relation(fields: [batchId], references: [id])
+  batchId      String?
 
   comments      Comment[]
   attachments   FileAttachment[]
@@ -162,6 +193,29 @@ model Task {
   @@index([priority])
   @@index([assigneeId, status])
   @@index([departmentId, status])
+  @@index([batchId])
+  @@index([isGovernance])
+}
+
+model TaskBatch {
+  id            String       @id @default(cuid())
+  title         String
+  description   String?
+  priority      TaskPriority @default(MEDIUM)
+  dueDate       DateTime
+  isolationNote String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  creator      User        @relation(fields: [creatorId], references: [id])
+  creatorId    String
+  department   Department? @relation(fields: [departmentId], references: [id])
+  departmentId String?
+
+  tasks Task[]
+
+  @@index([creatorId])
+  @@index([departmentId])
 }
 
 model Comment {
@@ -267,6 +321,8 @@ model AuditLog {
   userAgent   String?
   metadata    Json?
   createdAt   DateTime    @default(now())
+  integrityHash String?
+  previousHash  String?
 
   actor   User?   @relation(fields: [actorId], references: [id])
   actorId String?

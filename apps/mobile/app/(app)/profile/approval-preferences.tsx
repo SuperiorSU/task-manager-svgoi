@@ -4,24 +4,39 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 
+import type { DepartmentSettings } from '@godigitify/types';
+
 import { useColors } from '../../../src/constants/colors';
-import {
-  useApprovalPreferences,
-  useUpdateApprovalPreferences,
-} from '../../../src/hooks/useAdminSettings';
-import {
-  ON_REJECTION_OPTIONS,
-  REVIEW_WITHIN_OPTIONS,
-  type ApprovalPreferences,
-  type ApproverScope,
-} from '../../../src/data/adminSettings.mock';
+import { useAdminSettings, useUpdateAdminSettings } from '../../../src/hooks/useAdminSettings';
 
 import { SettingsToggleRow } from '../../../src/components/profile/SettingsToggleRow';
 import { SettingsValueRow } from '../../../src/components/profile/SettingsValueRow';
 import { SettingsRadioCard } from '../../../src/components/profile/SettingsRadioCard';
 import { SettingsPickerSheet } from '../../../src/components/profile/SettingsPickerSheet';
 
-const APPROVER_OPTIONS: { value: ApproverScope; label: string }[] = [
+type ApprovalPreferencesDraft = Pick<
+  DepartmentSettings,
+  | 'requireProofOfWork'
+  | 'autoApproveLowPriority'
+  | 'onRejection'
+  | 'approverScope'
+  | 'reviewWithinHours'
+  | 'escalateOverdueReviews'
+>;
+
+const ON_REJECTION_OPTIONS: { value: string; label: string }[] = [
+  { value: 'RESUBMIT_PROOF', label: 'Re-submit proof' },
+  { value: 'COMMENT_ONLY', label: 'Comment only' },
+];
+
+const REVIEW_WITHIN_OPTIONS: { value: number; label: string }[] = [
+  { value: 4, label: '4 hours' },
+  { value: 12, label: '12 hours' },
+  { value: 24, label: '24 hours' },
+  { value: 48, label: '48 hours' },
+];
+
+const APPROVER_OPTIONS: { value: string; label: string }[] = [
   { value: 'ADMIN_ONLY', label: 'Only me (Dept Admin)' },
   { value: 'ADMIN_AND_SENIOR', label: 'Me + senior members' },
 ];
@@ -31,17 +46,26 @@ export default function ApprovalPreferencesScreen() {
   const insets = useSafeAreaInsets();
   const colors = useColors();
 
-  const { data: prefs, isLoading } = useApprovalPreferences();
-  const { mutate: save, isPending } = useUpdateApprovalPreferences();
+  const { data: settings, isLoading } = useAdminSettings();
+  const { mutate: save, isPending } = useUpdateAdminSettings();
 
-  const [draft, setDraft] = useState<ApprovalPreferences | null>(null);
+  const [draft, setDraft] = useState<ApprovalPreferencesDraft | null>(null);
   const [sheet, setSheet] = useState<'onRejection' | 'reviewWithin' | null>(null);
 
   useEffect(() => {
-    if (prefs && !draft) setDraft(prefs);
-  }, [prefs, draft]);
+    if (settings && !draft) {
+      setDraft({
+        requireProofOfWork: settings.requireProofOfWork,
+        autoApproveLowPriority: settings.autoApproveLowPriority,
+        onRejection: settings.onRejection,
+        approverScope: settings.approverScope,
+        reviewWithinHours: settings.reviewWithinHours,
+        escalateOverdueReviews: settings.escalateOverdueReviews,
+      });
+    }
+  }, [settings, draft]);
 
-  const patch = (fields: Partial<ApprovalPreferences>) =>
+  const patch = (fields: Partial<ApprovalPreferencesDraft>) =>
     setDraft((d) => (d ? { ...d, ...fields } : d));
 
   const handleSave = () => {

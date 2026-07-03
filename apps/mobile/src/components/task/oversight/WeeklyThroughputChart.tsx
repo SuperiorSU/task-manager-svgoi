@@ -1,10 +1,16 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
-import type { WeeklyThroughputPoint } from '../../../data/superAdminTasks.mock';
 import { useColors } from '../../../constants/colors';
 import { Typography } from '../../../constants/typography';
 import { Spacing } from '../../../constants/spacing';
+
+// No real daily-trend endpoint exists (dashboardApi has no getTrend, and
+// getWorkload() is per-user not per-day) — this component is currently
+// unused (dropped from SuperAdminTasksScreen's Overview segment) but kept
+// self-contained so it still compiles if a real trend endpoint is wired up
+// later.
+type WeeklyThroughputPoint = { day: string; created: number; completed: number };
 
 type Props = {
   points: WeeklyThroughputPoint[];

@@ -17,8 +17,8 @@ import {
   useSuperAdminCalendarDepartments,
   useSuperAdminCalendarEntries,
   useSuperAdminCalendarState,
+  type CalendarDayEntry,
 } from '../hooks/useSuperAdminCalendar';
-import type { CalendarDayEntry } from '../services/superAdminCalendar.service';
 import { useColors } from '../constants/colors';
 import { Spacing } from '../constants/spacing';
 

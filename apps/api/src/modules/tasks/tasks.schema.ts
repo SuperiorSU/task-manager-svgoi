@@ -74,3 +74,18 @@ export const bulkStatusBodySchema = {
     status: { type: 'string', enum: ['CANCELLED'] },
   },
 } as const;
+
+export const createBatchBodySchema = {
+  type: 'object',
+  required: ['title', 'priority', 'dueDate', 'assigneeIds'],
+  additionalProperties: false,
+  properties: {
+    title: { type: 'string', minLength: 1, maxLength: 200 },
+    description: { type: 'string', maxLength: 5000 },
+    priority: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] },
+    dueDate: { type: 'string', format: 'date-time' },
+    departmentId: { type: 'string' },
+    assigneeIds: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 100 },
+    isolationNote: { type: 'string', maxLength: 2000 },
+  },
+} as const;

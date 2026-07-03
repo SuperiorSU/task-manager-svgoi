@@ -1,7 +1,7 @@
 import React from 'react';
 import { ScrollView, Pressable, Text, StyleSheet } from 'react-native';
 
-import type { AuditCategory } from '../../data/audit.mock';
+import type { AuditCategory } from '../../utils/auditPresentation';
 import { useColors } from '../../constants/colors';
 import { Typography } from '../../constants/typography';
 import { Spacing } from '../../constants/spacing';

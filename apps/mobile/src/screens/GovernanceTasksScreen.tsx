@@ -11,9 +11,8 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 
-import type { MockTask } from '../data/tasks.mock';
-import type { GovernanceTaskGroup } from '../services/superAdminTasks.service';
-import { useGovernanceTaskGroups } from '../hooks/useSuperAdminTasks';
+import type { GovernanceStage, GovernanceTask } from '@godigitify/types';
+import { useGovernanceTasks } from '../hooks/useGovernance';
 import { useRefreshControl } from '../hooks/useRefreshControl';
 import { useColors } from '../constants/colors';
 import { Layout, Spacing } from '../constants/spacing';
@@ -22,28 +21,41 @@ import { GovernanceTaskRow } from '../components/task/oversight/GovernanceTaskRo
 import { EmptyState } from '../components/ui/EmptyState';
 import { ListSkeleton } from '../components/dashboard/ListSkeleton';
 
-const GROUP_TONE: Record<GovernanceTaskGroup['id'], { color: string; bg: string }> = {
-  needs_approval: { color: '#6D28D9', bg: '#F5F3FF' },
-  in_progress: { color: '#B45309', bg: '#FFFBEB' },
-  awaiting_accept: { color: '#475569', bg: '#F1F5F9' },
+type GovernanceGroupId = 'needs_approval' | 'revision_requested' | 'in_progress' | 'awaiting_accept';
+
+// Buckets the flat governance list by server-computed stage — APPROVED tasks
+// are excluded from this "active" tracker (mirrors the prior mock behavior,
+// which never surfaced completed governance tasks here).
+const GROUP_META: Record<GovernanceGroupId, { label: string; stage: GovernanceStage; tone: { color: string; bg: string } }> = {
+  needs_approval: { label: 'Needs your approval', stage: 'SUBMITTED', tone: { color: '#6D28D9', bg: '#F5F3FF' } },
+  revision_requested: { label: 'Sent back for revision', stage: 'REVISION_REQUESTED', tone: { color: '#B91C1C', bg: '#FEF2F2' } },
+  in_progress: { label: 'In progress', stage: 'IN_PROGRESS', tone: { color: '#B45309', bg: '#FFFBEB' } },
+  awaiting_accept: { label: 'Awaiting accept', stage: 'ASSIGNED', tone: { color: '#475569', bg: '#F1F5F9' } },
 };
+
+const GROUP_ORDER: GovernanceGroupId[] = ['needs_approval', 'revision_requested', 'in_progress', 'awaiting_accept'];
 
 export function GovernanceTasksScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const { data, isLoading, refetch } = useGovernanceTaskGroups();
+  const { data, isLoading, refetch } = useGovernanceTasks();
   const { refreshing, onRefresh } = useRefreshControl(async () => {
     await refetch();
   });
 
   const push = useCallback((path: string) => router.push(path as Parameters<typeof router.push>[0]), [router]);
 
-  const goDetail = useCallback((task: MockTask) => push(`/(app)/sa-tasks/assigned-by-me/${task.id}`), [push]);
+  const goDetail = useCallback((task: GovernanceTask) => push(`/(app)/sa-tasks/assigned-by-me/${task.id}`), [push]);
   const goAssign = useCallback(() => push('/(app)/sa-tasks/assign'), [push]);
 
-  const sections = (data ?? []).map((group) => ({ ...group, data: group.tasks }));
+  const tasks = data ?? [];
+  const sections = GROUP_ORDER.map((id) => {
+    const meta = GROUP_META[id];
+    const groupTasks = tasks.filter((t) => t.stage === meta.stage);
+    return { id, label: meta.label, count: groupTasks.length, tasks: groupTasks, data: groupTasks };
+  }).filter((group) => group.count > 0);
 
   return (
     <View style={[s.screen, { backgroundColor: colors.surface.background }]}>
@@ -70,7 +82,7 @@ export function GovernanceTasksScreen() {
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => <GovernanceTaskRow task={item} onPress={goDetail} />}
           renderSectionHeader={({ section }) => {
-            const tone = GROUP_TONE[section.id];
+            const tone = GROUP_META[section.id].tone;
             return (
               <View style={s.sectionHeader}>
                 <Text style={[s.sectionLabel, { color: tone.color }]}>{section.label.toUpperCase()}</Text>

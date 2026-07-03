@@ -6,7 +6,7 @@
 import React from 'react';
 import { Pressable, Text, View, StyleSheet } from 'react-native';
 
-import type { OrgUser } from '../../data/orgDirectory.mock';
+import type { OrgUser } from '../../hooks/useOrgDirectory';
 import { useColors } from '../../constants/colors';
 
 const ROLE_BADGE: Record<OrgUser['role'], { bg: string; text: string; label: string }> = {

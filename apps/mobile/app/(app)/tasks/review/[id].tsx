@@ -15,7 +15,7 @@ import { Feather } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 
-import { useMockTaskDetail } from '../../../../src/hooks/useTasksMock';
+import { useTask, useTaskAttachments, useTaskComments, useTaskActivity } from '../../../../src/hooks/useTasks';
 import { useTaskReviewActions } from '../../../../src/hooks/useTaskReviewActions';
 import { useColors } from '../../../../src/constants/colors';
 import { Typography } from '../../../../src/constants/typography';
@@ -42,7 +42,11 @@ export default function ReviewTaskScreen() {
   const insets = useSafeAreaInsets();
   const colors = useColors();
 
-  const { data: task, isLoading } = useMockTaskDetail(id ?? '');
+  const taskId = id ?? '';
+  const { data: task, isLoading } = useTask(taskId);
+  const { data: attachments = [] } = useTaskAttachments(taskId);
+  const { data: comments = [] } = useTaskComments(taskId);
+  const { data: activity = [] } = useTaskActivity(taskId);
 
   const handleBack = useCallback(() => router.back(), [router]);
   const handleDone = useCallback(() => router.back(), [router]);
@@ -66,10 +70,10 @@ export default function ReviewTaskScreen() {
   }
 
   const priorityColor = colors.priority[task.priority.toLowerCase() as keyof typeof colors.priority];
-  const lastActivity = task.activity[task.activity.length - 1];
+  const lastActivity = activity[activity.length - 1];
   const submittedAt = dayjs(lastActivity?.createdAt ?? task.createdAt).fromNow();
-  const proof = task.attachments.filter((a) => a.isProof);
-  const submissionNote = [...task.comments].reverse().find((c) => c.author.id === task.assignee.id);
+  const proof = attachments.filter((a) => a.isProof);
+  const submissionNote = [...comments].reverse().find((c) => c.author.id === task.assignee.id);
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top, backgroundColor: colors.surface.background }]}>
@@ -98,14 +102,13 @@ export default function ReviewTaskScreen() {
             <TaskStatusBadge status={task.status} />
           </View>
           <Text style={[styles.title, { color: colors.text.primary }]}>{task.title}</Text>
-          <View style={styles.chipRow}>
-            <View style={[styles.chip, { backgroundColor: colors.surface.background }]}>
-              <Text style={[styles.chipText, { color: colors.text.secondary }]}>{task.department.name}</Text>
+          {task.department && (
+            <View style={styles.chipRow}>
+              <View style={[styles.chip, { backgroundColor: colors.surface.background }]}>
+                <Text style={[styles.chipText, { color: colors.text.secondary }]}>{task.department.name}</Text>
+              </View>
             </View>
-            <View style={[styles.chip, { backgroundColor: colors.surface.background }]}>
-              <Text style={[styles.chipText, { color: colors.text.secondary }]}>{task.project.name}</Text>
-            </View>
-          </View>
+          )}
         </View>
 
         {/* Submission banner */}
@@ -140,7 +143,7 @@ export default function ReviewTaskScreen() {
         )}
 
         {/* Activity */}
-        <TaskActivityTimeline events={task.activity} />
+        <TaskActivityTimeline events={activity} />
       </ScrollView>
 
       {/* Pinned decision bar */}

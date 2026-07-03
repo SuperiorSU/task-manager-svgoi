@@ -18,6 +18,7 @@ import { dashboardRoutes } from './modules/dashboard/dashboard.routes.js';
 import { filesRoutes } from './modules/files/files.routes.js';
 import { auditRoutes } from './modules/audit/audit.routes.js';
 import { reportsRoutes } from './modules/reports/reports.routes.js';
+import { governanceRoutes } from './modules/governance/governance.routes.js';
 
 export const buildApp = async (app: FastifyInstance): Promise<void> => {
   // Security headers
@@ -59,4 +60,5 @@ export const buildApp = async (app: FastifyInstance): Promise<void> => {
   await app.register(filesRoutes, { prefix: '/files' });
   await app.register(auditRoutes, { prefix: '/audit' });
   await app.register(reportsRoutes, { prefix: '/reports' });
+  await app.register(governanceRoutes, { prefix: '/governance' });
 };

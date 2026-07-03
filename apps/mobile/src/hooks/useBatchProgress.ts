@@ -1,13 +1,13 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { tasksApi } from '@godigitify/api-client';
 
+import { queryKeys } from '../constants/queryKeys';
 import {
-  batchProgressService,
+  toBatchDisplaySummary,
   sortBatchMembers,
   type BatchSortBy,
 } from '../services/batchProgress.service';
-
-const batchQueryKey = (batchId: string) => ['batch-progress', batchId] as const;
 
 // ─── Hook: batch progress summary + sortable roster ──────────────────────────
 
@@ -17,15 +17,17 @@ export const useBatchProgress = (batchId: string) => {
   const [nudging, setNudging] = useState(false);
 
   const query = useQuery({
-    queryKey: batchQueryKey(batchId),
-    queryFn: () => batchProgressService.getBatchSummary(batchId),
+    queryKey: queryKeys.tasks.batch(batchId),
+    queryFn: () => tasksApi.getBatchSummary(batchId),
+    select: (res) => toBatchDisplaySummary(res.data),
     enabled: !!batchId,
-    staleTime: 60 * 1_000,
   });
 
+  const summary = query.data ?? null;
+
   const sortedMembers = useMemo(
-    () => (query.data ? sortBatchMembers(query.data.members, sortBy) : []),
-    [query.data, sortBy],
+    () => (summary ? sortBatchMembers(summary.members, sortBy) : []),
+    [summary, sortBy],
   );
 
   const toggleSort = useCallback(() => {
@@ -35,16 +37,17 @@ export const useBatchProgress = (batchId: string) => {
   const nudgeStragglers = useCallback(async () => {
     setNudging(true);
     try {
-      const result = await batchProgressService.nudgeStragglers(batchId);
-      await queryClient.invalidateQueries({ queryKey: batchQueryKey(batchId) });
-      return result;
+      const notifiedCount = summary?.atRiskCount ?? 0;
+      await tasksApi.nudgeStragglers(batchId);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.tasks.batch(batchId) });
+      return { notifiedCount };
     } finally {
       setNudging(false);
     }
-  }, [batchId, queryClient]);
+  }, [batchId, queryClient, summary]);
 
   return {
-    summary: query.data ?? null,
+    summary,
     isLoading: query.isLoading,
     sortBy,
     toggleSort,
@@ -53,8 +56,3 @@ export const useBatchProgress = (batchId: string) => {
     nudging,
   };
 };
-
-// ─── Hook: which batch (if any) a single task belongs to ─────────────────────
-
-export const useTaskBatchId = (taskId: string | undefined) =>
-  useMemo(() => (taskId ? batchProgressService.getBatchIdForTask(taskId) : undefined), [taskId]);

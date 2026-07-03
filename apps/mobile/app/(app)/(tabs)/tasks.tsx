@@ -56,7 +56,7 @@ export default function TasksScreen() {
   const { data: listData, isLoading, refetch } = useTasks(apiFilters);
 
   const allTasks: TaskCardItem[] = useMemo(
-    () => (listData?.tasks ?? []).map((t: RichTask) => ({
+    () => (listData ?? []).map((t: RichTask) => ({
       id: t.id,
       title: t.title,
       status: t.status,
@@ -95,7 +95,7 @@ export default function TasksScreen() {
   );
 
   const stats = {
-    total: listData?.meta?.total ?? 0,
+    total: listData?.length ?? 0,
     overdue: overdueTasks.length,
   };
 

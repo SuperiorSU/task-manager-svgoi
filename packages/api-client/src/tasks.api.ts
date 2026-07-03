@@ -6,16 +6,20 @@ import type {
   TaskComment,
   TaskActivityEvent,
   TaskAttachment,
+  TaskBatch,
+  CreateTaskBatchDto,
+  BatchProgressSummary,
 } from '@godigitify/types';
 
 import { getApiClient } from './client';
 
 export type TaskListMeta = { page: number; limit: number; total: number; totalPages: number };
-export type TaskListResponse = { tasks: RichTask[]; meta: TaskListMeta };
 
 export const tasksApi = {
+  // The API returns the task array directly as `data`, with pagination as a
+  // sibling `meta` field — not nested as `{ tasks, meta }`.
   getList: (filters?: TaskFilters) =>
-    getApiClient().get<TaskListResponse>('/tasks', filters as Record<string, string | number | boolean | undefined>),
+    getApiClient().get<RichTask[]>('/tasks', filters as Record<string, string | number | boolean | undefined>),
 
   getById: (id: string) => getApiClient().get<RichTask>(`/tasks/${id}`),
 
@@ -49,11 +53,19 @@ export const tasksApi = {
 
   /** Fetch tasks with due dates within [from, to] for the calendar view */
   getCalendar: (from: string, to: string) =>
-    getApiClient().get<TaskListResponse>('/tasks', {
+    getApiClient().get<RichTask[]>('/tasks', {
       dueAfter: from,
       dueBefore: to,
-      limit: 200,
+      limit: 100,
       sortBy: 'dueDate',
       order: 'asc',
     } as Record<string, string | number | boolean | undefined>),
+
+  createBatch: (dto: CreateTaskBatchDto) => getApiClient().post<TaskBatch>('/tasks/batch', dto),
+
+  getBatchSummary: (batchId: string) =>
+    getApiClient().get<BatchProgressSummary>(`/tasks/batch/${batchId}`),
+
+  nudgeStragglers: (batchId: string) =>
+    getApiClient().post<void>(`/tasks/batch/${batchId}/nudge`),
 };

@@ -1,29 +1,90 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 
+import type { DepartmentSettings as ApiDepartmentSettings } from '@godigitify/types';
+
 import { useColors } from '../../../src/constants/colors';
-import {
-  useDepartmentSettings,
-  useUpdateDepartmentSettings,
-} from '../../../src/hooks/useAdminSettings';
-import {
-  DEFAULT_PRIORITY_OPTIONS,
-  DUE_WINDOW_OPTIONS,
-  WEEKLY_HOLIDAY_OPTIONS,
-  WORKING_DAYS_OPTIONS,
-  WORKING_HOURS_OPTIONS,
-  type DepartmentSettings,
-} from '../../../src/data/adminSettings.mock';
+import { useAdminSettings, useUpdateAdminSettings } from '../../../src/hooks/useAdminSettings';
+import { useAuthStore } from '../../../src/stores/auth.store';
 
 import { SettingsToggleRow } from '../../../src/components/profile/SettingsToggleRow';
 import { SettingsValueRow } from '../../../src/components/profile/SettingsValueRow';
 import { SettingsPickerSheet } from '../../../src/components/profile/SettingsPickerSheet';
 import { CategoryChipEditor } from '../../../src/components/profile/CategoryChipEditor';
 
+type DepartmentSettingsDraft = Pick<
+  ApiDepartmentSettings,
+  | 'workingDays'
+  | 'workingHoursStart'
+  | 'workingHoursEnd'
+  | 'weeklyHoliday'
+  | 'defaultPriority'
+  | 'defaultDueWindowDays'
+  | 'membersSeeOnlyOwnTasks'
+  | 'taskCategories'
+>;
+
 type SheetKey = 'workingDays' | 'workingHours' | 'weeklyHoliday' | 'defaultPriority' | 'dueWindow';
+
+const WORKING_DAYS_OPTIONS: { value: string; label: string }[] = [
+  { value: 'MON_SAT', label: 'Mon – Sat' },
+  { value: 'MON_FRI', label: 'Mon – Fri' },
+  { value: 'ALL_DAYS', label: 'All days' },
+];
+
+const WORKING_DAYS_PRESETS: Record<string, number[]> = {
+  MON_SAT: [1, 2, 3, 4, 5, 6],
+  MON_FRI: [1, 2, 3, 4, 5],
+  ALL_DAYS: [0, 1, 2, 3, 4, 5, 6],
+};
+
+const workingDaysToKey = (days: number[]): string => {
+  const sorted = [...days].sort();
+  const match = Object.entries(WORKING_DAYS_PRESETS).find(
+    ([, preset]) => preset.length === sorted.length && preset.every((d, i) => d === sorted[i])
+  );
+  return match?.[0] ?? 'MON_SAT';
+};
+
+const WORKING_HOURS_OPTIONS: { value: string; label: string }[] = [
+  { value: '9_5', label: '9:00 AM – 5:00 PM' },
+  { value: '8_4', label: '8:00 AM – 4:00 PM' },
+  { value: '10_6', label: '10:00 AM – 6:00 PM' },
+];
+
+const WORKING_HOURS_PRESETS: Record<string, { start: string; end: string }> = {
+  '9_5': { start: '09:00', end: '17:00' },
+  '8_4': { start: '08:00', end: '16:00' },
+  '10_6': { start: '10:00', end: '18:00' },
+};
+
+const workingHoursToKey = (start: string, end: string): string =>
+  Object.entries(WORKING_HOURS_PRESETS).find(
+    ([, p]) => p.start === start && p.end === end
+  )?.[0] ?? '9_5';
+
+const WEEKLY_HOLIDAY_OPTIONS: { value: number; label: string }[] = [
+  { value: 0, label: 'Sunday' },
+  { value: 6, label: 'Saturday' },
+  { value: -1, label: 'None' },
+];
+
+const DUE_WINDOW_OPTIONS: { value: number; label: string }[] = [
+  { value: 1, label: '1 day' },
+  { value: 2, label: '2 days' },
+  { value: 3, label: '3 days' },
+  { value: 7, label: '7 days' },
+];
+
+const DEFAULT_PRIORITY_OPTIONS: { value: ApiDepartmentSettings['defaultPriority']; label: string }[] = [
+  { value: 'CRITICAL', label: 'Critical' },
+  { value: 'HIGH', label: 'High' },
+  { value: 'MEDIUM', label: 'Medium' },
+  { value: 'LOW', label: 'Low' },
+];
 
 const PRIORITY_DOT_COLOR: Record<string, (c: ReturnType<typeof useColors>) => string> = {
   CRITICAL: (c) => c.priority.critical.solid,
@@ -37,17 +98,30 @@ export default function DepartmentSettingsScreen() {
   const insets = useSafeAreaInsets();
   const colors = useColors();
 
-  const { data: settings, isLoading } = useDepartmentSettings();
-  const { mutate: save, isPending } = useUpdateDepartmentSettings();
+  const department = useAuthStore((s) => s.user?.department);
 
-  const [draft, setDraft] = useState<DepartmentSettings | null>(null);
+  const { data: settings, isLoading } = useAdminSettings();
+  const { mutate: save, isPending } = useUpdateAdminSettings();
+
+  const [draft, setDraft] = useState<DepartmentSettingsDraft | null>(null);
   const [sheet, setSheet] = useState<SheetKey | null>(null);
 
   useEffect(() => {
-    if (settings && !draft) setDraft(settings);
+    if (settings && !draft) {
+      setDraft({
+        workingDays: settings.workingDays,
+        workingHoursStart: settings.workingHoursStart,
+        workingHoursEnd: settings.workingHoursEnd,
+        weeklyHoliday: settings.weeklyHoliday,
+        defaultPriority: settings.defaultPriority,
+        defaultDueWindowDays: settings.defaultDueWindowDays,
+        membersSeeOnlyOwnTasks: settings.membersSeeOnlyOwnTasks,
+        taskCategories: settings.taskCategories,
+      });
+    }
   }, [settings, draft]);
 
-  const patch = (fields: Partial<DepartmentSettings>) =>
+  const patch = (fields: Partial<DepartmentSettingsDraft>) =>
     setDraft((d) => (d ? { ...d, ...fields } : d));
 
   const handleSave = () => {
@@ -64,6 +138,15 @@ export default function DepartmentSettingsScreen() {
     ...o,
     color: PRIORITY_DOT_COLOR[o.value]?.(colors),
   }));
+
+  const workingDaysKey = useMemo(
+    () => (draft ? workingDaysToKey(draft.workingDays) : 'MON_SAT'),
+    [draft]
+  );
+  const workingHoursKey = useMemo(
+    () => (draft ? workingHoursToKey(draft.workingHoursStart, draft.workingHoursEnd) : '9_5'),
+    [draft]
+  );
 
   return (
     <View style={[s.screen, { paddingTop: insets.top, backgroundColor: colors.surface.background }]}>
@@ -89,8 +172,8 @@ export default function DepartmentSettingsScreen() {
                 { backgroundColor: colors.surface.card, borderColor: colors.surface.border },
               ]}
             >
-              <Text style={[s.identityName, { color: colors.text.primary }]}>{draft.departmentName}</Text>
-              <Text style={[s.identityCode, { color: colors.text.tertiary }]}>{draft.departmentCode}</Text>
+              <Text style={[s.identityName, { color: colors.text.primary }]}>{department?.name ?? ''}</Text>
+              <Text style={[s.identityCode, { color: colors.text.tertiary }]}>{department?.code ?? ''}</Text>
             </View>
             <Text style={[s.hint, { color: colors.text.tertiary }]}>
               Managed by Super Admin — contact them to rename or restructure this department.
@@ -100,13 +183,13 @@ export default function DepartmentSettingsScreen() {
             <View style={[s.card, { backgroundColor: colors.surface.card }]}>
               <SettingsValueRow
                 label="Working days"
-                value={WORKING_DAYS_OPTIONS.find((o) => o.value === draft.workingDays)?.label ?? ''}
+                value={WORKING_DAYS_OPTIONS.find((o) => o.value === workingDaysKey)?.label ?? ''}
                 onPress={() => setSheet('workingDays')}
                 showDivider
               />
               <SettingsValueRow
                 label="Working hours"
-                value={WORKING_HOURS_OPTIONS.find((o) => o.value === draft.workingHours)?.label ?? ''}
+                value={WORKING_HOURS_OPTIONS.find((o) => o.value === workingHoursKey)?.label ?? ''}
                 onPress={() => setSheet('workingHours')}
                 showDivider
               />
@@ -174,16 +257,22 @@ export default function DepartmentSettingsScreen() {
             visible={sheet === 'workingDays'}
             title="Working days"
             options={WORKING_DAYS_OPTIONS}
-            selected={draft.workingDays}
-            onSelect={(workingDays) => patch({ workingDays })}
+            selected={workingDaysKey}
+            onSelect={(key) => {
+              const preset = WORKING_DAYS_PRESETS[key];
+              if (preset) patch({ workingDays: preset });
+            }}
             onClose={() => setSheet(null)}
           />
           <SettingsPickerSheet
             visible={sheet === 'workingHours'}
             title="Working hours"
             options={WORKING_HOURS_OPTIONS}
-            selected={draft.workingHours}
-            onSelect={(workingHours) => patch({ workingHours })}
+            selected={workingHoursKey}
+            onSelect={(key) => {
+              const preset = WORKING_HOURS_PRESETS[key];
+              if (preset) patch({ workingHoursStart: preset.start, workingHoursEnd: preset.end });
+            }}
             onClose={() => setSheet(null)}
           />
           <SettingsPickerSheet

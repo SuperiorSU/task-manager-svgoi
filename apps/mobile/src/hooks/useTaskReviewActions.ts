@@ -2,10 +2,10 @@ import { useCallback, useState } from 'react';
 import { Alert } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
-import type { MockTask } from '../data/tasks.mock';
-import { adminTasksService } from '../services/adminTasks.service';
+import type { RichTask } from '@godigitify/types';
+import { useUpdateTaskStatus } from './useTasks';
 
-type ReviewTarget = Pick<MockTask, 'id'> | null | undefined;
+type ReviewTarget = Pick<RichTask, 'id'> | null | undefined;
 
 type Options = {
   /** Called once the "Approved" confirmation dialog is dismissed. */
@@ -23,39 +23,39 @@ type Options = {
 export function useTaskReviewActions(task: ReviewTarget, options: Options = {}) {
   const [revisionVisible, setRevisionVisible] = useState(false);
   const [approvedVisible, setApprovedVisible] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const updateStatus = useUpdateTaskStatus();
 
   const openRevision = useCallback(() => setRevisionVisible(true), []);
   const closeRevision = useCallback(() => setRevisionVisible(false), []);
 
   const approve = useCallback(async () => {
     if (!task) return;
-    setLoading(true);
-    try {
-      await adminTasksService.approveTask(task.id);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setApprovedVisible(true);
-    } catch {
-      Alert.alert('Error', 'Could not approve the task. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, [task]);
+    updateStatus.mutate(
+      { id: task.id, dto: { status: 'COMPLETED' } },
+      {
+        onSuccess: async () => {
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          setApprovedVisible(true);
+        },
+        onError: () => Alert.alert('Error', 'Could not approve the task. Please try again.'),
+      }
+    );
+  }, [task, updateStatus]);
 
   const submitRevision = useCallback(async (note: string) => {
     if (!task) return;
-    setLoading(true);
-    try {
-      await adminTasksService.requestRevision(task.id, note);
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setRevisionVisible(false);
-      options.onRevised?.();
-    } catch {
-      Alert.alert('Error', 'Could not request revision. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, [task, options]);
+    updateStatus.mutate(
+      { id: task.id, dto: { status: 'IN_PROGRESS', ...(note ? { comment: note } : {}) } },
+      {
+        onSuccess: async () => {
+          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          setRevisionVisible(false);
+          options.onRevised?.();
+        },
+        onError: () => Alert.alert('Error', 'Could not request revision. Please try again.'),
+      }
+    );
+  }, [task, updateStatus, options]);
 
   const closeApproved = useCallback(() => {
     setApprovedVisible(false);
@@ -63,7 +63,7 @@ export function useTaskReviewActions(task: ReviewTarget, options: Options = {}) 
   }, [options]);
 
   return {
-    loading,
+    loading: updateStatus.isPending,
     revisionVisible,
     approvedVisible,
     openRevision,

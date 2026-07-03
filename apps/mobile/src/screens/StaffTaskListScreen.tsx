@@ -1,10 +1,8 @@
 /**
  * StaffTaskListScreen — "Staff task list, by status" (HTML screen 69).
- * Reached from Staff load detail's "View full task list". Only staff
- * members with authored MockTask records (currently: the one deliberate
- * drill-through demo case) have entries here — everyone else is aggregate
- * only per FR-72, and this screen shows an EmptyState for them rather than
- * a broken list.
+ * Reached from Staff load detail's "View full task list". Backed by the
+ * real /tasks endpoint filtered by assigneeId (tasksApi.getList), so every
+ * staff member has a real task list here now, not just a single demo case.
  */
 
 import React, { useCallback, useMemo } from 'react';
@@ -14,14 +12,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 
-import type { MockTask } from '../data/tasks.mock';
-import { isTaskOverdue } from '../data/tasks.mock';
-import { useStaffLoad, useStaffTasks } from '../hooks/useSuperAdminTasks';
+import type { RichTask } from '@godigitify/types';
+import { useStaffLoadDetail, useStaffTasks } from '../hooks/useSuperAdminTasks';
 import { useColors } from '../constants/colors';
 import { Spacing } from '../constants/spacing';
 
 import { EmptyState } from '../components/ui/EmptyState';
 import { ListSkeleton } from '../components/dashboard/ListSkeleton';
+
+const isTaskOverdue = (t: RichTask) =>
+  !['COMPLETED', 'CANCELLED'].includes(t.status) && dayjs(t.dueDate).isBefore(dayjs());
 
 type SectionId = 'overdue' | 'active' | 'review';
 
@@ -36,11 +36,11 @@ export function StaffTaskListScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { data: staff } = useStaffLoad(staffId ?? '');
+  const { data: staff } = useStaffLoadDetail(staffId ?? '');
   const { data: tasks, isLoading } = useStaffTasks(staffId ?? '');
 
   const push = useCallback((path: string) => router.push(path as Parameters<typeof router.push>[0]), [router]);
-  const goDetail = useCallback((task: MockTask) => push(`/(app)/sa-tasks/staff/${staffId}/tasks/${task.id}`), [push, staffId]);
+  const goDetail = useCallback((task: RichTask) => push(`/(app)/sa-tasks/staff/${staffId}/tasks/${task.id}`), [push, staffId]);
 
   const sections = useMemo(() => {
     const list = tasks ?? [];
@@ -49,7 +49,7 @@ export function StaffTaskListScreen() {
     const review = list.filter((t) => t.status === 'UNDER_REVIEW');
     const pending = list.filter((t) => (t.status === 'PENDING' || t.status === 'ACCEPTED') && !isTaskOverdue(t));
 
-    const result: { id: SectionId | 'pending'; label: string; color: string; bg: string; data: MockTask[] }[] = [];
+    const result: { id: SectionId | 'pending'; label: string; color: string; bg: string; data: RichTask[] }[] = [];
     if (overdue.length) result.push({ id: 'overdue', ...SECTION_META.overdue, data: overdue });
     if (active.length) result.push({ id: 'active', ...SECTION_META.active, data: active });
     if (review.length) result.push({ id: 'review', ...SECTION_META.review, data: review });
@@ -99,9 +99,9 @@ export function StaffTaskListScreen() {
           SectionSeparatorComponent={() => <View style={{ height: 18 }} />}
           ListEmptyComponent={
             <EmptyState
-              icon="lock"
-              title="Task-level detail not available"
-              subtitle="This staff member's tasks are shown as aggregate counts only (FR-72)."
+              icon="check-circle"
+              title="No tasks assigned"
+              subtitle="This staff member has no active tasks right now."
             />
           }
           contentContainerStyle={[s.list, { paddingBottom: insets.bottom + Spacing[6] }]}
@@ -112,7 +112,7 @@ export function StaffTaskListScreen() {
   );
 }
 
-function StaffTaskRow({ task, tone, onPress }: { task: MockTask; tone: string; onPress: (t: MockTask) => void }) {
+function StaffTaskRow({ task, tone, onPress }: { task: RichTask; tone: string; onPress: (t: RichTask) => void }) {
   const colors = useColors();
   const overdue = isTaskOverdue(task);
   const subtitle = overdue

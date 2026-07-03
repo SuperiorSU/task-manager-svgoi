@@ -17,8 +17,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 
-import type { OrgUser } from '../data/orgDirectory.mock';
-import type { OrgDepartmentWithStats, OrgUserFilter } from '../services/orgDirectory.service';
+import type { OrgUser, OrgDepartmentWithStats, OrgUserFilter } from '../hooks/useOrgDirectory';
 import { useOrgUsers, useOrgDepartments } from '../hooks/useOrgDirectory';
 import { useColors } from '../constants/colors';
 import { Layout, Spacing } from '../constants/spacing';

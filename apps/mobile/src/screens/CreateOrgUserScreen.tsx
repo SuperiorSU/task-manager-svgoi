@@ -13,6 +13,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -27,8 +28,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
-import type { OrgRole } from '../data/orgDirectory.mock';
-import { orgDirectoryService } from '../services/orgDirectory.service';
+import type { OrgRole } from '../hooks/useOrgDirectory';
 import { useOrgDepartmentRefs, useCreateOrgUser } from '../hooks/useOrgDirectory';
 import { useColors } from '../constants/colors';
 import { Layout, Spacing } from '../constants/spacing';
@@ -169,12 +169,7 @@ export function CreateOrgUserScreen() {
 
     if (!name.trim()) errs.name = 'Full name is required';
 
-    if (!staffId.trim()) {
-      errs.staffId = 'Staff ID is required';
-    } else {
-      const taken = await orgDirectoryService.isStaffIdTaken(staffId.trim());
-      if (taken) errs.staffId = 'This Staff ID is already in use';
-    }
+    if (!staffId.trim()) errs.staffId = 'Staff ID is required';
 
     if (!email.trim()) {
       errs.email = 'Email is required';
@@ -196,17 +191,22 @@ export function CreateOrgUserScreen() {
       const valid = await validate();
       if (!valid) return;
 
+      // Prisma `departmentId` is a singular FK — an Admin's multi-select
+      // "Departments managed" chips are captured here as the primary
+      // department only, until the backend supports multi-dept admins.
       await createUser.mutateAsync({
         name: name.trim(),
-        staffId: staffId.trim().toUpperCase(),
+        employeeId: staffId.trim().toUpperCase(),
         email: email.trim().toLowerCase(),
         ...(phone.trim() ? { phone: phone.trim() } : {}),
         role,
-        departmentIds,
+        ...(departmentIds[0] ? { departmentId: departmentIds[0] } : {}),
       });
 
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
+    } catch {
+      Alert.alert('Error', 'Could not create this user. Please try again.');
     } finally {
       setSubmitting(false);
     }

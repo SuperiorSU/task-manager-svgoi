@@ -33,6 +33,8 @@ export type Task = {
   creatorId: string;
   assigneeId: string;
   departmentId?: string;
+  batchId?: string;
+  isGovernance: boolean;
   acceptedAt?: string;
   completedAt?: string;
   createdAt: string;
@@ -51,6 +53,8 @@ export type TaskFilters = {
   order?: 'asc' | 'desc';
   dueAfter?: string;
   dueBefore?: string;
+  batchId?: string;
+  isGovernance?: boolean;
 };
 
 /** Shape returned by the API for task lists — nested creator, assignee, department included */
@@ -68,6 +72,8 @@ export type RichTask = {
   creatorId: string;
   assigneeId: string;
   departmentId?: string | null;
+  batchId?: string | null;
+  isGovernance: boolean;
   acceptedAt?: string | null;
   completedAt?: string | null;
   createdAt: string;
@@ -123,7 +129,7 @@ export type TaskActivityEvent = {
   id: string;
   action: TaskActivityAction;
   description: string;
-  metadata?: { from?: string; to?: string } | null;
+  metadata?: { from?: string; to?: string; revisionNote?: string } | null;
   createdAt: string;
   actor: { id: string; name: string; avatarUrl?: string | null };
 };
@@ -136,4 +142,58 @@ export type TaskAttachment = {
   isProof: boolean;
   createdAt: string;
   uploadedBy: string;
+};
+
+// ─── Batch (task duplication) ────────────────────────────────────────────────
+
+export type TaskBatch = {
+  id: string;
+  title: string;
+  description?: string | null;
+  priority: TaskPriority;
+  dueDate: string;
+  isolationNote?: string | null;
+  creatorId: string;
+  departmentId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateTaskBatchDto = {
+  title: string;
+  description?: string;
+  priority: TaskPriority;
+  dueDate: string;
+  departmentId?: string;
+  assigneeIds: string[];
+  isolationNote?: string;
+};
+
+export type BatchProgressSegment = {
+  status: TaskStatus;
+  label: string;
+  count: number;
+  percent: number;
+};
+
+export type BatchProgressSummary = {
+  batch: TaskBatch;
+  members: RichTask[];
+  totalMembers: number;
+  doneCount: number;
+  atRiskCount: number;
+  segments: BatchProgressSegment[];
+};
+
+// ─── Governance (Super Admin authored/reviewed tasks) ────────────────────────
+
+export type GovernanceStage = 'ASSIGNED' | 'IN_PROGRESS' | 'SUBMITTED' | 'APPROVED' | 'REVISION_REQUESTED';
+
+export type GovernanceTask = RichTask & {
+  stage: GovernanceStage;
+  lastRevisionNote?: string | null;
+};
+
+export type RequestRevisionDto = {
+  note: string;
 };

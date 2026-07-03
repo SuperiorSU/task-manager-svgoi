@@ -8,7 +8,7 @@ import React from 'react';
 import { Pressable, Text, View, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
-import type { OrgDepartmentWithStats } from '../../services/orgDirectory.service';
+import type { OrgDepartmentWithStats } from '../../hooks/useOrgDirectory';
 import { useColors } from '../../constants/colors';
 import { rateColor, rateTextColor } from '../../utils/completionRate';
 

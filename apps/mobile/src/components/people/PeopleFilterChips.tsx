@@ -7,7 +7,7 @@
 import React from 'react';
 import { ScrollView, Pressable, Text, StyleSheet } from 'react-native';
 
-import type { OrgUserFilter } from '../../services/orgDirectory.service';
+import type { OrgUserFilter } from '../../hooks/useOrgDirectory';
 import { useColors } from '../../constants/colors';
 import { Spacing } from '../../constants/spacing';
 

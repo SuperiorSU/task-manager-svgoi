@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
-import type { DeptTaskHealth } from '../../../data/superAdminTasks.mock';
+import type { DeptHealth } from '@godigitify/types';
 import { useColors } from '../../../constants/colors';
 import { Typography } from '../../../constants/typography';
 import { Spacing } from '../../../constants/spacing';
@@ -17,14 +17,14 @@ const DEPT_ICON: Record<string, keyof typeof Feather.glyphMap> = {
   dept_05: 'cpu',
 };
 
-const RISK_TONE: Record<DeptTaskHealth['riskLevel'], { bg: string; text: string; iconBg: string }> = {
+const RISK_TONE: Record<DeptHealth['riskLevel'], { bg: string; text: string; iconBg: string }> = {
   CRITICAL: { bg: '#FEF2F2', text: '#B91C1C', iconBg: '#FEF2F2' },
   AT_RISK: { bg: '#FFFBEB', text: '#B45309', iconBg: '#FFFBEB' },
   HEALTHY: { bg: '#F0FDF4', text: '#15803D', iconBg: '#F0FDF4' },
 };
 
 type Props = {
-  dept: DeptTaskHealth;
+  dept: DeptHealth;
   onPress: (deptId: string) => void;
 };
 
@@ -53,7 +53,7 @@ export const DepartmentHealthCard = React.memo(({ dept, onPress }: Props) => {
             {dept.departmentName}
           </Text>
           <Text style={[styles.meta, { color: colors.text.tertiary }]} numberOfLines={1}>
-            {dept.adminName} · {dept.staffCount} staff
+            {dept.adminName ?? 'Unassigned'} · {dept.staffCount} staff
           </Text>
         </View>
         <View style={styles.rateBlock}>

@@ -112,7 +112,7 @@ export function AdminTasksScreen() {
     ...(search ? { search } : {}),
   });
 
-  const allTasks: RichTask[] = listData?.tasks ?? [];
+  const allTasks: RichTask[] = listData ?? [];
 
   // "I manage" = tasks in my own dept, or tasks I created for another dept.
   // "Assigned to me" = tasks someone else assigned to me personally.

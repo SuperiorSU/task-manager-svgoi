@@ -43,7 +43,7 @@ export const useUserRecentTasks = (id: string) =>
   useQuery({
     queryKey: queryKeys.users.recentTasks(id),
     queryFn: () => tasksApi.getList({ assigneeId: id, limit: 5, sortBy: 'createdAt', order: 'desc' }),
-    select: (res) => res.data.tasks,
+    select: (res) => res.data,
     enabled: !!id,
   });
 

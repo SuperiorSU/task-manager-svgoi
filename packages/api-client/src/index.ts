@@ -1,7 +1,7 @@
 export { initApiClient, getApiClient } from './client';
 export { authApi } from './auth.api';
 export { tasksApi } from './tasks.api';
-export type { TaskListResponse, TaskListMeta } from './tasks.api';
+export type { TaskListMeta } from './tasks.api';
 export { usersApi } from './users.api';
 export type { UserFilters, UserListResponse, UserTaskStats } from './users.api';
 export { dashboardApi } from './dashboard.api';
@@ -10,3 +10,7 @@ export { notificationsApi } from './notifications.api';
 export { departmentsApi } from './departments.api';
 export { reportsApi } from './reports.api';
 export { filesApi } from './files.api';
+export { governanceApi } from './governance.api';
+export type { GovernanceFilters, GovernanceListMeta } from './governance.api';
+export { auditApi } from './audit.api';
+export type { AuditListResponse, AuditListMeta } from './audit.api';

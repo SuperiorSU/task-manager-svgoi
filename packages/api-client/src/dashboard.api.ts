@@ -1,4 +1,10 @@
-import type { RichTask } from '@godigitify/types';
+import type {
+  RichTask,
+  DeptHealth,
+  StaffLoad,
+  Escalation,
+  CalendarDeadlineDay,
+} from '@godigitify/types';
 
 import { getApiClient } from './client';
 
@@ -68,4 +74,13 @@ export const dashboardApi = {
 
   getWorkload: () =>
     getApiClient().get<WorkloadEntry[]>('/dashboard/workload'),
+
+  getDeptHealth: () => getApiClient().get<DeptHealth[]>('/dashboard/dept-health'),
+
+  getStaffLoad: () => getApiClient().get<StaffLoad[]>('/dashboard/staff-load'),
+
+  getEscalations: () => getApiClient().get<Escalation[]>('/dashboard/escalations'),
+
+  getCalendarDeadlines: (from: string, to: string) =>
+    getApiClient().get<CalendarDeadlineDay[]>('/dashboard/calendar-deadlines', { from, to }),
 };

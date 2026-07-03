@@ -44,11 +44,11 @@ export const useAdminCalendarTasks = (periodAnchor: Dayjs, memberId?: string) =>
   const to = periodAnchor.endOf('month').toISOString();
 
   return useQuery({
-    queryKey: ['adminCalendarTasks', from, to],
+    queryKey: ['tasks', 'adminCalendar', from, to],
     queryFn: () => tasksApi.getCalendar(from, to),
     staleTime: 5 * 60 * 1000,
     select: (res) => {
-      const tasks: AdminCalendarTask[] = res.data.tasks.map((t) => ({
+      const tasks: AdminCalendarTask[] = res.data.map((t) => ({
         id: t.id,
         title: t.title,
         status: t.status,

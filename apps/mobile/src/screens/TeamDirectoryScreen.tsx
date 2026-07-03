@@ -121,10 +121,11 @@ export function TeamDirectoryScreen({ role }: Props) {
   const title = role === 'SUPER_ADMIN' ? 'People' : 'My Team';
   const departmentName = currentUser?.department?.name ?? 'Department';
 
+  // This screen is a department roster of employees only (the viewing Admin
+  // is the department's own admin/head, never a member of their own team).
   const filters = useMemo(() => ({
     ...(deptId ? { departmentId: deptId } : {}),
-    ...(filter === 'EMPLOYEES' ? { role: 'EMPLOYEE' as const } : {}),
-    ...(filter === 'ADMINS' ? { role: 'ADMIN' as const } : {}),
+    role: 'EMPLOYEE' as const,
     ...(filter === 'SUSPENDED' ? { isActive: false } : { isActive: true }),
     ...(debouncedSearch ? { search: debouncedSearch } : {}),
     limit: 100,
@@ -133,6 +134,7 @@ export function TeamDirectoryScreen({ role }: Props) {
   // Active/suspended counts always reflect the unfiltered-by-status scope
   const countFilters = useMemo(() => ({
     ...(deptId ? { departmentId: deptId } : {}),
+    role: 'EMPLOYEE' as const,
     limit: 100,
   }), [deptId]);
 

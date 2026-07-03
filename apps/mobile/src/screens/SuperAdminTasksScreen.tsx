@@ -23,8 +23,8 @@ import { Layout, Spacing } from '../constants/spacing';
 import { useRefreshControl } from '../hooks/useRefreshControl';
 import {
   useOrgTaskOverview,
-  useDepartmentTaskHealth,
-  useTaskEscalations,
+  useDeptHealthList,
+  useEscalations,
   useGovernanceTaskGroups,
 } from '../hooks/useSuperAdminTasks';
 
@@ -32,7 +32,6 @@ import { TasksSegmentedControl, type TaskOversightSegment } from '../components/
 import { PrivacyNoteBanner } from '../components/task/oversight/PrivacyNoteBanner';
 import { TaskKpiCard } from '../components/task/oversight/TaskKpiCard';
 import { StatusDistributionBar } from '../components/task/oversight/StatusDistributionBar';
-import { WeeklyThroughputChart } from '../components/task/oversight/WeeklyThroughputChart';
 import { DepartmentHealthCard } from '../components/task/oversight/DepartmentHealthCard';
 import { EscalationCard } from '../components/task/oversight/EscalationCard';
 import { StatsSkeleton } from '../components/dashboard/StatsSkeleton';
@@ -46,8 +45,8 @@ export function SuperAdminTasksScreen() {
   const [segment, setSegment] = useState<TaskOversightSegment>('overview');
 
   const overviewQuery = useOrgTaskOverview();
-  const departmentsQuery = useDepartmentTaskHealth();
-  const escalationsQuery = useTaskEscalations();
+  const departmentsQuery = useDeptHealthList();
+  const escalationsQuery = useEscalations();
   const governanceQuery = useGovernanceTaskGroups();
 
   const activeQuery =
@@ -170,14 +169,6 @@ export function SuperAdminTasksScreen() {
                     </Text>
                   </View>
                   <StatusDistributionBar distribution={overviewQuery.data.statusDistribution} total={overviewQuery.data.activeCount} />
-                </View>
-
-                <View style={[s.card, { backgroundColor: colors.surface.card }]}>
-                  <View style={s.cardHeaderRow}>
-                    <Text style={[s.cardTitle, { color: colors.text.secondary }]}>Weekly throughput</Text>
-                    <Text style={[s.cardMetaBold, { color: colors.text.tertiary }]}>Created vs Completed</Text>
-                  </View>
-                  <WeeklyThroughputChart points={overviewQuery.data.weeklyThroughput} />
                 </View>
               </>
             ) : null}

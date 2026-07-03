@@ -1,27 +1,32 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
-import type { AuditActor } from '../../data/audit.mock';
 import { useColors } from '../../constants/colors';
 import { Spacing } from '../../constants/spacing';
 import { avatarPalette } from '../../utils/avatarPalette';
+import { initialsFor } from '../../utils/auditPresentation';
 
-const ROLE_LABEL: Record<AuditActor['role'], string> = {
+export type AuditActorCardActor = { id: string; name: string; role: string; employeeId?: string | null };
+
+const ROLE_LABEL: Record<string, string> = {
   SUPER_ADMIN: 'Super Admin',
   ADMIN: 'Admin',
   SYSTEM: 'Automated system',
+  EMPLOYEE: 'Employee',
 };
 
-const ROLE_BADGE: Record<AuditActor['role'], string> = {
+const ROLE_BADGE: Record<string, string> = {
   SUPER_ADMIN: 'SA',
   ADMIN: 'ADMIN',
   SYSTEM: 'SYSTEM',
+  EMPLOYEE: 'EMPLOYEE',
 };
 
-export const AuditActorCard = React.memo(({ actor }: { actor: AuditActor }) => {
+export const AuditActorCard = React.memo(({ actor }: { actor: AuditActorCardActor }) => {
   const colors = useColors();
   const isSelf = actor.role === 'SUPER_ADMIN';
-  const pal = avatarPalette(actor.initials);
+  const initials = initialsFor(actor.name);
+  const pal = avatarPalette(initials);
 
   return (
     <View style={[styles.card, { backgroundColor: colors.surface.card, borderColor: colors.surface.border }]}>
@@ -31,19 +36,21 @@ export const AuditActorCard = React.memo(({ actor }: { actor: AuditActor }) => {
           { backgroundColor: isSelf ? colors.brand.secondary : pal.bg },
         ]}
       >
-        <Text style={[styles.avatarText, { color: isSelf ? '#FFFFFF' : pal.fg }]}>{actor.initials}</Text>
+        <Text style={[styles.avatarText, { color: isSelf ? '#FFFFFF' : pal.fg }]}>{initials}</Text>
       </View>
       <View style={styles.body}>
         <Text style={[styles.name, { color: colors.text.primary }]} numberOfLines={1}>
           {actor.name}
         </Text>
         <Text style={[styles.meta, { color: colors.text.tertiary }]} numberOfLines={1}>
-          {ROLE_LABEL[actor.role]}
+          {ROLE_LABEL[actor.role] ?? actor.role}
           {actor.employeeId ? ` · ${actor.employeeId}` : ''}
         </Text>
       </View>
       <View style={[styles.roleBadge, { backgroundColor: colors.brand.primaryLight }]}>
-        <Text style={[styles.roleBadgeText, { color: colors.brand.secondary }]}>{ROLE_BADGE[actor.role]}</Text>
+        <Text style={[styles.roleBadgeText, { color: colors.brand.secondary }]}>
+          {ROLE_BADGE[actor.role] ?? actor.role}
+        </Text>
       </View>
     </View>
   );

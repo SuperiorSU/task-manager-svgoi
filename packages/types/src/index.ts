@@ -4,6 +4,8 @@ export * from './department.types';
 export * from './notification.types';
 export * from './task.types';
 export * from './user.types';
+export * from './audit.types';
+export * from './dashboard.types';
 export * from './schemas/auth.schema';
 export * from './schemas/task.schema';
 export * from './schemas/user.schema';

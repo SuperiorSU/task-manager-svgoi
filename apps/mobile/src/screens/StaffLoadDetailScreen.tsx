@@ -12,12 +12,11 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 
-import { useStaffLoad } from '../hooks/useSuperAdminTasks';
+import { useStaffLoadDetail } from '../hooks/useSuperAdminTasks';
 import { useColors } from '../constants/colors';
 import { Spacing } from '../constants/spacing';
 
 import { RiskBadge } from '../components/task/oversight/RiskBadge';
-import { StatusDistributionBar } from '../components/task/oversight/StatusDistributionBar';
 import { CapacityGauge } from '../components/task/oversight/CapacityGauge';
 import { Skeleton } from '../components/ui/Skeleton';
 
@@ -26,7 +25,7 @@ export function StaffLoadDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { data: staff, isLoading } = useStaffLoad(staffId ?? '');
+  const { data: staff, isLoading } = useStaffLoadDetail(staffId ?? '');
 
   const push = useCallback((path: string) => router.push(path as Parameters<typeof router.push>[0]), [router]);
   const goTaskList = useCallback(() => push(`/(app)/sa-tasks/staff/${staffId}/tasks`), [push, staffId]);
@@ -77,7 +76,7 @@ export function StaffLoadDetailScreen() {
               </View>
             </View>
             <Text style={[s.meta, { color: colors.text.secondary }]} numberOfLines={1}>
-              {staff.departmentName} · under {staff.managerName} · {staff.employeeCode}
+              {staff.departmentName} · under {staff.managerName}
             </Text>
           </View>
         </View>
@@ -92,10 +91,6 @@ export function StaffLoadDetailScreen() {
             <Text style={[s.kpiLabel, { color: colors.text.tertiary }]}>Overdue</Text>
           </View>
           <View style={[s.kpiCell, { backgroundColor: colors.surface.card }]}>
-            <Text style={[s.kpiValue, { color: '#B45309' }]}>{staff.onTimeRate}%</Text>
-            <Text style={[s.kpiLabel, { color: colors.text.tertiary }]}>On-time</Text>
-          </View>
-          <View style={[s.kpiCell, { backgroundColor: colors.surface.card }]}>
             <Text style={[s.kpiValue, { color: colors.text.primary }]}>{staff.avgCycleDays.toFixed(1)}d</Text>
             <Text style={[s.kpiLabel, { color: colors.text.tertiary }]}>Avg cycle</Text>
           </View>
@@ -103,16 +98,6 @@ export function StaffLoadDetailScreen() {
 
         <View style={[s.card, { backgroundColor: colors.surface.card }]}>
           <CapacityGauge percent={staff.capacityPercent} target={staff.capacityTarget} current={staff.activeCount} riskLevel={staff.riskLevel} />
-        </View>
-
-        <View style={[s.card, { backgroundColor: colors.surface.card }]}>
-          <View style={s.cardHeaderRow}>
-            <Text style={[s.cardTitle, { color: colors.text.secondary }]}>Status distribution</Text>
-            <Pressable onPress={goTaskList} accessibilityRole="button" accessibilityLabel="View tasks">
-              <Text style={[s.linkText, { color: colors.brand.primary }]}>View tasks</Text>
-            </Pressable>
-          </View>
-          <StatusDistributionBar distribution={staff.statusDistribution} total={staff.activeCount} onSegmentPress={goTaskList} />
         </View>
 
         <Pressable

@@ -9,6 +9,18 @@ export const queryKeys = {
     comments: (taskId: string) => ['tasks', taskId, 'comments'] as const,
     activity: (taskId: string) => ['tasks', taskId, 'activity'] as const,
     attachments: (taskId: string) => ['tasks', taskId, 'attachments'] as const,
+    batch: (batchId: string) => ['tasks', 'batch', batchId] as const,
+  },
+  governance: {
+    all: () => ['governance', 'tasks'] as const,
+    list: (filters?: Record<string, unknown>) => ['governance', 'tasks', 'list', filters] as const,
+    detail: (id: string) => ['governance', 'tasks', 'detail', id] as const,
+  },
+  audit: {
+    all: () => ['audit'] as const,
+    list: (filters?: Record<string, unknown>) => ['audit', 'list', filters] as const,
+    detail: (id: string) => ['audit', 'detail', id] as const,
+    verify: (id: string) => ['audit', 'verify', id] as const,
   },
   users: {
     all: () => ['users'] as const,
@@ -22,6 +34,10 @@ export const queryKeys = {
     activity: () => ['dashboard', 'activity'] as const,
     deptStats: () => ['dashboard', 'dept-stats'] as const,
     workload: () => ['dashboard', 'workload'] as const,
+    deptHealth: () => ['dashboard', 'dept-health'] as const,
+    staffLoad: () => ['dashboard', 'staff-load'] as const,
+    escalations: () => ['dashboard', 'escalations'] as const,
+    calendarDeadlines: (from: string, to: string) => ['dashboard', 'calendar', from, to] as const,
   },
   notifications: {
     list: () => ['notifications'] as const,
@@ -29,5 +45,6 @@ export const queryKeys = {
   },
   departments: {
     list: () => ['departments'] as const,
+    settings: (id: string) => ['departments', id, 'settings'] as const,
   },
 } as const;

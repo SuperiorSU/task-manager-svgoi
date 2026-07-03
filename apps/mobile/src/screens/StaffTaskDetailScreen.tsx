@@ -12,13 +12,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 
-import { isTaskOverdue } from '../data/tasks.mock';
-import { useStaffTask } from '../hooks/useSuperAdminTasks';
+import { useStaffTaskDetail } from '../hooks/useSuperAdminTasks';
 import { useColors } from '../constants/colors';
 import { Spacing } from '../constants/spacing';
+import { getInitials } from '../utils/initial';
 
 import { TaskActivityTimeline } from '../components/task/detail/TaskActivityTimeline';
 import { Skeleton } from '../components/ui/Skeleton';
+
+const isTaskOverdue = (t: { status: string; dueDate: string }) =>
+  !['COMPLETED', 'CANCELLED'].includes(t.status) && dayjs(t.dueDate).isBefore(dayjs());
 
 const PRIORITY_META: Record<string, { bg: string; text: string }> = {
   CRITICAL: { bg: '#F5F3FF', text: '#5B21B6' },
@@ -28,11 +31,13 @@ const PRIORITY_META: Record<string, { bg: string; text: string }> = {
 };
 
 export function StaffTaskDetailScreen() {
-  const { staffId, taskId } = useLocalSearchParams<{ staffId: string; taskId: string }>();
+  const { taskId } = useLocalSearchParams<{ staffId: string; taskId: string }>();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { data: task, isLoading } = useStaffTask(staffId ?? '', taskId ?? '');
+  const { data, isLoading } = useStaffTaskDetail(taskId ?? '');
+  const task = data?.task;
+  const activity = data?.activity ?? [];
 
   const handleFlag = useCallback(() => {
     if (!task) return;
@@ -59,7 +64,8 @@ export function StaffTaskDetailScreen() {
   const overdue = isTaskOverdue(task);
   const priority = PRIORITY_META[task.priority] ?? PRIORITY_META.MEDIUM!;
   const overdueDays = overdue ? Math.max(1, dayjs().diff(dayjs(task.dueDate), 'day')) : 0;
-  const firstLabel = task.labels[0];
+  const creatorInitials = getInitials(task.creator.name);
+  const assigneeInitials = getInitials(task.assignee.name);
 
   return (
     <View style={[s.screen, { backgroundColor: colors.surface.background }]}>
@@ -92,13 +98,8 @@ export function StaffTaskDetailScreen() {
           <Text style={[s.title, { color: colors.text.primary }]}>{task.title}</Text>
           <View style={s.chipRow}>
             <View style={[s.tagChip, { backgroundColor: colors.surface.background }]}>
-              <Text style={[s.tagText, { color: colors.text.secondary }]}>{task.department.name}</Text>
+              <Text style={[s.tagText, { color: colors.text.secondary }]}>{task.department?.name ?? 'Org-wide'}</Text>
             </View>
-            {firstLabel && (
-              <View style={[s.tagChip, { backgroundColor: colors.surface.background }]}>
-                <Text style={[s.tagText, { color: colors.text.secondary }]}>{firstLabel}</Text>
-              </View>
-            )}
           </View>
         </View>
 
@@ -120,7 +121,7 @@ export function StaffTaskDetailScreen() {
             <Text style={[s.infoLabel, { color: colors.text.tertiary }]}>ASSIGNED BY</Text>
             <View style={s.infoValueRow}>
               <View style={[s.smallAvatar, { backgroundColor: colors.brand.secondary }]}>
-                <Text style={s.smallAvatarText}>{task.creator.initials}</Text>
+                <Text style={s.smallAvatarText}>{creatorInitials}</Text>
               </View>
               <Text style={[s.infoValue, { color: colors.text.primary }]}>{task.creator.name}</Text>
             </View>
@@ -129,7 +130,7 @@ export function StaffTaskDetailScreen() {
             <Text style={[s.infoLabel, { color: colors.text.tertiary }]}>ASSIGNEE</Text>
             <View style={s.infoValueRow}>
               <View style={[s.smallAvatar, { backgroundColor: colors.status.completed.solid }]}>
-                <Text style={s.smallAvatarText}>{task.assignee.initials}</Text>
+                <Text style={s.smallAvatarText}>{assigneeInitials}</Text>
               </View>
               <Text style={[s.infoValue, { color: colors.text.primary }]}>{task.assignee.name}</Text>
             </View>
@@ -142,7 +143,7 @@ export function StaffTaskDetailScreen() {
         </View>
 
         <View style={[s.card, { backgroundColor: colors.surface.card }]}>
-          <TaskActivityTimeline events={task.activity} />
+          <TaskActivityTimeline events={activity} />
         </View>
 
         <View style={[s.oversightNote, { backgroundColor: colors.surface.background }]}>

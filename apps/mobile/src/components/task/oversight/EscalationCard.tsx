@@ -5,7 +5,7 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 
 dayjs.extend(relativeTime);
 
-import type { ResolvedEscalation } from '../../../services/superAdminTasks.service';
+import type { ResolvedEscalation } from '../../../hooks/useSuperAdminTasks';
 import { useColors } from '../../../constants/colors';
 import { Typography } from '../../../constants/typography';
 import { Spacing } from '../../../constants/spacing';

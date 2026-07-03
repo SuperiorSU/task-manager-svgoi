@@ -2,10 +2,11 @@ import { useCallback, useState } from 'react';
 import { Alert } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
-import type { MockTask } from '../data/tasks.mock';
-import { superAdminTasksService } from '../services/superAdminTasks.service';
+import type { GovernanceTask } from '@godigitify/types';
 
-type ReviewTarget = Pick<MockTask, 'id'> | null | undefined;
+import { useApproveGovernanceTask, useRequestGovernanceRevision } from './useGovernance';
+
+type ReviewTarget = Pick<GovernanceTask, 'id'> | null | undefined;
 
 type Options = {
   onApproved?: () => void;
@@ -14,51 +15,49 @@ type Options = {
 
 /**
  * Mirrors useTaskReviewActions.ts (Admin's approve/revise workflow for the
- * Individual/Batch progress screens) but targets superAdminTasksService's
- * governance-task methods instead of adminTasksService. Kept as a separate
- * hook rather than parameterizing the existing one — that hook is owned by
- * an already-completed Admin flow and is off-limits to modify; duplicating
- * ~40 lines of glue here is cheaper than risking that flow (same tradeoff as
- * the BoldSegments/completionRate extractions in prior SA modules).
+ * Individual/Batch progress screens) but targets governanceApi (via
+ * useGovernance.ts's mutations) instead of adminTasksService. Kept as a
+ * separate hook rather than parameterizing the existing one — that hook is
+ * owned by an already-completed Admin flow and is off-limits to modify;
+ * duplicating ~40 lines of glue here is cheaper than risking that flow (same
+ * tradeoff as the BoldSegments/completionRate extractions in prior SA
+ * modules).
  */
 export function useGovernanceReviewActions(task: ReviewTarget, options: Options = {}) {
   const [revisionVisible, setRevisionVisible] = useState(false);
   const [approvedVisible, setApprovedVisible] = useState(false);
-  const [loading, setLoading] = useState(false);
+
+  const approveMutation = useApproveGovernanceTask();
+  const revisionMutation = useRequestGovernanceRevision();
+  const loading = approveMutation.isPending || revisionMutation.isPending;
 
   const openRevision = useCallback(() => setRevisionVisible(true), []);
   const closeRevision = useCallback(() => setRevisionVisible(false), []);
 
   const approve = useCallback(async () => {
     if (!task) return;
-    setLoading(true);
     try {
-      await superAdminTasksService.approveGovernanceTask(task.id);
+      await approveMutation.mutateAsync(task.id);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setApprovedVisible(true);
     } catch {
       Alert.alert('Error', 'Could not approve the task. Please try again.');
-    } finally {
-      setLoading(false);
     }
-  }, [task]);
+  }, [task, approveMutation]);
 
   const submitRevision = useCallback(
     async (note: string) => {
       if (!task) return;
-      setLoading(true);
       try {
-        await superAdminTasksService.requestGovernanceRevision(task.id, note);
+        await revisionMutation.mutateAsync({ id: task.id, note });
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         setRevisionVisible(false);
         options.onRevised?.();
       } catch {
         Alert.alert('Error', 'Could not request revision. Please try again.');
-      } finally {
-        setLoading(false);
       }
     },
-    [task, options]
+    [task, revisionMutation, options]
   );
 
   const closeApproved = useCallback(() => {

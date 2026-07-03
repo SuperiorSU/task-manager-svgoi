@@ -12,10 +12,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import dayjs from 'dayjs';
+import type { DeptHealth } from '@godigitify/types';
 
-import type { RiskLevel } from '../data/superAdminTasks.mock';
-import type { CalendarDayEntry } from '../services/superAdminCalendar.service';
-import { useSuperAdminCalendarEntries, useSuperAdminDeptHealth } from '../hooks/useSuperAdminCalendar';
+import {
+  useSuperAdminCalendarEntries,
+  useSuperAdminDeptHealth,
+  type CalendarDayEntry,
+} from '../hooks/useSuperAdminCalendar';
 import { useColors } from '../constants/colors';
 import { Spacing } from '../constants/spacing';
 
@@ -25,7 +28,7 @@ import { GovernanceCalendarCard } from '../components/calendar/GovernanceCalenda
 import { CalendarLoadingState } from '../components/calendar/CalendarLoadingState';
 import { EmptyState } from '../components/ui/EmptyState';
 
-const statusNoteFor = (overdueCount: number, riskLevel: RiskLevel): string => {
+const statusNoteFor = (overdueCount: number, riskLevel: DeptHealth['riskLevel']): string => {
   if (overdueCount > 0) return `${overdueCount} overdue`;
   return riskLevel === 'HEALTHY' ? 'on track' : 'at risk';
 };

@@ -1,9 +1,12 @@
 /**
  * GovernanceTaskDetailScreen — "Tracking" detail (HTML screen 63). The SA
- * reviews a governance task's progress and, once UNDER_REVIEW, approves or
- * requests revision. Reuses RevisionReasonSheet / ApprovedConfirmationModal
- * / TaskActivityTimeline from the Admin review flow (generic, presentational,
- * no changes needed) plus the module's own LifecycleStepper.
+ * reviews a governance task's progress and, once its stage is SUBMITTED,
+ * approves or requests revision. Reuses RevisionReasonSheet /
+ * ApprovedConfirmationModal / TaskActivityTimeline from the Admin review flow
+ * (generic, presentational, no changes needed) plus the module's own
+ * LifecycleStepper. Comments/attachments/activity are fetched via the
+ * regular task endpoints (useTasks.ts) since a governance task is a real
+ * Task row under the hood.
  */
 
 import React, { useCallback } from 'react';
@@ -13,11 +16,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 
-import { useGovernanceTask } from '../hooks/useSuperAdminTasks';
+import type { GovernanceStage } from '@godigitify/types';
+import { useGovernanceTask } from '../hooks/useGovernance';
 import { useGovernanceReviewActions } from '../hooks/useGovernanceReviewActions';
+import { useTaskActivity, useTaskAttachments, useTaskComments } from '../hooks/useTasks';
 import { useColors } from '../constants/colors';
 import { Spacing } from '../constants/spacing';
 import { QUICK_REVISION_REASONS } from '../constants/reviewReasons';
+import { getInitials } from '../utils/initial';
 
 import { LifecycleStepper } from '../components/task/oversight/LifecycleStepper';
 import { TaskActivityTimeline } from '../components/task/detail/TaskActivityTimeline';
@@ -25,13 +31,12 @@ import { RevisionReasonSheet } from '../components/progress/RevisionReasonSheet'
 import { ApprovedConfirmationModal } from '../components/progress/ApprovedConfirmationModal';
 import { Skeleton } from '../components/ui/Skeleton';
 
-const STATUS_LABEL: Record<string, string> = {
-  PENDING: 'AWAITING ACCEPT',
-  ACCEPTED: 'ACCEPTED',
+const STAGE_LABEL: Record<GovernanceStage, string> = {
+  ASSIGNED: 'AWAITING ACCEPT',
   IN_PROGRESS: 'IN PROGRESS',
-  UNDER_REVIEW: 'AWAITING YOUR APPROVAL',
-  COMPLETED: 'COMPLETED',
-  CANCELLED: 'CANCELLED',
+  SUBMITTED: 'AWAITING YOUR APPROVAL',
+  APPROVED: 'APPROVED',
+  REVISION_REQUESTED: 'SENT BACK FOR REVISION',
 };
 
 export function GovernanceTaskDetailScreen() {
@@ -40,6 +45,9 @@ export function GovernanceTaskDetailScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { data: task, isLoading, refetch } = useGovernanceTask(id ?? '');
+  const { data: attachments } = useTaskAttachments(id ?? '');
+  const { data: comments } = useTaskComments(id ?? '');
+  const { data: activity } = useTaskActivity(id ?? '');
 
   const review = useGovernanceReviewActions(task, {
     onApproved: () => refetch(),
@@ -67,9 +75,9 @@ export function GovernanceTaskDetailScreen() {
     );
   }
 
-  const proof = task.attachments.find((a) => a.isProof) ?? task.attachments[0];
-  const note = task.comments[task.comments.length - 1];
-  const isReview = task.status === 'UNDER_REVIEW';
+  const proof = (attachments ?? []).find((a) => a.isProof) ?? attachments?.[0];
+  const note = (comments ?? [])[(comments ?? []).length - 1];
+  const isReview = task.stage === 'SUBMITTED';
 
   return (
     <View style={[s.screen, { backgroundColor: colors.surface.background }]}>
@@ -80,7 +88,7 @@ export function GovernanceTaskDetailScreen() {
         <Text style={[s.headerTitle, { color: colors.text.primary }]}>Tracking</Text>
         <View style={[s.statusBadge, { backgroundColor: isReview ? '#F5F3FF' : colors.surface.background }]}>
           <Text style={[s.statusBadgeText, { color: isReview ? '#6D28D9' : colors.text.secondary }]}>
-            {STATUS_LABEL[task.status]}
+            {STAGE_LABEL[task.stage]}
           </Text>
         </View>
       </View>
@@ -91,11 +99,12 @@ export function GovernanceTaskDetailScreen() {
           <Text style={[s.title, { color: colors.text.primary }]}>{task.title}</Text>
           <View style={s.titleMetaRow}>
             <View style={[s.assigneeAvatar, { backgroundColor: colors.brand.secondary }]}>
-              <Text style={s.assigneeAvatarText}>{task.assignee.initials}</Text>
+              <Text style={s.assigneeAvatarText}>{getInitials(task.assignee.name)}</Text>
             </View>
             <View style={s.titleMetaInfo}>
               <Text style={[s.assigneeName, { color: colors.text.primary }]}>
-                {task.assignee.name} · {task.assignee.designation}
+                {task.assignee.name}
+                {task.department?.name ? ` · ${task.department.name}` : ''}
               </Text>
               <Text style={[s.assignedDate, { color: colors.text.tertiary }]}>
                 You assigned · {dayjs(task.createdAt).format('MMM D')}
@@ -103,7 +112,7 @@ export function GovernanceTaskDetailScreen() {
             </View>
             <View style={[s.onTimeChip, { backgroundColor: colors.surface.background }]}>
               <Text style={[s.onTimeText, { color: colors.text.secondary }]}>
-                {dayjs(task.dueDate).isBefore(dayjs()) && task.status !== 'COMPLETED' ? 'Overdue' : 'On time'}
+                {dayjs(task.dueDate).isBefore(dayjs()) && task.stage !== 'APPROVED' ? 'Overdue' : 'On time'}
               </Text>
             </View>
           </View>
@@ -111,7 +120,7 @@ export function GovernanceTaskDetailScreen() {
 
         <View style={[s.card, { backgroundColor: colors.surface.card }]}>
           <Text style={[s.cardTitle, { color: colors.text.secondary }]}>Progress</Text>
-          <LifecycleStepper status={task.status} />
+          <LifecycleStepper stage={task.stage} />
         </View>
 
         {proof && (
@@ -143,7 +152,7 @@ export function GovernanceTaskDetailScreen() {
         )}
 
         <View style={[s.card, { backgroundColor: colors.surface.card }]}>
-          <TaskActivityTimeline events={task.activity} />
+          <TaskActivityTimeline events={activity ?? []} />
         </View>
       </ScrollView>
 

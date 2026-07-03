@@ -417,6 +417,7 @@ export default function TaskDetailScreen() {
       <TaskActionBar
         task={t}
         isAdminCreator={isAdminCreator}
+        currentUserId={currentUser?.id ?? ''}
         onStatusChange={handleStatusChange}
         onApprove={handleApprove}
         onRevise={handleRevise}

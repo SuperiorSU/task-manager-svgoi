@@ -8,6 +8,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -29,8 +30,7 @@ import {
   DUE_WINDOW_OPTIONS,
   DEFAULT_PRIORITY_OPTIONS,
   type TaskPriorityKey,
-} from '../data/orgDirectory.mock';
-import { orgDirectoryService } from '../services/orgDirectory.service';
+} from '../data/adminSettings.mock';
 import { useOrgAdmins, useCreateOrgDepartment } from '../hooks/useOrgDirectory';
 import { useColors } from '../constants/colors';
 import { Layout, Spacing } from '../constants/spacing';
@@ -119,6 +119,30 @@ const fi = StyleSheet.create({
 
 const deriveCode = (name: string) => name.trim().split(/\s+/)[0]?.slice(0, 3).toUpperCase() ?? '';
 
+// ─── Mock-option → real DepartmentSettings mapping ────────────────────────────
+// The working-schedule/task-default pickers reuse Admin's own mock value
+// vocabulary (adminSettings.mock); convert to the real DTO's shape (day
+// indices, HH:mm hours) on submit.
+
+const WORKING_DAYS_TO_INDICES: Record<string, number[]> = {
+  MON_SAT: [1, 2, 3, 4, 5, 6],
+  MON_FRI: [1, 2, 3, 4, 5],
+  ALL_DAYS: [0, 1, 2, 3, 4, 5, 6],
+};
+
+const WORKING_HOURS_TO_RANGE: Record<string, { start: string; end: string }> = {
+  '9_5': { start: '09:00', end: '17:00' },
+  '8_4': { start: '08:00', end: '16:00' },
+  '10_6': { start: '10:00', end: '18:00' },
+};
+
+// 0 = Sunday … 6 = Saturday (JS Date.getDay() convention); -1 = no weekly holiday.
+const WEEKLY_HOLIDAY_TO_INDEX: Record<string, number> = {
+  SUNDAY: 0,
+  SATURDAY: 6,
+  NONE: -1,
+};
+
 const priorityDotColor: Record<TaskPriorityKey, string> = {
   CRITICAL: '#7C3AED',
   HIGH: '#EF4444',
@@ -175,13 +199,7 @@ export function CreateOrgDepartmentScreen() {
     const errs: { name?: string; code?: string } = {};
 
     if (!name.trim()) errs.name = 'Department name is required';
-
-    if (!code.trim()) {
-      errs.code = 'Code is required';
-    } else {
-      const taken = await orgDirectoryService.isDeptCodeTaken(code.trim());
-      if (taken) errs.code = 'This code is already in use';
-    }
+    if (!code.trim()) errs.code = 'Code is required';
 
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -193,19 +211,26 @@ export function CreateOrgDepartmentScreen() {
       const valid = await validate();
       if (!valid) return;
 
+      const hours = WORKING_HOURS_TO_RANGE[workingHours] ?? WORKING_HOURS_TO_RANGE['9_5']!;
+
       await createDepartment.mutateAsync({
         name: name.trim(),
         code: code.trim().toUpperCase(),
-        ...(headUserId ? { headUserId } : {}),
-        workingDays,
-        workingHours,
-        weeklyHoliday,
-        defaultPriority,
-        defaultDueWindowDays,
+        ...(headUserId ? { headId: headUserId } : {}),
+        settings: {
+          workingDays: WORKING_DAYS_TO_INDICES[workingDays] ?? [],
+          workingHoursStart: hours.start,
+          workingHoursEnd: hours.end,
+          weeklyHoliday: WEEKLY_HOLIDAY_TO_INDEX[weeklyHoliday] ?? -1,
+          defaultPriority,
+          defaultDueWindowDays,
+        },
       });
 
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
+    } catch {
+      Alert.alert('Error', 'Could not create this department. Please try again.');
     } finally {
       setSubmitting(false);
     }

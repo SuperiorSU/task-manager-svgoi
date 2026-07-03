@@ -2,13 +2,23 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
-import type { StaffLoadSummary } from '../../../data/superAdminTasks.mock';
 import { useColors } from '../../../constants/colors';
 import { Typography } from '../../../constants/typography';
-import { riskAccentColor } from './RiskBadge';
+import { riskAccentColor, type RiskLevel } from './RiskBadge';
+
+export type StaffLoadRowData = {
+  staffId: string;
+  name: string;
+  initials: string;
+  avatarBg: string;
+  riskLevel: RiskLevel;
+  activeCount: number;
+  overdueCount: number;
+  capacityPercent: number;
+};
 
 type Props = {
-  staff: StaffLoadSummary;
+  staff: StaffLoadRowData;
   onPress: (staffId: string) => void;
 };
 

@@ -8,7 +8,8 @@ export const useTasks = (filters?: TaskFilters) =>
   useQuery({
     queryKey: queryKeys.tasks.list(filters as Record<string, unknown>),
     queryFn: () => tasksApi.getList(filters),
-    select: (res) => res.data, // { tasks: RichTask[], meta: TaskListMeta }
+    // The API sends the task array directly as `data`; pagination is a sibling `meta`.
+    select: (res) => res.data,
   });
 
 export const useTask = (id: string) =>

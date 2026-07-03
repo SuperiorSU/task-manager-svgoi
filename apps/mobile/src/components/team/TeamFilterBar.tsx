@@ -1,6 +1,6 @@
 /**
  * TeamFilterBar — horizontal scrollable filter chips (screen 33).
- * Chips: All · Employees · Admins · Suspended
+ * Chips: All · Employees · Suspended
  */
 
 import React from 'react';
@@ -17,7 +17,6 @@ type ChipDef = { id: TeamFilter; label: string };
 const CHIPS: ChipDef[] = [
   { id: 'ALL',       label: 'All' },
   { id: 'EMPLOYEES', label: 'Employees' },
-  { id: 'ADMINS',    label: 'Admins' },
   { id: 'SUSPENDED', label: 'Suspended' },
 ];
 

@@ -23,6 +23,7 @@ const schema = z.object({
   SMTP_PASS: z.string(),
   FROM_EMAIL: z.string().email(),
   FRONTEND_URL: z.string().url().default('http://localhost:3000'),
+  AUDIT_HASH_SECRET: z.string().min(1),
 });
 
 export type Env = z.infer<typeof schema>;

@@ -17,6 +17,11 @@ export const PERMISSIONS = {
   REPORT_DOWNLOAD: 'report:download',
   SYSTEM_CONFIG: 'system:config',
   AUDIT_VIEW: 'audit:view',
+  BATCH_CREATE: 'batch:create',
+  BATCH_MANAGE: 'batch:manage',
+  GOVERNANCE_TASK_CREATE: 'governance:task:create',
+  GOVERNANCE_TASK_REVIEW: 'governance:task:review',
+  DEPT_SETTINGS_MANAGE: 'dept:settings:manage',
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

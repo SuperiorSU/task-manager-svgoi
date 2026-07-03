@@ -1,21 +1,21 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import type { AuditLogEntry } from '@godigitify/types';
 
-import type { AuditEvent } from '../../data/audit.mock';
-import { AUDIT_CATEGORY_META } from '../../data/audit.mock';
+import { AUDIT_CATEGORY_META, presentAuditEntry } from '../../utils/auditPresentation';
 import { useColors } from '../../constants/colors';
-import { BoldSegments } from '../../utils/richText';
 
 type Props = {
-  event: AuditEvent;
+  event: AuditLogEntry;
   onPress: () => void;
   showDivider?: boolean;
 };
 
 export const AuditEventRow = React.memo(({ event, onPress, showDivider }: Props) => {
   const colors = useColors();
-  const meta = AUDIT_CATEGORY_META[event.category];
+  const presentation = presentAuditEntry(event);
+  const meta = AUDIT_CATEGORY_META[presentation.category];
 
   return (
     <Pressable
@@ -28,21 +28,17 @@ export const AuditEventRow = React.memo(({ event, onPress, showDivider }: Props)
       accessibilityRole="button"
       accessibilityLabel={event.description}
     >
-      <View style={[styles.iconBox, { backgroundColor: event.iconBg }]}>
-        <Feather name={event.icon} size={17} color={event.iconColor} />
+      <View style={[styles.iconBox, { backgroundColor: presentation.iconBg }]}>
+        <Feather name={presentation.icon} size={17} color={presentation.iconColor} />
       </View>
       <View style={styles.body}>
-        <BoldSegments
-          text={event.description}
-          ranges={event.boldRanges}
-          style={[styles.description, { color: colors.text.primary }]}
-        />
+        <Text style={[styles.description, { color: colors.text.primary }]}>{event.description}</Text>
         <View style={styles.metaRow}>
           <View style={[styles.badge, { backgroundColor: meta.badgeBg }]}>
             <Text style={[styles.badgeText, { color: meta.badgeColor }]}>{meta.label}</Text>
           </View>
           <Text style={[styles.contextLabel, { color: colors.text.tertiary }]} numberOfLines={1}>
-            {event.contextLabel}
+            {presentation.contextLabel}
           </Text>
         </View>
       </View>

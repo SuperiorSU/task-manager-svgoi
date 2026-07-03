@@ -1,7 +1,7 @@
 import React from 'react';
 import { ScrollView, Pressable, Text, View, StyleSheet } from 'react-native';
 
-import type { SuperAdminCalendarDept } from '../../data/superAdminCalendar.mock';
+import type { SuperAdminCalendarDept } from '../../hooks/useSuperAdminCalendar';
 import { useColors } from '../../constants/colors';
 import { Spacing } from '../../constants/spacing';
 

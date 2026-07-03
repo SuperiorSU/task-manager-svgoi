@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { CreateTaskBatchDto } from '@godigitify/types';
 
 import { sendSuccess } from '../../utils/response.utils.js';
 import { tasksService } from './tasks.service.js';
@@ -123,5 +124,29 @@ export const tasksController = {
       request.user.departmentId
     );
     return sendSuccess(reply, attachments);
+  },
+
+  async createBatch(request: FastifyRequest, reply: FastifyReply) {
+    const result = await tasksService.createBatch(
+      request.body as CreateTaskBatchDto,
+      request.user.id
+    );
+    return sendSuccess(reply, result, 201);
+  },
+
+  async getBatchSummary(request: FastifyRequest, reply: FastifyReply) {
+    const { batchId } = request.params as { batchId: string };
+    const summary = await tasksService.getBatchSummary(batchId, {
+      id: request.user.id,
+      role: request.user.role,
+      ...(request.user.departmentId ? { departmentId: request.user.departmentId } : {}),
+    });
+    return sendSuccess(reply, summary);
+  },
+
+  async nudgeBatch(request: FastifyRequest, reply: FastifyReply) {
+    const { batchId } = request.params as { batchId: string };
+    const result = await tasksService.nudgeBatchStragglers(batchId, request.user.id);
+    return sendSuccess(reply, result);
   },
 };

@@ -2,10 +2,11 @@
  * AssignGovernanceTaskScreen — "Assign to admin" compose (HTML screen 61).
  * The Super Admin assigns a governance/administrative task directly to a
  * department admin. Distinct from the full Admin+ CreateTaskScreen
- * (app/(app)/tasks/create.tsx) — fewer fields (no department/category/
- * attachments/recurring), single admin-only assignee, and two
- * governance-specific toggles (proof required / SA approval required) that
- * don't exist on the regular task-creation flow, so it isn't reused as-is.
+ * (app/(app)/tasks/create.tsx) — fewer fields (no category/attachments/
+ * recurring), single admin-only assignee. Every governance task always
+ * requires proof + SA approval on the backend (governance.service.ts), so
+ * the per-task proof/approval toggles from the old mock UI have no backend
+ * equivalent and were dropped.
  */
 
 import React, { useCallback, useMemo, useState } from 'react';
@@ -26,9 +27,9 @@ import { Feather } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 
 import type { TaskPriority } from '@godigitify/types';
-import type { OrgUser } from '../data/orgDirectory.mock';
+import { useOrgAdmins, type OrgUser } from '../hooks/useOrgDirectory';
 import { GOVERNANCE_PRIORITY_OPTIONS } from '../data/superAdminTasks.mock';
-import { useAssignableAdmins, useCreateGovernanceTask } from '../hooks/useSuperAdminTasks';
+import { useCreateGovernanceTask } from '../hooks/useGovernance';
 import { useColors } from '../constants/colors';
 import { Spacing } from '../constants/spacing';
 
@@ -44,7 +45,7 @@ export function AssignGovernanceTaskScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const adminsQuery = useAssignableAdmins();
+  const adminsQuery = useOrgAdmins();
   const createMutation = useCreateGovernanceTask();
 
   const [title, setTitle] = useState('');
@@ -52,31 +53,29 @@ export function AssignGovernanceTaskScreen() {
   const [assignee, setAssignee] = useState<OrgUser | null>(null);
   const [priority, setPriority] = useState<TaskPriority>('HIGH');
   const [dueDate, setDueDate] = useState(() => dayjs().add(7, 'day').toISOString());
-  const [requireProof, setRequireProof] = useState(true);
-  const [requireApproval, setRequireApproval] = useState(true);
   const [adminSheetVisible, setAdminSheetVisible] = useState(false);
   const [dateSheetVisible, setDateSheetVisible] = useState(false);
 
   const admins = adminsQuery.data ?? [];
-  const canSubmit = title.trim().length > 0 && !!assignee && !createMutation.isPending;
+  const assigneeDepartmentId = assignee?.departments[0]?.id;
+  const canSubmit = title.trim().length > 0 && !!assignee && !!assigneeDepartmentId && !createMutation.isPending;
 
   const handleSubmit = useCallback(async () => {
-    if (!assignee) return;
+    if (!assignee || !assigneeDepartmentId) return;
     try {
       await createMutation.mutateAsync({
         title: title.trim(),
-        description: description.trim(),
+        ...(description.trim() ? { description: description.trim() } : {}),
         assigneeId: assignee.id,
+        departmentId: assigneeDepartmentId,
         priority,
         dueDate,
-        requireProof,
-        requireApproval,
       });
       router.back();
     } catch {
       Alert.alert('Error', 'Could not assign this task. Please try again.');
     }
-  }, [assignee, createMutation, title, description, priority, dueDate, requireProof, requireApproval, router]);
+  }, [assignee, assigneeDepartmentId, createMutation, title, description, priority, dueDate, router]);
 
   const dueDateLabel = useMemo(() => dayjs(dueDate).format('MMM D, YYYY'), [dueDate]);
 
@@ -193,17 +192,6 @@ export function AssignGovernanceTaskScreen() {
             accessibilityLabel="Description"
           />
         </View>
-
-        <View style={[s.toggleCard, { backgroundColor: colors.surface.card }]}>
-          <ToggleRow
-            icon="upload"
-            label="Require proof on submit"
-            value={requireProof}
-            onChange={setRequireProof}
-            withBorder
-          />
-          <ToggleRow icon="check-circle" label="Require my approval" value={requireApproval} onChange={setRequireApproval} />
-        </View>
       </ScrollView>
 
       <View style={[s.footer, { backgroundColor: colors.surface.card, borderTopColor: colors.surface.border, paddingBottom: insets.bottom + 12 }]}>
@@ -288,33 +276,6 @@ export function AssignGovernanceTaskScreen() {
   );
 }
 
-type ToggleRowProps = {
-  icon: keyof typeof Feather.glyphMap;
-  label: string;
-  value: boolean;
-  onChange: (v: boolean) => void;
-  withBorder?: boolean;
-};
-
-function ToggleRow({ icon, label, value, onChange, withBorder }: ToggleRowProps) {
-  const colors = useColors();
-  return (
-    <View style={[s.toggleRow, withBorder && { borderBottomWidth: 1, borderBottomColor: colors.surface.background }]}>
-      <Feather name={icon} size={18} color={colors.text.secondary} />
-      <Text style={[s.toggleLabel, { color: colors.text.primary }]}>{label}</Text>
-      <Pressable
-        onPress={() => onChange(!value)}
-        style={[s.switchTrack, { backgroundColor: value ? colors.brand.secondary : colors.surface.borderStrong }]}
-        accessibilityRole="switch"
-        accessibilityState={{ checked: value }}
-        accessibilityLabel={label}
-      >
-        <View style={[s.switchKnob, value && s.switchKnobActive]} />
-      </Pressable>
-    </View>
-  );
-}
-
 const s = StyleSheet.create({
   screen: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingBottom: 12, borderBottomWidth: 1 },
@@ -359,12 +320,6 @@ const s = StyleSheet.create({
   dueDateRow: { flexDirection: 'row', alignItems: 'center', gap: 7, height: 28 },
   dueDateText: { fontSize: 13, fontFamily: 'Inter-SemiBold' },
   descriptionInput: { fontSize: 13, lineHeight: 20, fontFamily: 'Inter-Regular', minHeight: 60, padding: 0, textAlignVertical: 'top' },
-  toggleCard: { borderRadius: 12, overflow: 'hidden' },
-  toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 13 },
-  toggleLabel: { flex: 1, fontSize: 13.5, fontFamily: 'Inter-Regular' },
-  switchTrack: { width: 42, height: 25, borderRadius: 13, padding: 2.5, justifyContent: 'center' },
-  switchKnob: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#FFFFFF' },
-  switchKnobActive: { alignSelf: 'flex-end' },
   footer: { padding: Spacing[4], borderTopWidth: 1 },
   submitBtn: { height: 50, borderRadius: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   submitText: { fontSize: 14.5, fontFamily: 'Inter-SemiBold', color: '#FFFFFF' },

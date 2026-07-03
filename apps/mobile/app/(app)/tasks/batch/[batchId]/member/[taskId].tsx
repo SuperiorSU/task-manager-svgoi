@@ -13,7 +13,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 
-import { useMockTaskDetail } from '../../../../../../src/hooks/useTasksMock';
+import { useTask, useTaskAttachments, useTaskComments, useTaskActivity } from '../../../../../../src/hooks/useTasks';
 import { useTaskReviewActions } from '../../../../../../src/hooks/useTaskReviewActions';
 import { useColors } from '../../../../../../src/constants/colors';
 import { Typography } from '../../../../../../src/constants/typography';
@@ -49,7 +49,10 @@ export default function BatchMemberCopyScreen() {
   const insets = useSafeAreaInsets();
   const colors = useColors();
 
-  const { data: task, isLoading } = useMockTaskDetail(taskId ?? '');
+  const { data: task, isLoading } = useTask(taskId ?? '');
+  const { data: attachments = [] } = useTaskAttachments(taskId ?? '');
+  const { data: comments = [] } = useTaskComments(taskId ?? '');
+  const { data: activity = [] } = useTaskActivity(taskId ?? '');
   const handleBack = useCallback(() => router.back(), [router]);
 
   const review = useTaskReviewActions(task, {
@@ -87,8 +90,8 @@ export default function BatchMemberCopyScreen() {
 
   const priorityColor = colors.priority[task.priority.toLowerCase() as keyof typeof colors.priority];
   const firstName = task.assignee.name.split(' ')[0];
-  const proof = task.attachments.filter((a) => a.isProof);
-  const submissionNote = [...task.comments].reverse().find((c) => c.author.id === task.assignee.id);
+  const proof = attachments.filter((a) => a.isProof);
+  const submissionNote = [...comments].reverse().find((c) => c.author.id === task.assignee.id);
   const statusMessage = STATUS_MESSAGE[task.status];
 
   return (
@@ -116,7 +119,7 @@ export default function BatchMemberCopyScreen() {
           <View style={styles.memberTextCol}>
             <Text style={[styles.memberName, { color: colors.text.primary }]}>{task.assignee.name}</Text>
             <Text style={[styles.memberSub, { color: colors.text.tertiary }]}>
-              {task.batchLabel ?? 'Batch copy'} · {task.department.name}
+              Batch copy{task.department ? ` · ${task.department.name}` : ''}
             </Text>
           </View>
           <TaskStatusBadge status={task.status} />
@@ -148,7 +151,7 @@ export default function BatchMemberCopyScreen() {
           />
         )}
 
-        <TaskActivityTimeline events={task.activity} />
+        <TaskActivityTimeline events={activity} />
       </ScrollView>
 
       {/* Pinned action — only the review decision is actionable here */}

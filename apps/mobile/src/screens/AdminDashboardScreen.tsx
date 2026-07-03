@@ -155,11 +155,17 @@ export function AdminDashboardScreen() {
   // ── Derived data ───────────────────────────────────────────────────────────
   // Server already scopes ADMIN task queries to own-dept + self-created cross-dept tasks.
 
-  const allTasks: RichTask[] = taskListData?.tasks ?? [];
+  const allTasks: RichTask[] = taskListData ?? [];
 
   const assignedOutTasks = useMemo(
     () => allTasks.filter((t) => t.creatorId === adminId && t.departmentId !== adminDept.id),
     [allTasks, adminId, adminDept.id],
+  );
+
+  // Tasks the Super Admin or another department handed to this admin directly.
+  const assignedToMeTasks = useMemo(
+    () => allTasks.filter((t) => t.assigneeId === adminId && t.creatorId !== adminId),
+    [allTasks, adminId],
   );
 
   const reviewQueue = useMemo(
@@ -176,6 +182,9 @@ export function AdminDashboardScreen() {
     const teamOverdue = stats?.overdue ?? 0;
     const inFlight = teamPending + (stats?.inProgress ?? 0) + (stats?.underReview ?? 0);
     const outPending = assignedOutTasks.filter((t) => t.status !== 'COMPLETED').length;
+    const assignedToMeNeedAction = assignedToMeTasks.filter((t) =>
+      ['PENDING', 'ACCEPTED'].includes(t.status),
+    ).length;
 
     return {
       deptTasks: stats?.totalTasks ?? 0,
@@ -185,9 +194,11 @@ export function AdminDashboardScreen() {
       inFlight,
       assignedOut: assignedOutTasks.length,
       outPending,
+      assignedToMe: assignedToMeTasks.length,
+      assignedToMeNeedAction,
       completionRate: stats?.completionRate ?? 0,
     };
-  }, [stats, assignedOutTasks]);
+  }, [stats, assignedOutTasks, assignedToMeTasks]);
 
   const workload = useMemo(
     () =>
@@ -268,19 +279,6 @@ export function AdminDashboardScreen() {
               </View>
             </View>
           </View>
-          <Pressable
-            onPress={() => push('/(app)/tasks/create')}
-            style={({ pressed }) => [
-              s.createPill,
-              { backgroundColor: colors.brand.primary },
-              pressed && { opacity: 0.82 },
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="Create task"
-          >
-            <Feather name="plus" size={16} color="#FFFFFF" />
-            <Text style={s.createPillText}>Create</Text>
-          </Pressable>
         </View>
 
         {/* ── Overdue banner ─────────────────────────────────────────────── */}
@@ -339,6 +337,39 @@ export function AdminDashboardScreen() {
             />
           </View>
         </View>
+        )}
+
+        {/* ── Assigned to me strip ───────────────────────────────────────── */}
+        {derivedStats.assignedToMe > 0 && (
+          <Pressable
+            onPress={() => push('/(app)/(admin)/tasks')}
+            style={({ pressed }) => [
+              s.crossDeptStrip,
+              {
+                backgroundColor: colors.surface.card,
+                borderColor: colors.surface.border,
+              },
+              pressed && { opacity: 0.82 },
+            ]}
+          >
+            <View style={[s.crossDeptIcon, { backgroundColor: '#EFF6FF' }]}>
+              <Feather name="arrow-down-left" size={16} color="#1D4ED8" />
+            </View>
+            <View style={s.assignedToMeTextCol}>
+              <Text style={[s.crossDeptLabel, { color: colors.text.secondary }]} numberOfLines={1}>
+                Assigned to me
+              </Text>
+              <Text style={[s.assignedToMeSubtitle, { color: colors.text.tertiary }]} numberOfLines={1}>
+                Tasks the SA &amp; other depts gave you
+                {derivedStats.assignedToMeNeedAction > 0
+                  ? ` · ${derivedStats.assignedToMeNeedAction} need action`
+                  : ''}
+              </Text>
+            </View>
+            <View style={s.assignedToMeBadge}>
+              <Text style={s.assignedToMeBadgeText}>{derivedStats.assignedToMe}</Text>
+            </View>
+          </Pressable>
         )}
 
         {/* ── Cross-dept strip ───────────────────────────────────────────── */}
@@ -845,21 +876,6 @@ const s = StyleSheet.create({
     fontFamily: 'Inter-SemiBold',
     letterSpacing: 0,
   },
-  createPill: {
-    height: 40,
-    borderRadius: 20,
-    paddingHorizontal: Spacing[3],
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-  },
-  createPillText: {
-    fontSize: 13,
-    fontFamily: 'Inter-SemiBold',
-    letterSpacing: 0,
-    color: '#FFFFFF',
-  },
 
   // Stat grid
   statsGrid: { gap: Spacing[3] },
@@ -939,6 +955,27 @@ const s = StyleSheet.create({
     letterSpacing: 0,
   },
   crossDeptDivider: { width: 1, height: 28 },
+
+  assignedToMeTextCol: { flex: 1, gap: 2 },
+  assignedToMeSubtitle: {
+    fontSize: 11.5,
+    fontFamily: 'Inter-Regular',
+    letterSpacing: 0,
+  },
+  assignedToMeBadge: {
+    minWidth: 24,
+    height: 24,
+    borderRadius: 12,
+    paddingHorizontal: 7,
+    backgroundColor: '#1D4ED8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  assignedToMeBadgeText: {
+    fontSize: 12,
+    fontFamily: 'Inter-Bold',
+    color: '#FFFFFF',
+  },
 
   // Completion ring card
   section: { gap: Spacing[3] },

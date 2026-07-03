@@ -1,27 +1,25 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 
-import type { StatusDistribution } from '../../../data/superAdminTasks.mock';
+import type { DeptStatusDistribution } from '@godigitify/types';
 import { useColors } from '../../../constants/colors';
 import { Typography } from '../../../constants/typography';
 import { Spacing } from '../../../constants/spacing';
 
-// Fixed 4-bucket rollup taxonomy (pending / in progress / review / overdue) —
-// matches HTML screens 58/59/67 exactly. The Overview screen (57) mock shows
-// a 5th "Blocked" slice, but BLOCKED isn't a value in our real TaskStatus
-// enum (PENDING|ACCEPTED|IN_PROGRESS|UNDER_REVIEW|COMPLETED|CANCELLED), so it
-// was dropped for schema consistency — every distribution in this module
-// uses the same 4 buckets so Overview, Departments and dept drill-down never
-// disagree on taxonomy.
-const BUCKETS: { key: keyof StatusDistribution; label: string; color: string }[] = [
+// 5-bucket rollup taxonomy (pending / in progress / review / overdue /
+// blocked) — `blocked` is a server-computed heuristic on the real
+// `DeptStatusDistribution` type (dashboardApi.getDeptHealth()), so it's
+// consumed like any other bucket now.
+const BUCKETS: { key: keyof DeptStatusDistribution; label: string; color: string }[] = [
   { key: 'pending', label: 'Pending', color: '#94A3B8' },
   { key: 'inProgress', label: 'In progress', color: '#F59E0B' },
   { key: 'review', label: 'Under review', color: '#7C3AED' },
   { key: 'overdue', label: 'Overdue', color: '#EF4444' },
+  { key: 'blocked', label: 'Blocked', color: '#64748B' },
 ];
 
 type Props = {
-  distribution: StatusDistribution;
+  distribution: DeptStatusDistribution;
   total: number;
   size?: 'sm' | 'lg';
   showLegend?: boolean;

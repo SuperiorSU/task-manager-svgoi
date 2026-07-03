@@ -1,8 +1,27 @@
-import type { TaskStatus, TaskPriority } from '@godigitify/types';
+import type { TaskStatus, TaskPriority, CreateTaskBatchDto, BatchProgressSegment } from '@godigitify/types';
 
 import { prisma } from '../../config/database.js';
 import { cache } from '../../config/redis.js';
 import { writeAuditLog } from '../../utils/audit.utils.js';
+
+const invalidateDashboardCaches = async (): Promise<void> => {
+  await Promise.all([
+    cache.delPattern('dashboard:stats:*'),
+    cache.delPattern('dashboard:dept-health:*'),
+    cache.delPattern('dashboard:staff-load:*'),
+    cache.delPattern('dashboard:escalations:*'),
+    cache.delPattern('dashboard:calendar:*'),
+  ]);
+};
+
+const STATUS_LABELS: Record<TaskStatus, string> = {
+  PENDING: 'Not started',
+  ACCEPTED: 'Not started',
+  IN_PROGRESS: 'In progress',
+  UNDER_REVIEW: 'Under review',
+  COMPLETED: 'Completed',
+  CANCELLED: 'Cancelled',
+};
 
 const VALID_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
   PENDING: ['ACCEPTED', 'CANCELLED'],
@@ -27,6 +46,8 @@ const taskSelect = {
   creatorId: true,
   assigneeId: true,
   departmentId: true,
+  batchId: true,
+  isGovernance: true,
   acceptedAt: true,
   completedAt: true,
   createdAt: true,
@@ -190,7 +211,7 @@ export const tasksService = {
     });
 
     // Invalidate dashboard cache
-    await cache.delPattern('dashboard:stats:*');
+    await invalidateDashboardCaches();
 
     return task;
   },
@@ -308,7 +329,7 @@ export const tasksService = {
       },
     });
 
-    await cache.delPattern('dashboard:stats:*');
+    await invalidateDashboardCaches();
 
     return updated;
   },
@@ -369,7 +390,7 @@ export const tasksService = {
     }));
 
     await prisma.taskActivity.createMany({ data: activities as never });
-    await cache.delPattern('dashboard:stats:*');
+    await invalidateDashboardCaches();
   },
 
   async getComments(taskId: string, viewerId: string, viewerRole: string, viewerDeptId?: string) {
@@ -457,5 +478,151 @@ export const tasksService = {
         uploadedBy: true,
       },
     });
+  },
+
+  async createBatch(dto: CreateTaskBatchDto, creatorId: string) {
+    const result = await prisma.$transaction(async (tx) => {
+      const batch = await tx.taskBatch.create({
+        data: {
+          title: dto.title,
+          ...(dto.description !== undefined ? { description: dto.description } : {}),
+          priority: dto.priority as never,
+          dueDate: new Date(dto.dueDate),
+          ...(dto.isolationNote !== undefined ? { isolationNote: dto.isolationNote } : {}),
+          creatorId,
+          ...(dto.departmentId !== undefined ? { departmentId: dto.departmentId } : {}),
+        },
+      });
+
+      const tasks = await Promise.all(
+        dto.assigneeIds.map((assigneeId) =>
+          tx.task.create({
+            data: {
+              title: dto.title,
+              ...(dto.description !== undefined ? { description: dto.description } : {}),
+              priority: dto.priority as never,
+              dueDate: new Date(dto.dueDate),
+              assigneeId,
+              creatorId,
+              ...(dto.departmentId !== undefined ? { departmentId: dto.departmentId } : {}),
+              batchId: batch.id,
+              status: 'PENDING' as never,
+            },
+            select: taskSelect,
+          })
+        )
+      );
+
+      await tx.taskActivity.createMany({
+        data: tasks.map((task) => ({
+          taskId: task.id,
+          actorId: creatorId,
+          action: 'CREATE' as const,
+          description: `Task created via batch "${batch.title}" and assigned to ${task.assignee.name}`,
+        })) as never,
+      });
+
+      return { batch, tasks };
+    });
+
+    await writeAuditLog({
+      action: 'CREATE',
+      entityType: 'TaskBatch',
+      entityId: result.batch.id,
+      description: `Batch "${result.batch.title}" created with ${result.tasks.length} task(s)`,
+      actorId: creatorId,
+    });
+
+    await invalidateDashboardCaches();
+
+    return result;
+  },
+
+  async getBatchSummary(
+    batchId: string,
+    viewer: { id: string; role: string; departmentId?: string }
+  ) {
+    const batch = await prisma.taskBatch.findFirst({
+      where: {
+        id: batchId,
+        ...(viewer.role === 'SUPER_ADMIN'
+          ? {}
+          : viewer.role === 'ADMIN' && viewer.departmentId
+          ? { OR: [{ departmentId: viewer.departmentId }, { creatorId: viewer.id }] }
+          : { creatorId: viewer.id }),
+      },
+    });
+    if (!batch) throw Object.assign(new Error('Batch not found'), { statusCode: 404, code: 'NOT_FOUND' });
+
+    const members = await prisma.task.findMany({
+      where: { batchId: batch.id, isDeleted: false },
+      select: taskSelect,
+    });
+
+    const now = new Date();
+    const doneCount = members.filter((m) => m.status === 'COMPLETED').length;
+    const atRiskCount = members.filter(
+      (m) => m.status !== 'COMPLETED' && m.status !== 'CANCELLED' && m.dueDate < now
+    ).length;
+
+    const countsByStatus = new Map<TaskStatus, number>();
+    for (const member of members) {
+      const status = member.status as TaskStatus;
+      countsByStatus.set(status, (countsByStatus.get(status) ?? 0) + 1);
+    }
+
+    const totalMembers = members.length;
+    const segments: BatchProgressSegment[] = Array.from(countsByStatus.entries()).map(
+      ([status, count]) => ({
+        status,
+        label: STATUS_LABELS[status],
+        count,
+        percent: totalMembers > 0 ? Math.round((count / totalMembers) * 100) : 0,
+      })
+    );
+
+    return {
+      batch,
+      members,
+      totalMembers,
+      doneCount,
+      atRiskCount,
+      segments,
+    };
+  },
+
+  async nudgeBatchStragglers(batchId: string, actorId: string) {
+    const batch = await prisma.taskBatch.findUnique({
+      where: { id: batchId },
+      select: { id: true, title: true },
+    });
+    if (!batch) throw Object.assign(new Error('Batch not found'), { statusCode: 404, code: 'NOT_FOUND' });
+
+    const stragglers = await prisma.task.findMany({
+      where: { batchId, isDeleted: false, status: { notIn: ['COMPLETED', 'CANCELLED'] } },
+      select: { id: true, title: true, assigneeId: true },
+    });
+
+    if (stragglers.length > 0) {
+      await prisma.notification.createMany({
+        data: stragglers.map((task) => ({
+          type: 'TASK_DUE_SOON' as const,
+          title: 'Task nudge',
+          body: `Reminder: "${task.title}" is still pending and needs your attention.`,
+          userId: task.assigneeId,
+          taskId: task.id,
+        })) as never,
+      });
+    }
+
+    await writeAuditLog({
+      action: 'UPDATE',
+      entityType: 'TaskBatch',
+      entityId: batchId,
+      description: `Nudged ${stragglers.length} straggler(s) in batch "${batch.title}"`,
+      actorId,
+    });
+
+    return { notifiedCount: stragglers.length };
   },
 };

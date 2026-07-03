@@ -5,22 +5,22 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 
 dayjs.extend(relativeTime);
 
-import type { MockTask } from '../../../data/tasks.mock';
+import type { GovernanceStage, GovernanceTask } from '@godigitify/types';
 import { useColors } from '../../../constants/colors';
 import { Typography } from '../../../constants/typography';
+import { getInitials } from '../../../utils/initial';
 
-const STATUS_META: Record<MockTask['status'], { bg: string; text: string; label: string; stripe: string }> = {
-  PENDING: { bg: '#F1F5F9', text: '#475569', label: 'PENDING', stripe: '#94A3B8' },
-  ACCEPTED: { bg: '#EFF6FF', text: '#1D4ED8', label: 'ACCEPTED', stripe: '#60A5FA' },
-  IN_PROGRESS: { bg: '#FFFBEB', text: '#B45309', label: 'ACTIVE', stripe: '#F59E0B' },
-  UNDER_REVIEW: { bg: '#F5F3FF', text: '#6D28D9', label: 'REVIEW', stripe: '#10B981' },
-  COMPLETED: { bg: '#F0FDF4', text: '#15803D', label: 'COMPLETED', stripe: '#22C55E' },
-  CANCELLED: { bg: '#F1F5F9', text: '#64748B', label: 'CANCELLED', stripe: '#94A3B8' },
+const STAGE_META: Record<GovernanceStage, { bg: string; text: string; label: string; stripe: string }> = {
+  ASSIGNED: { bg: '#F1F5F9', text: '#475569', label: 'ASSIGNED', stripe: '#94A3B8' },
+  IN_PROGRESS: { bg: '#FFFBEB', text: '#B45309', label: 'IN PROGRESS', stripe: '#F59E0B' },
+  SUBMITTED: { bg: '#F5F3FF', text: '#6D28D9', label: 'REVIEW', stripe: '#10B981' },
+  APPROVED: { bg: '#F0FDF4', text: '#15803D', label: 'APPROVED', stripe: '#22C55E' },
+  REVISION_REQUESTED: { bg: '#FEF2F2', text: '#B91C1C', label: 'SENT BACK', stripe: '#EF4444' },
 };
 
 type Props = {
-  task: MockTask;
-  onPress: (task: MockTask) => void;
+  task: GovernanceTask;
+  onPress: (task: GovernanceTask) => void;
 };
 
 // Row for the "Assigned by me" tracker (screen 62) — unlike the aggregate
@@ -28,13 +28,15 @@ type Props = {
 // titles are shown (no FR-72 restriction applies to tasks the SA created).
 export const GovernanceTaskRow = React.memo(({ task, onPress }: Props) => {
   const colors = useColors();
-  const meta = STATUS_META[task.status];
+  const meta = STAGE_META[task.stage];
   const metaLine =
-    task.status === 'UNDER_REVIEW'
-      ? `${task.assignee.name} · submitted ${dayjs(task.activity[task.activity.length - 1]?.createdAt ?? task.createdAt).fromNow()}`
-      : task.status === 'PENDING'
-        ? `${task.assignee.name} · assigned ${dayjs(task.createdAt).fromNow()}`
-        : `${task.assignee.name} · due ${dayjs(task.dueDate).format('MMM D')}`;
+    task.stage === 'SUBMITTED'
+      ? `${task.assignee.name} · submitted ${dayjs(task.updatedAt).fromNow()}`
+      : task.stage === 'REVISION_REQUESTED'
+        ? `${task.assignee.name} · sent back ${dayjs(task.updatedAt).fromNow()}`
+        : task.stage === 'ASSIGNED'
+          ? `${task.assignee.name} · assigned ${dayjs(task.createdAt).fromNow()}`
+          : `${task.assignee.name} · due ${dayjs(task.dueDate).format('MMM D')}`;
 
   return (
     <Pressable
@@ -50,7 +52,7 @@ export const GovernanceTaskRow = React.memo(({ task, onPress }: Props) => {
         </Text>
         <View style={styles.metaRow}>
           <View style={[styles.avatar, { backgroundColor: colors.brand.secondary }]}>
-            <Text style={styles.avatarText}>{task.assignee.initials}</Text>
+            <Text style={styles.avatarText}>{getInitials(task.assignee.name)}</Text>
           </View>
           <Text style={[styles.metaText, { color: colors.text.secondary }]} numberOfLines={1}>
             {metaLine}

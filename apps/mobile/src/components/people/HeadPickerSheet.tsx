@@ -9,7 +9,7 @@ import { Modal, Pressable, ScrollView, Text, View, StyleSheet } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 
-import type { OrgUser } from '../../data/orgDirectory.mock';
+import type { OrgUser } from '../../hooks/useOrgDirectory';
 import { useColors } from '../../constants/colors';
 import { Spacing } from '../../constants/spacing';
 

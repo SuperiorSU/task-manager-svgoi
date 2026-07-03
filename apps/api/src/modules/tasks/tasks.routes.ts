@@ -10,6 +10,7 @@ import {
   taskFiltersSchema,
   assignBodySchema,
   bulkStatusBodySchema,
+  createBatchBodySchema,
 } from './tasks.schema.js';
 
 export const tasksRoutes = async (app: FastifyInstance): Promise<void> => {
@@ -78,5 +79,21 @@ export const tasksRoutes = async (app: FastifyInstance): Promise<void> => {
   app.get('/:id/attachments', {
     preHandler: [requireAuth],
     handler: tasksController.getAttachments,
+  });
+
+  app.post('/batch', {
+    preHandler: [requireAuth, requirePermission(PERMISSIONS.BATCH_CREATE)],
+    schema: { body: createBatchBodySchema },
+    handler: tasksController.createBatch,
+  });
+
+  app.get('/batch/:batchId', {
+    preHandler: [requireAuth],
+    handler: tasksController.getBatchSummary,
+  });
+
+  app.post('/batch/:batchId/nudge', {
+    preHandler: [requireAuth, requirePermission(PERMISSIONS.BATCH_MANAGE)],
+    handler: tasksController.nudgeBatch,
   });
 };

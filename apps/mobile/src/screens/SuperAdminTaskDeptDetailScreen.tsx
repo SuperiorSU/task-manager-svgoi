@@ -12,7 +12,8 @@ import { Feather } from '@expo/vector-icons';
 
 import { useColors } from '../constants/colors';
 import { Spacing } from '../constants/spacing';
-import { useDepartmentTaskDetail } from '../hooks/useSuperAdminTasks';
+import { useDeptTaskDetail } from '../hooks/useSuperAdminTasks';
+import { getInitials } from '../utils/initial';
 
 import { RiskBadge } from '../components/task/oversight/RiskBadge';
 import { StatusDistributionBar } from '../components/task/oversight/StatusDistributionBar';
@@ -26,7 +27,7 @@ export function SuperAdminTaskDeptDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { data, isLoading } = useDepartmentTaskDetail(deptId ?? '');
+  const { dept, staffLoad, isLoading } = useDeptTaskDetail(deptId ?? '');
 
   const push = useCallback((path: string) => router.push(path as Parameters<typeof router.push>[0]), [router]);
 
@@ -36,7 +37,7 @@ export function SuperAdminTaskDeptDetailScreen() {
     Alert.alert('Message admin', 'Direct messaging is not yet available in this build.');
   }, []);
 
-  if (isLoading || !data) {
+  if (isLoading || !dept) {
     return (
       <View style={[s.screen, { backgroundColor: colors.surface.background }]}>
         <View style={[s.header, { paddingTop: insets.top + 6 }]}>
@@ -52,8 +53,6 @@ export function SuperAdminTaskDeptDetailScreen() {
       </View>
     );
   }
-
-  const { dept, staffLoad } = data;
 
   return (
     <View style={[s.screen, { backgroundColor: colors.surface.background }]}>
@@ -83,10 +82,10 @@ export function SuperAdminTaskDeptDetailScreen() {
             <Text style={[s.summaryTitle, { color: colors.text.primary }]}>{dept.departmentName} Dept</Text>
             <View style={s.summaryMetaRow}>
               <View style={[s.adminAvatar, { backgroundColor: colors.brand.secondary }]}>
-                <Text style={s.adminAvatarText}>{dept.adminInitials}</Text>
+                <Text style={s.adminAvatarText}>{getInitials(dept.adminName ?? 'NA')}</Text>
               </View>
               <Text style={[s.summaryMeta, { color: colors.text.secondary }]} numberOfLines={1}>
-                Admin · {dept.adminName} · {dept.staffCount} staff
+                Admin · {dept.adminName ?? 'Unassigned'} · {dept.staffCount} staff
               </Text>
             </View>
           </View>

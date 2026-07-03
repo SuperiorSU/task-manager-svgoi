@@ -4,7 +4,7 @@ import type { UserTaskStats } from '@godigitify/api-client';
 import { getInitials } from './initial';
 import { getAvatarColor } from './avatarColor';
 
-export type TeamFilter = 'ALL' | 'EMPLOYEES' | 'ADMINS' | 'SUSPENDED';
+export type TeamFilter = 'ALL' | 'EMPLOYEES' | 'SUSPENDED';
 
 /** View model the team/people UI components render — derived from the real User shape. */
 export type TeamMemberView = {

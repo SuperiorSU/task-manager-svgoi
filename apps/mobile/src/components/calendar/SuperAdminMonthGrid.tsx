@@ -2,8 +2,7 @@ import React, { useMemo } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import type { Dayjs } from 'dayjs';
 
-import { buildSaDayMeta, type SaDayMeta } from '../../hooks/useSuperAdminCalendar';
-import type { CalendarDayEntry } from '../../services/superAdminCalendar.service';
+import { buildSaDayMeta, type SaDayMeta, type CalendarDayEntry } from '../../hooks/useSuperAdminCalendar';
 import { useColors } from '../../constants/colors';
 import { Spacing } from '../../constants/spacing';
 

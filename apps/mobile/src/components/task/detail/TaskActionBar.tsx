@@ -26,6 +26,8 @@ type Props = {
   task: RichTask;
   /** When true, renders the admin creator approval bar (Approve & Complete / Revise) */
   isAdminCreator?: boolean;
+  /** Id of the person viewing this screen — gates the assignee action bar to the actual assignee */
+  currentUserId?: string;
   onStatusChange: (task: RichTask, nextStatus: TaskStatus) => void;
   onApprove?: (task: RichTask) => void;
   onRevise?: (task: RichTask) => void;
@@ -34,7 +36,7 @@ type Props = {
 };
 
 export const TaskActionBar = React.memo(
-  ({ task, isAdminCreator = false, onStatusChange, onApprove, onRevise, onUploadProof, onAddComment }: Props) => {
+  ({ task, isAdminCreator = false, currentUserId, onStatusChange, onApprove, onRevise, onUploadProof, onAddComment }: Props) => {
     const insets = useSafeAreaInsets();
     const pb = insets.bottom + Spacing[2];
 
@@ -108,6 +110,19 @@ export const TaskActionBar = React.memo(
           <View style={actionStyles.closedRow}>
             <Feather name="clock" size={18} color={Colors.text.tertiary} />
             <Text style={actionStyles.closedText}>Waiting for review…</Text>
+          </View>
+        </View>
+      );
+    }
+
+    // ── Read-only state for anyone who isn't the assignee (e.g. the admin
+    // creator viewing a task they handed off to someone else) ────────────────
+    if (currentUserId && task.assigneeId !== currentUserId) {
+      return (
+        <View style={[actionStyles.bar, { paddingBottom: pb }]}>
+          <View style={actionStyles.closedRow}>
+            <Feather name="user" size={18} color={Colors.text.tertiary} />
+            <Text style={actionStyles.closedText}>Waiting on {task.assignee.name}</Text>
           </View>
         </View>
       );

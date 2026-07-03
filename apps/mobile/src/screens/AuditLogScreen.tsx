@@ -4,9 +4,10 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 
-import type { AuditEvent } from '../data/audit.mock';
-import { AUDIT_QUICK_CATEGORIES } from '../data/audit.mock';
-import { useAuditActors, useAuditFilterState, useFilteredAuditEvents } from '../hooks/useAudit';
+import type { AuditLogEntry } from '@godigitify/types';
+
+import { AUDIT_QUICK_CATEGORIES } from '../utils/auditPresentation';
+import { useAuditActorOptions, useAuditFilterState, useFilteredAuditEvents } from '../hooks/useAudit';
 import { useColors } from '../constants/colors';
 import { Typography } from '../constants/typography';
 import { Spacing } from '../constants/spacing';
@@ -32,8 +33,8 @@ export function AuditLogScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const { filters, setCategory, setSearch, applySheet, hasActiveFilters } = useAuditFilterState();
-  const { groups, count, isLoading, refetch } = useFilteredAuditEvents(filters);
-  const { data: actors = [] } = useAuditActors();
+  const { groups, items, count, isLoading, refetch } = useFilteredAuditEvents(filters);
+  const actors = useAuditActorOptions(items);
 
   const sections = groups.map((g) => ({ title: g.label, data: g.events }));
 
@@ -98,14 +99,19 @@ export function AuditLogScreen() {
           />
         </View>
       ) : (
-        <SectionList<AuditEvent>
+        <SectionList<AuditLogEntry>
           sections={sections}
           keyExtractor={(item) => item.id}
           renderSectionHeader={({ section }) => <SectionLabel title={section.title} />}
           renderItem={({ item, index, section }) => (
             <AuditEventRow
               event={item}
-              onPress={() => router.push(`/(app)/audit/${item.id}` as never)}
+              onPress={() =>
+                router.push({
+                  pathname: '/(app)/audit/[id]',
+                  params: { id: item.id, entry: JSON.stringify(item) },
+                } as never)
+              }
               showDivider={index < section.data.length - 1}
             />
           )}

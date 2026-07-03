@@ -42,10 +42,10 @@ export const useCalendarTasks = (periodAnchor: Dayjs, view: CalendarView) => {
   }, [periodAnchor, view]);
 
   return useQuery({
-    queryKey: ['calendarTasks', from, to],
+    queryKey: ['tasks', 'calendar', from, to],
     queryFn: async () => {
       const res = await tasksApi.getCalendar(from, to);
-      const tasks: CalendarTask[] = (res.data?.tasks ?? []).map((t) => ({
+      const tasks: CalendarTask[] = (res.data ?? []).map((t) => ({
         id: t.id,
         title: t.title,
         status: t.status,

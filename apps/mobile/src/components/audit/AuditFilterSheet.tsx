@@ -3,10 +3,9 @@ import { Modal, View, Text, Pressable, ScrollView, StyleSheet } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 
-import { MOCK_DEPARTMENTS } from '../../data/tasks.mock';
-import { AUDIT_DATE_RANGE_OPTIONS, AUDIT_FILTER_CATEGORIES, type AuditActor } from '../../data/audit.mock';
-import type { AuditFilters } from '../../services/audit.service';
-import { DEFAULT_AUDIT_FILTERS } from '../../services/audit.service';
+import { AUDIT_DATE_RANGE_OPTIONS, AUDIT_FILTER_CATEGORIES } from '../../utils/auditPresentation';
+import { DEFAULT_AUDIT_FILTERS, type AuditUIFilters } from '../../hooks/useAudit';
+import type { AuditActorCardActor } from './AuditActorCard';
 import { useColors } from '../../constants/colors';
 import { Typography } from '../../constants/typography';
 import { Spacing } from '../../constants/spacing';
@@ -73,9 +72,9 @@ const Pill = ({
 
 type Props = {
   visible: boolean;
-  current: AuditFilters;
-  actors: AuditActor[];
-  onApply: (f: AuditFilters) => void;
+  current: AuditUIFilters;
+  actors: AuditActorCardActor[];
+  onApply: (f: Partial<AuditUIFilters>) => void;
   onClose: () => void;
 };
 
@@ -83,9 +82,8 @@ export const AuditFilterSheet = ({ visible, current, actors, onApply, onClose }:
   const insets = useSafeAreaInsets();
   const colors = useColors();
 
-  const [draft, setDraft] = useState<AuditFilters>(current);
+  const [draft, setDraft] = useState<AuditUIFilters>(current);
   const [actorPickerVisible, setActorPickerVisible] = useState(false);
-  const [deptPickerVisible, setDeptPickerVisible] = useState(false);
 
   useEffect(() => {
     if (visible) setDraft(current);
@@ -95,13 +93,8 @@ export const AuditFilterSheet = ({ visible, current, actors, onApply, onClose }:
     { value: 'ANY', label: 'Any admin' },
     ...actors.map((a) => ({ value: a.id, label: a.name })),
   ];
-  const departmentOptions: PickerOption<string>[] = [
-    { value: 'ALL', label: 'All departments' },
-    ...MOCK_DEPARTMENTS.map((d) => ({ value: d.id, label: d.name })),
-  ];
 
   const actorLabel = actorOptions.find((o) => o.value === draft.actorId)?.label ?? 'Any admin';
-  const departmentLabel = departmentOptions.find((o) => o.value === draft.departmentId)?.label ?? 'All departments';
 
   const handleReset = () => setDraft(DEFAULT_AUDIT_FILTERS);
   const handleApply = () => {
@@ -144,9 +137,6 @@ export const AuditFilterSheet = ({ visible, current, actors, onApply, onClose }:
             <SectionLabel label="Actor" />
             <SelectBox value={actorLabel} onPress={() => setActorPickerVisible(true)} />
 
-            <SectionLabel label="Department" />
-            <SelectBox value={departmentLabel} onPress={() => setDeptPickerVisible(true)} />
-
             <SectionLabel label="Date range" />
             <View style={s.dateRow}>
               {AUDIT_DATE_RANGE_OPTIONS.map((opt) => (
@@ -181,14 +171,6 @@ export const AuditFilterSheet = ({ visible, current, actors, onApply, onClose }:
         selected={draft.actorId}
         onSelect={(value) => setDraft((d) => ({ ...d, actorId: value }))}
         onClose={() => setActorPickerVisible(false)}
-      />
-      <SettingsPickerSheet
-        visible={deptPickerVisible}
-        title="Department"
-        options={departmentOptions}
-        selected={draft.departmentId}
-        onSelect={(value) => setDraft((d) => ({ ...d, departmentId: value }))}
-        onClose={() => setDeptPickerVisible(false)}
       />
     </Modal>
   );

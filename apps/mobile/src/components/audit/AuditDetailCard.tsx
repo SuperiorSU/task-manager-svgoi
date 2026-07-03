@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
-import type { AuditDetailField } from '../../data/audit.mock';
+import type { AuditDetailField } from '../../utils/auditPresentation';
 import { useColors } from '../../constants/colors';
 
 export const AuditDetailCard = React.memo(({ fields }: { fields: AuditDetailField[] }) => {

@@ -1,38 +1,111 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import dayjs, { type Dayjs } from 'dayjs';
+import { dashboardApi, departmentsApi } from '@godigitify/api-client';
 
-import { superAdminCalendarService, type CalendarDayEntry } from '../services/superAdminCalendar.service';
+import type { MockTask } from '../data/tasks.mock';
+import { MOCK_GOVERNANCE_TASKS } from '../data/superAdminTasks.mock';
+import { queryKeys } from '../constants/queryKeys';
 
-// ─── Keys ─────────────────────────────────────────────────────────────────────
+// ─── Department accents (client-side only — no backend color field) ─────────
+// Departments carry no presentation color from the API; hash the id into a
+// small fixed palette so dots/chips stay stable across reloads.
 
-const QK = {
-  departments: ['sa', 'calendar', 'departments'] as const,
-  entries: (departmentId?: string) => ['sa', 'calendar', 'entries', departmentId ?? 'all'] as const,
-  deptHealth: ['sa', 'calendar', 'dept-health'] as const,
+const DEPT_COLOR_PALETTE = ['#1D4ED8', '#0D9488', '#B45309', '#7C3AED', '#EF4444', '#0EA5E9', '#DB2777', '#65A30D'];
+
+const hashColorForDept = (id: string): string => {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0;
+  return DEPT_COLOR_PALETTE[Math.abs(hash) % DEPT_COLOR_PALETTE.length] ?? '#64748B';
 };
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export type SuperAdminCalendarDept = {
+  id: string;
+  name: string;
+  /** Accent color for dots/chips/rollups — org-unit identity, not urgency. */
+  color: string;
+};
+
+export type CalendarDayEntry =
+  | { kind: 'dept'; departmentId: string; departmentName: string; color: string; count: number }
+  | { kind: 'governance'; task: MockTask };
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
 export const useSuperAdminCalendarDepartments = () =>
   useQuery({
-    queryKey: QK.departments,
-    queryFn: superAdminCalendarService.getDepartments,
-    staleTime: 30 * 60 * 1000,
+    queryKey: queryKeys.departments.list(),
+    queryFn: () => departmentsApi.getList().then((r) => r.data),
+    select: (departments) =>
+      departments.map((dept): SuperAdminCalendarDept => ({
+        id: dept.id,
+        name: dept.name,
+        color: hashColorForDept(dept.id),
+      })),
+    staleTime: 5 * 60 * 1_000,
   });
 
-export const useSuperAdminCalendarEntries = (departmentId?: string) =>
-  useQuery({
-    queryKey: QK.entries(departmentId),
-    queryFn: () => superAdminCalendarService.getEntryMap(departmentId),
-    staleTime: 5 * 60 * 1000,
+/**
+ * Day-keyed entry map backing the month grid, agenda list, and day
+ * breakdown. Pass departmentId to filter to a single department; omit for
+ * org-wide. Merges real department deadline counts (GET
+ * /dashboard/calendar-deadlines) with the SA's own governance tasks (still
+ * authored in superAdminTasks.mock.ts — that module's migration is tracked
+ * separately, see useSuperAdminTasks.ts).
+ */
+export const useSuperAdminCalendarEntries = (departmentId?: string, from?: string, to?: string) => {
+  const range = useMemo(() => {
+    const start = from ?? dayjs().startOf('month').subtract(1, 'month').format('YYYY-MM-DD');
+    const end = to ?? dayjs().endOf('month').add(1, 'month').format('YYYY-MM-DD');
+    return { start, end };
+  }, [from, to]);
+
+  const { data: departments = [] } = useSuperAdminCalendarDepartments();
+
+  return useQuery({
+    queryKey: queryKeys.dashboard.calendarDeadlines(range.start, range.end),
+    queryFn: () => dashboardApi.getCalendarDeadlines(range.start, range.end).then((r) => r.data),
+    select: (deadlines): Map<string, CalendarDayEntry[]> => {
+      const deptById = new Map(departments.map((dept) => [dept.id, dept]));
+      const map = new Map<string, CalendarDayEntry[]>();
+
+      for (const entry of deadlines) {
+        if (departmentId && entry.departmentId !== departmentId) continue;
+        const dept = deptById.get(entry.departmentId);
+        if (!dept) continue;
+        const list = map.get(entry.date) ?? [];
+        list.push({
+          kind: 'dept',
+          departmentId: dept.id,
+          departmentName: dept.name,
+          color: dept.color,
+          count: entry.count,
+        });
+        map.set(entry.date, list);
+      }
+
+      for (const task of MOCK_GOVERNANCE_TASKS) {
+        if (departmentId && task.department.id !== departmentId) continue;
+        const key = dayjs(task.dueDate).format('YYYY-MM-DD');
+        const list = map.get(key) ?? [];
+        list.push({ kind: 'governance', task });
+        map.set(key, list);
+      }
+
+      return map;
+    },
+    enabled: departments.length > 0,
+    staleTime: 5 * 60 * 1_000,
   });
+};
 
 export const useSuperAdminDeptHealth = () =>
   useQuery({
-    queryKey: QK.deptHealth,
-    queryFn: superAdminCalendarService.getDeptHealth,
-    staleTime: 5 * 60 * 1000,
+    queryKey: queryKeys.dashboard.deptHealth(),
+    queryFn: () => dashboardApi.getDeptHealth().then((r) => r.data),
+    staleTime: 5 * 60 * 1_000,
   });
 
 // ─── Calendar state (month nav + selected date + Month/Agenda toggle) ────────

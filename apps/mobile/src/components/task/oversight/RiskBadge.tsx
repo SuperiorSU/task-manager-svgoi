@@ -1,10 +1,9 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
-import type { RiskLevel } from '../../../data/superAdminTasks.mock';
 import { Typography } from '../../../constants/typography';
 
-export type { RiskLevel };
+export type RiskLevel = 'HEALTHY' | 'AT_RISK' | 'CRITICAL';
 
 const RISK_META: Record<RiskLevel, { label: string; bg: string; color: string }> = {
   CRITICAL: { label: 'CRITICAL', bg: '#FEF2F2', color: '#B91C1C' },
