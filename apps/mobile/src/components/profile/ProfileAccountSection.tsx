@@ -10,9 +10,11 @@ interface ProfileAccountSectionProps {
     phone?: string;
     employeeId?: string;
   } | undefined;
+  /** Label for the read-only ID row — defaults to "Employee ID · read-only". */
+  idLabel?: string | undefined;
 }
 
-export const ProfileAccountSection = ({ profile }: ProfileAccountSectionProps) => {
+export const ProfileAccountSection = ({ profile, idLabel }: ProfileAccountSectionProps) => {
   const colors = useColors();
   return (
     <>
@@ -24,7 +26,7 @@ export const ProfileAccountSection = ({ profile }: ProfileAccountSectionProps) =
             { icon: 'phone', subLabel: 'Phone', value: profile?.phone ?? '' },
             {
               icon: 'credit-card',
-              subLabel: 'Employee ID · read-only',
+              subLabel: idLabel ?? 'Employee ID · read-only',
               value: profile?.employeeId ?? '',
               readOnly: true,
             },

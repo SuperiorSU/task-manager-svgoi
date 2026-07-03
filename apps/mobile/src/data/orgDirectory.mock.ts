@@ -98,6 +98,27 @@ export type CreateOrgDepartmentPayload = {
   defaultDueWindowDays: number;
 };
 
+// ─── User detail — account security + activity (SA "User detail", screen 68) ─
+// Kept as separate id-keyed maps rather than new OrgUser fields — additive,
+// doesn't touch createUser()'s payload shape or the 12 authored entries above.
+
+export type OrgUserActivityKind = 'ACCOUNT_CREATED' | 'ROLE_CHANGED' | 'PASSWORD_RESET' | 'SUSPENDED' | 'REACTIVATED';
+
+export type OrgUserActivityEvent = {
+  id: string;
+  kind: OrgUserActivityKind;
+  description: string;
+  createdAt: string; // ISO
+};
+
+export const ORG_USER_ACTIVITY_META: Record<OrgUserActivityKind, { dotColor: string; ringColor: string }> = {
+  ACCOUNT_CREATED: { dotColor: '#94A3B8', ringColor: '#E2E8F0' },
+  ROLE_CHANGED: { dotColor: '#4F46E5', ringColor: '#C7D2FE' },
+  PASSWORD_RESET: { dotColor: '#F59E0B', ringColor: '#FDE68A' },
+  SUSPENDED: { dotColor: '#60A5FA', ringColor: '#BFDBFE' },
+  REACTIVATED: { dotColor: '#22C55E', ringColor: '#BBF7D0' },
+};
+
 // ─── Avatar palette (two-tone: light bg + saturated text, per HTML) ───────────
 // Admin/head tier always uses the navy-indigo pair (matches the "ADMIN" role
 // badge). Employees rotate through a small pastel set for visual variety.
@@ -326,3 +347,47 @@ export const MOCK_ORG_USERS: OrgUser[] = [
     createdAt: past(300),
   },
 ];
+
+// ─── Derived security + activity seed data (deterministic, per user) ─────────
+
+const hoursAgo = (h: number) => new Date(now.getTime() - h * 3600000).toISOString();
+const IP_POOL = ['10.4.2.9', '10.4.1.18', '10.4.3.44', '10.4.2.61', '10.4.5.12'];
+
+export const MOCK_ORG_USER_SECURITY: Record<string, { lastActiveAt: string; lastActiveIp: string }> =
+  Object.fromEntries(
+    MOCK_ORG_USERS.map((u, i) => [
+      u.id,
+      {
+        // Suspended accounts can't sign in — their last session predates suspension.
+        lastActiveAt: u.status === 'SUSPENDED' ? past(9) : hoursAgo(1 + i * 3),
+        lastActiveIp: IP_POOL[i % IP_POOL.length]!,
+      },
+    ])
+  );
+
+const activityEventId = (userId: string, idx: number) => `act_${userId}_${idx}`;
+
+export const MOCK_ORG_USER_ACTIVITY: Record<string, OrgUserActivityEvent[]> = Object.fromEntries(
+  MOCK_ORG_USERS.map((u) => {
+    // Newest first — mirrors the immutable-ledger ordering used everywhere else.
+    const events: OrgUserActivityEvent[] = [
+      { id: activityEventId(u.id, 0), kind: 'ACCOUNT_CREATED', description: 'Account created', createdAt: u.createdAt },
+    ];
+    if (u.status === 'SUSPENDED') {
+      events.unshift({
+        id: activityEventId(u.id, 1),
+        kind: 'SUSPENDED',
+        description: `Suspended account · staff ID ${u.staffId}`,
+        createdAt: past(6),
+      });
+    } else if (u.role === 'EMPLOYEE') {
+      events.unshift({
+        id: activityEventId(u.id, 1),
+        kind: 'PASSWORD_RESET',
+        description: 'Password reset link sent by Super Admin',
+        createdAt: past(30),
+      });
+    }
+    return [u.id, events];
+  })
+);

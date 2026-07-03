@@ -8,6 +8,7 @@ import {
   MOCK_NOTIFICATION_PREFS,
   MOCK_ADMIN_PROFILE_USER,
   MOCK_ADMIN_PROFILE_STATS,
+  MOCK_SA_PROFILE_USER,
   type ProfileUser,
   type ProfileStats,
   type NotificationPreferences,
@@ -109,6 +110,27 @@ export const useAdminProfileStats = () =>
   useQuery({
     queryKey: adminQK.stats,
     queryFn: fetchAdminProfileStats,
+    staleTime: 5 * 60 * 1000,
+  });
+
+// ─── Super Admin profile query ─────────────────────────────────────────────────
+
+const saQK = {
+  profile: ['sa', 'profile'] as const,
+};
+
+async function fetchSuperAdminProfile(): Promise<ProfileUser> {
+  if (USE_MOCK) {
+    await new Promise((r) => setTimeout(r, 350));
+    return MOCK_SA_PROFILE_USER;
+  }
+  throw new Error('API not implemented');
+}
+
+export const useSuperAdminProfileData = () =>
+  useQuery({
+    queryKey: saQK.profile,
+    queryFn: fetchSuperAdminProfile,
     staleTime: 5 * 60 * 1000,
   });
 
