@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { usersApi, departmentsApi, dashboardApi } from '@godigitify/api-client';
+import { usersApi, departmentsApi, dashboardApi, auditApi } from '@godigitify/api-client';
 import type { UserFilters } from '@godigitify/api-client';
-import type { User, CreateDepartmentDto } from '@godigitify/types';
+import type { User, CreateDepartmentDto, AuditLogEntry } from '@godigitify/types';
 
 import { queryKeys } from '../constants/queryKeys';
 import { getInitials } from '../utils/initial';
@@ -49,6 +49,39 @@ export type OrgDepartmentWithStats = {
   createdInSession: boolean;
 };
 
+// ─── User detail — account activity + ongoing load (SA "User detail", 68) ────
+
+export type OrgUserActivityKind = 'ACCOUNT_CREATED' | 'ROLE_CHANGED' | 'PASSWORD_RESET' | 'SUSPENDED' | 'REACTIVATED' | 'PROFILE_UPDATED';
+
+export type OrgUserActivityEvent = {
+  id: string;
+  kind: OrgUserActivityKind;
+  description: string;
+  createdAt: string;
+};
+
+export const ORG_USER_ACTIVITY_META: Record<OrgUserActivityKind, { dotColor: string; ringColor: string }> = {
+  ACCOUNT_CREATED: { dotColor: '#94A3B8', ringColor: '#E2E8F0' },
+  ROLE_CHANGED: { dotColor: '#4F46E5', ringColor: '#C7D2FE' },
+  PASSWORD_RESET: { dotColor: '#F59E0B', ringColor: '#FDE68A' },
+  SUSPENDED: { dotColor: '#60A5FA', ringColor: '#BFDBFE' },
+  REACTIVATED: { dotColor: '#22C55E', ringColor: '#BBF7D0' },
+  PROFILE_UPDATED: { dotColor: '#94A3B8', ringColor: '#E2E8F0' },
+};
+
+export type OrgUserOngoingLoad =
+  | { kind: 'STAFF'; activeCount: number; overdueCount: number; onTimeRate: number; avgCycleDays: number }
+  | { kind: 'DEPT'; staffCount: number; activeCount: number; overdueCount: number; onTimeRate: number };
+
+export type OrgUserDetail = OrgUser & {
+  lastActiveAt: string;
+  lastActiveIp: string;
+  /** Employee → the dept they belong to's home screen; Admin → the dept they administer. */
+  primaryDepartmentId: string | null;
+  ongoingLoad: OrgUserOngoingLoad;
+  activityHistory: OrgUserActivityEvent[];
+};
+
 // Departments created in this session — client-only bookkeeping for the "NEW"
 // badge, since the API has no such flag.
 const sessionCreatedDeptIds = new Set<string>();
@@ -89,6 +122,26 @@ const filterToUserFilters = (filter: OrgUserFilter, search: string): UserFilters
       return base;
   }
 };
+
+// User-management mutations all log identical `action: 'UPDATE', entityType:
+// 'User'` audit entries (see users.service.ts / users.routes.ts on the API) —
+// the description text is the only signal that distinguishes them.
+const inferActivityKind = (entry: AuditLogEntry): OrgUserActivityKind => {
+  if (entry.action === 'CREATE') return 'ACCOUNT_CREATED';
+  const d = entry.description.toLowerCase();
+  if (d.includes('reactivat')) return 'REACTIVATED';
+  if (d.includes('deactivat') || d.includes('suspend')) return 'SUSPENDED';
+  if (d.includes('password reset')) return 'PASSWORD_RESET';
+  if (d.includes('role')) return 'ROLE_CHANGED';
+  return 'PROFILE_UPDATED';
+};
+
+const toActivityEvent = (entry: AuditLogEntry): OrgUserActivityEvent => ({
+  id: entry.id,
+  kind: inferActivityKind(entry),
+  description: entry.description,
+  createdAt: entry.createdAt,
+});
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
@@ -176,6 +229,65 @@ export const useOrgDepartmentRefs = () =>
     staleTime: 5 * 60 * 1000,
   });
 
+/**
+ * Full user record for the "User detail" screen (68): identity + account
+ * info + ongoing load + activity history — assembled from usersApi (identity),
+ * dashboardApi (dept-health / staff-load, the same aggregates the rest of the
+ * SA task oversight module already uses) and auditApi (activity ledger).
+ */
+export const useOrgUserDetail = (id: string) =>
+  useQuery({
+    queryKey: queryKeys.users.orgDetail(id),
+    queryFn: async () => {
+      const [{ data: user }, { data: activityPage }] = await Promise.all([
+        usersApi.getById(id),
+        auditApi.getByActor(id, 1, 25),
+      ]);
+
+      const ongoingLoad: OrgUserOngoingLoad =
+        user.role === 'ADMIN'
+          ? await (async () => {
+              const { data: depts } = await dashboardApi.getDeptHealth();
+              const dept = depts.find((d) => d.adminId === user.id);
+              return {
+                kind: 'DEPT' as const,
+                staffCount: dept?.staffCount ?? 0,
+                activeCount: dept?.activeCount ?? 0,
+                overdueCount: dept?.overdueCount ?? 0,
+                onTimeRate: dept?.onTimeRate ?? 0,
+              };
+            })()
+          : await (async () => {
+              const [{ data: stats }, { data: staffLoad }] = await Promise.all([
+                usersApi.getTaskStats(id),
+                dashboardApi.getStaffLoad(),
+              ]);
+              const load = staffLoad.find((s) => s.userId === id);
+              return {
+                kind: 'STAFF' as const,
+                activeCount: Math.max(stats.assigned - stats.completed, 0),
+                overdueCount: stats.overdue,
+                onTimeRate: stats.onTimeRate,
+                avgCycleDays: load?.avgCycleDays ?? 0,
+              };
+            })();
+
+      const lastIpEvent = activityPage.items.find((e) => e.ipAddress);
+
+      const detail: OrgUserDetail = {
+        ...toOrgUser(user),
+        lastActiveAt: user.lastLoginAt ?? user.createdAt,
+        lastActiveIp: lastIpEvent?.ipAddress ?? '—',
+        primaryDepartmentId: user.department?.id ?? null,
+        ongoingLoad,
+        activityHistory: activityPage.items.map(toActivityEvent),
+      };
+      return detail;
+    },
+    enabled: !!id,
+    staleTime: 30 * 1000,
+  });
+
 // ─── Mutations ────────────────────────────────────────────────────────────────
 
 export const useCreateOrgUser = () => {
@@ -192,10 +304,55 @@ export const useCreateOrgDepartment = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (dto: CreateDepartmentDto) => departmentsApi.create(dto),
-    onSuccess: (res) => {
-      sessionCreatedDeptIds.add(res.data.id);
+    onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.departments.list() });
-      void qc.invalidateQueries({ queryKey: queryKeys.dashboard.deptStats() });
+    },
+  });
+};
+
+/**
+ * NOTE: the backend's PATCH /users/:id whitelists only name/phone/designation/
+ * departmentId/managerId — `role` is currently accepted here but silently
+ * dropped server-side (no role-change endpoint exists yet). Wired ahead of
+ * that backend support landing rather than left unimplemented.
+ */
+export const useChangeOrgUserRole = (id: string) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (role: OrgRole) => usersApi.update(id, { role }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.users.orgDetail(id) });
+      void qc.invalidateQueries({ queryKey: queryKeys.users.all() });
+    },
+  });
+};
+
+export const useResetOrgUserPassword = (id: string) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => usersApi.resetPassword(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.users.orgDetail(id) }),
+  });
+};
+
+export const useSuspendOrgUser = (id: string) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => usersApi.deactivate(id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.users.orgDetail(id) });
+      void qc.invalidateQueries({ queryKey: queryKeys.users.all() });
+    },
+  });
+};
+
+export const useReactivateOrgUser = (id: string) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => usersApi.reactivate(id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.users.orgDetail(id) });
+      void qc.invalidateQueries({ queryKey: queryKeys.users.all() });
     },
   });
 };

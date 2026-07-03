@@ -1,10 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { authApi, usersApi, dashboardApi } from '@godigitify/api-client';
+import type { User } from '@godigitify/types';
 
 import { useAuthStore } from '../stores/auth.store';
 import { queryKeys } from '../constants/queryKeys';
 import {
   MOCK_NOTIFICATION_PREFS,
+  type ProfileUser,
   type NotificationPreferences,
 } from '../data/profile.mock';
 
@@ -72,6 +74,35 @@ export const useUpdateProfile = () => {
 
 // Admin/SA profile screens reuse useProfileData/useProfileStats above directly —
 // the backend already scopes /users/me and /dashboard/stats by the caller's role.
+
+// ─── Super Admin profile query ─────────────────────────────────────────────────
+
+const saQK = {
+  profile: ['sa', 'profile'] as const,
+};
+
+// GET /auth/me already scopes the returned profile by the caller's role, so
+// the Super Admin view hits the same endpoint as useProfileData — only the
+// response shape differs (flat ProfileUser vs raw User).
+const toProfileUser = (user: User): ProfileUser => ({
+  id: user.id,
+  name: user.name,
+  email: user.email,
+  phone: user.phone ?? '',
+  employeeId: user.employeeId ?? '—',
+  designation: user.designation ?? '',
+  department: user.department?.name ?? '',
+  role: user.role,
+  ...(user.manager?.name ? { reportingManager: user.manager.name } : {}),
+  ...(user.avatarUrl ? { avatarUrl: user.avatarUrl } : {}),
+});
+
+export const useSuperAdminProfileData = () =>
+  useQuery({
+    queryKey: saQK.profile,
+    queryFn: () => authApi.getProfile().then((r) => toProfileUser(r.data)),
+    staleTime: 5 * 60 * 1000,
+  });
 
 // ─── Change password mutation ─────────────────────────────────────────────────
 

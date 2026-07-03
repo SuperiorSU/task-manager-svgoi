@@ -2,6 +2,8 @@
 // Swap USE_MOCK = false and point fetchProfile / fetchNotificationPrefs to real
 // API calls when the backend is ready. No other file changes required.
 
+import { MOCK_AUDIT_SELF } from './audit.mock';
+
 export const USE_MOCK = true;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -21,7 +23,7 @@ export type ProfileUser = {
   designation: string;
   department: string;
   role: string;
-  reportingManager: string;
+  reportingManager?: string;
   reportingManagerRole?: string;
   avatarUrl?: string;
 };
@@ -87,6 +89,22 @@ export const MOCK_ADMIN_PROFILE_STATS: ProfileStats = {
   onTimeRate: 97,
   completed: 56,
   active: 8,
+};
+
+// ─── Super Admin mock profile ─────────────────────────────────────────────────
+// Identity reuses MOCK_AUDIT_SELF (audit.mock.ts) — the "S. Verma" account is
+// already the single source of truth for the current Super Admin's name/id
+// across the Audit and Tasks Oversight modules; not re-authored here.
+
+export const MOCK_SA_PROFILE_USER: ProfileUser = {
+  id: MOCK_AUDIT_SELF.id,
+  name: MOCK_AUDIT_SELF.name,
+  email: 's.verma@svgoi.edu',
+  phone: '+91 98220 10001',
+  employeeId: MOCK_AUDIT_SELF.employeeId ?? '',
+  designation: 'Super Administrator',
+  department: 'SVGOI',
+  role: 'Super Admin',
 };
 
 // ─── Mock notification preferences ───────────────────────────────────────────

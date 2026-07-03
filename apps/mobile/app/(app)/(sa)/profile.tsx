@@ -1,1 +1,3 @@
-export { default } from '../(tabs)/profile';
+import { SuperAdminProfileScreen } from '../../../src/screens/SuperAdminProfileScreen';
+
+export default SuperAdminProfileScreen;

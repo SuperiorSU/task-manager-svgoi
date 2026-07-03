@@ -58,7 +58,14 @@ export function SuperAdminPeopleScreen() {
     );
   }, [router, view]);
 
-  const renderUser = useCallback(({ item }: { item: OrgUser }) => <OrgUserCard user={item} />, []);
+  const goUserDetail = useCallback(
+    (user: OrgUser) => router.push(`/(app)/people/org/${user.id}` as Parameters<typeof router.push>[0]),
+    [router]
+  );
+  const renderUser = useCallback(
+    ({ item }: { item: OrgUser }) => <OrgUserCard user={item} onPress={goUserDetail} />,
+    [goUserDetail]
+  );
   const renderDept = useCallback(
     ({ item }: { item: OrgDepartmentWithStats }) => <OrgDepartmentCard department={item} />,
     []

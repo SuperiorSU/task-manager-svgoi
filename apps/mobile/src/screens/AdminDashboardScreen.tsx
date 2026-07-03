@@ -571,11 +571,11 @@ export function AdminDashboardScreen() {
             <SectionHeader
               title="Workload distribution"
               actionLabel="See all"
-              onAction={() => push('/(app)/(admin)/team')}
+              onAction={() => push('/(app)/admin-workload')}
               colors={colors}
             />
             <Pressable
-              onPress={() => push('/(app)/(admin)/team')}
+              onPress={() => push('/(app)/admin-workload')}
               style={({ pressed }) => [
                 s.workloadCard,
                 {
