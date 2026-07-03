@@ -9,7 +9,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
-import type { OrgUser, OrgRole } from '../../data/orgDirectory.mock';
+import type { OrgUser, OrgRole } from '../../hooks/useOrgDirectory';
 import { useColors } from '../../constants/colors';
 import { Spacing } from '../../constants/spacing';
 

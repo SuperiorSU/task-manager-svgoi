@@ -10,7 +10,7 @@ import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
-import type { OrgUser } from '../../data/orgDirectory.mock';
+import type { OrgUser } from '../../hooks/useOrgDirectory';
 import { useColors } from '../../constants/colors';
 
 type Mode = 'SUSPEND' | 'REACTIVATE';

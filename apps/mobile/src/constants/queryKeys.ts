@@ -21,6 +21,7 @@ export const queryKeys = {
     list: (filters?: Record<string, unknown>) => ['audit', 'list', filters] as const,
     detail: (id: string) => ['audit', 'detail', id] as const,
     verify: (id: string) => ['audit', 'verify', id] as const,
+    byActor: (actorId: string) => ['audit', 'by-actor', actorId] as const,
   },
   users: {
     all: () => ['users'] as const,
@@ -28,6 +29,7 @@ export const queryKeys = {
     profile: (id: string) => ['users', id] as const,
     taskStats: (id: string) => ['users', id, 'task-stats'] as const,
     recentTasks: (id: string) => ['users', id, 'recent-tasks'] as const,
+    orgDetail: (id: string) => ['users', id, 'org-detail'] as const,
   },
   dashboard: {
     stats: (period: string) => ['dashboard', 'stats', period] as const,

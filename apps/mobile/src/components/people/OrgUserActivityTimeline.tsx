@@ -17,8 +17,8 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 
 dayjs.extend(relativeTime);
 
-import type { OrgUserActivityEvent } from '../../data/orgDirectory.mock';
-import { ORG_USER_ACTIVITY_META } from '../../data/orgDirectory.mock';
+import type { OrgUserActivityEvent } from '../../hooks/useOrgDirectory';
+import { ORG_USER_ACTIVITY_META } from '../../hooks/useOrgDirectory';
 import { useColors } from '../../constants/colors';
 
 type Props = {

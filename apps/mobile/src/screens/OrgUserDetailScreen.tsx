@@ -20,7 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 
-import type { OrgUser } from '../data/orgDirectory.mock';
+import type { OrgUser } from '../hooks/useOrgDirectory';
 import {
   useOrgUserDetail,
   useChangeOrgUserRole,
