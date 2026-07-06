@@ -1,8 +1,9 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
+import type { GovernanceTask } from '@godigitify/types';
 
-import type { MockTask } from '../../data/tasks.mock';
 import { useColors } from '../../constants/colors';
+import { getInitials } from '../../utils/initial';
 import { TaskStatusBadge } from '../task/TaskStatusBadge';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -12,7 +13,7 @@ import { TaskStatusBadge } from '../task/TaskStatusBadge';
 // task you're tracking" signature. Used in Month/Agenda/Day-breakdown.
 
 type Props = {
-  task: MockTask;
+  task: GovernanceTask;
   subtitle: string;
   /** Fixed "YOURS" pill (month view) instead of the live status badge */
   showYoursBadge?: boolean;
@@ -39,7 +40,7 @@ export const GovernanceCalendarCard = React.memo(({ task, subtitle, showYoursBad
       <View style={[styles.stripe, { backgroundColor: colors.brand.secondary }]} />
       <View style={styles.inner}>
         <View style={[styles.avatar, { backgroundColor: colors.brand.secondary }]}>
-          <Text style={styles.initials}>{task.assignee.initials}</Text>
+          <Text style={styles.initials}>{getInitials(task.assignee.name)}</Text>
         </View>
 
         <View style={styles.content}>

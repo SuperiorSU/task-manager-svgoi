@@ -5,7 +5,7 @@
  * Step 2: Due date & time · Category · Reference attachments · Recurring
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -30,8 +30,11 @@ import * as Haptics from 'expo-haptics';
 import dayjs from 'dayjs';
 
 import type { TaskPriority, User, Department, CreateTaskDto } from '@godigitify/types';
-import { departmentsApi, usersApi, getApiClient } from '@godigitify/api-client';
-import { useCreateTask } from '../../../src/hooks/useTasks';
+import { departmentsApi, usersApi, tasksApi, getApiClient } from '@godigitify/api-client';
+import { TimePickerModal } from '../../../src/components/ui/TimePickerModal';
+import { useCreateTask, useCreateTaskBatch } from '../../../src/hooks/useTasks';
+import { useTaskDraft } from '../../../src/hooks/useTaskDraft';
+import { useDebounce } from '../../../src/hooks/useDebounce';
 import { useAuthStore } from '../../../src/stores/auth.store';
 import { useColors } from '../../../src/constants/colors';
 import { Typography } from '../../../src/constants/typography';
@@ -147,6 +150,7 @@ export default function CreateTaskScreen() {
   // ── Remote data ──────────────────────────────────────────────────────────
   const currentUser = useAuthStore((s) => s.user);
   const createTask = useCreateTask();
+  const createTaskBatch = useCreateTaskBatch();
 
   const [departments, setDepartments] = useState<Department[]>([]);
   const [deptUsers, setDeptUsers] = useState<User[]>([]);
@@ -156,6 +160,7 @@ export default function CreateTaskScreen() {
   // ── Step 1 form fields ────────────────────────────────────────────────────
   const [title, setTitle] = useState('');
   const [titleError, setTitleError] = useState('');
+  const [duplicateTitleWarning, setDuplicateTitleWarning] = useState('');
   const [description, setDescription] = useState('');
   const [departmentId, setDepartmentId] = useState(currentUser?.departmentId ?? '');
   const [assignees, setAssignees] = useState<User[]>([]);
@@ -180,6 +185,71 @@ export default function CreateTaskScreen() {
 
   // ── Submitting ────────────────────────────────────────────────────────────
   const [submitting, setSubmitting] = useState(false);
+
+  // ── Draft crash-resilience ──────────────────────────────────────────────────
+  const { hydrated: draftHydrated, draft, saveDraft, clearDraft } = useTaskDraft(currentUser?.id);
+  const [draftRestored, setDraftRestored] = useState(false);
+  const draftApplied = useRef(false);
+
+  // Restore a saved draft once, after storage has loaded.
+  useEffect(() => {
+    if (!draftHydrated || draftApplied.current) return;
+    draftApplied.current = true;
+    if (!draft) return;
+    setTitle(draft.title);
+    setDescription(draft.description);
+    setDepartmentId(draft.departmentId);
+    setAssignees(draft.assignees);
+    setPriority(draft.priority);
+    setPickedDate(dayjs(draft.pickedDate));
+    setDueHour(draft.dueHour);
+    setDueMinute(draft.dueMinute);
+    setIsAfternoon(draft.isAfternoon);
+    setCategoryIds(draft.categoryIds);
+    setIsRecurring(draft.isRecurring);
+    setDraftRestored(true);
+  }, [draftHydrated, draft]);
+
+  // Auto-save (debounced inside the hook). Skips a pristine/empty form so we
+  // don't persist a blank draft just from opening the screen.
+  useEffect(() => {
+    if (!draftHydrated) return;
+    const pristine =
+      !title.trim() && !description.trim() && assignees.length === 0 && categoryIds.length === 0 && !isRecurring;
+    if (pristine) return;
+    saveDraft({
+      title,
+      description,
+      departmentId,
+      assignees,
+      priority,
+      pickedDate: pickedDate.toISOString(),
+      dueHour,
+      dueMinute,
+      isAfternoon,
+      categoryIds,
+      isRecurring,
+    });
+  }, [
+    draftHydrated, title, description, departmentId, assignees, priority,
+    pickedDate, dueHour, dueMinute, isAfternoon, categoryIds, isRecurring, saveDraft,
+  ]);
+
+  const handleDiscardDraft = useCallback(() => {
+    setTitle('');
+    setDescription('');
+    setDepartmentId(currentUser?.departmentId ?? '');
+    setAssignees([]);
+    setPriority('MEDIUM');
+    setPickedDate(dayjs().add(1, 'day'));
+    setDueHour(5);
+    setDueMinute(0);
+    setIsAfternoon(true);
+    setCategoryIds([]);
+    setIsRecurring(false);
+    clearDraft();
+    setDraftRestored(false);
+  }, [clearDraft, currentUser?.departmentId]);
 
   // ─── Load departments on mount ────────────────────────────────────────────
   useEffect(() => {
@@ -207,15 +277,41 @@ export default function CreateTaskScreen() {
     void (async () => {
       const res = await usersApi.getList({ departmentId, isActive: true, limit: 100 });
       if (mounted) {
-        setDeptUsers(res.data.items);
+        // Exclude the current user — the person creating the task never
+        // belongs in their own assignee picker (same class of bug fixed
+        // earlier for the People list — see useOrgUsers).
+        const assignable = res.data.items.filter((u) => u.id !== currentUser?.id);
+        setDeptUsers(assignable);
         // Remove selected assignees who are no longer in this dept
         setAssignees((prev) =>
-          prev.filter((a) => res.data.items.some((u) => u.id === a.id)),
+          prev.filter((a) => assignable.some((u) => u.id === a.id)),
         );
       }
     })();
     return () => { mounted = false; };
-  }, [departmentId]);
+  }, [departmentId, currentUser?.id]);
+
+  // ─── Duplicate-title check (§4.7: "warn, not block", same dept this month) ─
+  const debouncedTitle = useDebounce(title.trim(), 400);
+  useEffect(() => {
+    if (!debouncedTitle || !departmentId) {
+      setDuplicateTitleWarning('');
+      return;
+    }
+    let mounted = true;
+    void (async () => {
+      // No creation-date filter on GET /tasks — fetch by dept + title search,
+      // then narrow to "this month" client-side using each task's createdAt.
+      const res = await tasksApi.getList({ departmentId, search: debouncedTitle, limit: 10 });
+      if (!mounted) return;
+      const monthStart = dayjs().startOf('month');
+      const exists = res.data.some(
+        (t) => t.title.trim().toLowerCase() === debouncedTitle.toLowerCase() && dayjs(t.createdAt).isAfter(monthStart)
+      );
+      setDuplicateTitleWarning(exists ? 'A task with this title already exists in this department this month' : '');
+    })();
+    return () => { mounted = false; };
+  }, [debouncedTitle, departmentId]);
 
   // ─── Step 1 → Step 2 validation ──────────────────────────────────────────
   const validateStep1 = (): boolean => {
@@ -295,31 +391,49 @@ export default function CreateTaskScreen() {
 
     setSubmitting(true);
     try {
-      // One task per assignee — the backend models a single assignee per task.
-      const created = await Promise.all(
-        assignees.map((assignee) => {
-          const dto: CreateTaskDto = {
-            title: title.trim(),
-            priority,
-            dueDate,
-            assigneeId: assignee.id,
-            ...(fullDescription ? { description: fullDescription } : {}),
-            ...(departmentId ? { departmentId } : {}),
-            ...(isRecurring ? { isRecurring: true } : {}),
-          };
-          return createTask.mutateAsync(dto);
-        }),
-      );
+      let createdTaskIds: string[];
 
-      if (attachments.length > 0) {
-        await Promise.all(created.map((res) => uploadAttachmentsTo(res.data.id)));
+      if (assignees.length > 1) {
+        // Duplicate-to-team (FR-23): one shared batchId so the Batch
+        // Progress screens can track every copy as one group — each
+        // assignee still gets their own isolated, independent task.
+        const batchRes = await createTaskBatch.mutateAsync({
+          title: title.trim(),
+          priority,
+          dueDate,
+          assigneeIds: assignees.map((a) => a.id),
+          ...(fullDescription ? { description: fullDescription } : {}),
+          ...(departmentId ? { departmentId } : {}),
+        });
+        const summary = await tasksApi.getBatchSummary(batchRes.data.id);
+        createdTaskIds = summary.data.members.map((m) => m.id);
+      } else {
+        // Single assignee — plain task, no batch overhead.
+        const dto: CreateTaskDto = {
+          title: title.trim(),
+          priority,
+          dueDate,
+          assigneeId: assignees[0]!.id,
+          ...(fullDescription ? { description: fullDescription } : {}),
+          ...(departmentId ? { departmentId } : {}),
+          ...(isRecurring ? { isRecurring: true } : {}),
+        };
+        const res = await createTask.mutateAsync(dto);
+        createdTaskIds = [res.data.id];
       }
 
+      if (attachments.length > 0) {
+        await Promise.all(createdTaskIds.map((id) => uploadAttachmentsTo(id)));
+      }
+
+      clearDraft();
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Something went wrong';
-      Alert.alert('Error', msg);
+    } catch {
+      // Creation itself already shows an error toast via useApiMutation
+      // (useCreateTask/useCreateTaskBatch). The rarer case — creation
+      // succeeds but the batch-summary lookup right after it fails — is
+      // best-effort, same tolerance as the attachment upload step below.
     } finally {
       setSubmitting(false);
     }
@@ -418,6 +532,18 @@ export default function CreateTaskScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          {draftRestored && step === 1 && (
+            <View style={[s.draftBanner, { backgroundColor: C.brand.primaryLight, borderColor: C.brand.primary }]}>
+              <Feather name="rotate-ccw" size={15} color={C.brand.primary} />
+              <Text style={[s.draftBannerText, { color: C.text.secondary }]}>
+                Draft restored from your last session
+              </Text>
+              <Pressable onPress={handleDiscardDraft} hitSlop={8} accessibilityRole="button" accessibilityLabel="Discard draft">
+                <Text style={[s.draftBannerAction, { color: C.brand.primary }]}>Discard</Text>
+              </Pressable>
+            </View>
+          )}
+
           {dataLoading ? (
             <View style={s.loadingCenter}>
               <ActivityIndicator color={C.brand.primary} size="large" />
@@ -427,11 +553,13 @@ export default function CreateTaskScreen() {
               C={C}
               title={title}
               titleError={titleError}
+              duplicateTitleWarning={duplicateTitleWarning}
               onTitleChange={(t) => { setTitle(t); if (t.trim()) setTitleError(''); }}
               description={description}
               onDescriptionChange={setDescription}
               departmentName={departmentName}
               onDeptPress={() => setShowDeptPicker(true)}
+              isCrossDept={currentUser?.role === 'ADMIN' && !!departmentId && departmentId !== currentUser?.departmentId}
               assignees={assignees}
               assigneeError={assigneeError}
               onAddAssigneePress={() => setShowAssigneePicker(true)}
@@ -547,7 +675,7 @@ export default function CreateTaskScreen() {
           setShowTimePicker(false);
         }}
         onClose={() => setShowTimePicker(false)}
-        C={C}
+        colors={C}
       />
     </View>
   );
@@ -561,11 +689,13 @@ type Step1Props = {
   C: ColorsShape;
   title: string;
   titleError: string;
+  duplicateTitleWarning: string;
   onTitleChange: (v: string) => void;
   description: string;
   onDescriptionChange: (v: string) => void;
   departmentName: string;
   onDeptPress: () => void;
+  isCrossDept: boolean;
   assignees: User[];
   assigneeError: string;
   onAddAssigneePress: () => void;
@@ -575,9 +705,9 @@ type Step1Props = {
 };
 
 function Step1({
-  C, title, titleError, onTitleChange,
+  C, title, titleError, duplicateTitleWarning, onTitleChange,
   description, onDescriptionChange,
-  departmentName, onDeptPress,
+  departmentName, onDeptPress, isCrossDept,
   assignees, assigneeError, onAddAssigneePress, onRemoveAssignee,
   priority, onPriorityChange,
 }: Step1Props) {
@@ -615,6 +745,7 @@ function Step1({
         )}
       </View>
       {!!titleError && <FieldError msg={titleError} />}
+      {!titleError && !!duplicateTitleWarning && <FieldError msg={duplicateTitleWarning} warning />}
 
       {/* Description */}
       <FieldLabel label="Description" topSpacing />
@@ -654,6 +785,14 @@ function Step1({
         <Text style={[s.selectText, { color: C.text.primary }]}>{departmentName}</Text>
         <Feather name="chevron-down" size={18} color={C.text.tertiary} />
       </Pressable>
+      {isCrossDept && (
+        <View style={[s.crossDeptChip, { backgroundColor: C.brand.primaryLight }]}>
+          <Feather name="info" size={13} color={C.brand.primary} />
+          <Text style={[s.crossDeptChipText, { color: C.brand.primaryDark }]}>
+            This task will be assigned outside your department
+          </Text>
+        </View>
+      )}
 
       {/* Assign to */}
       <FieldLabel label="Assign to" topSpacing />
@@ -951,11 +1090,12 @@ function FieldLabel({ label, topSpacing }: { label: string; topSpacing?: boolean
   );
 }
 
-function FieldError({ msg }: { msg: string }) {
+function FieldError({ msg, warning }: { msg: string; warning?: boolean }) {
+  const color = warning ? '#B45309' : '#EF4444';
   return (
     <View style={s.errorRow}>
-      <Feather name="alert-circle" size={12} color="#EF4444" />
-      <Text style={s.errorText}>{msg}</Text>
+      <Feather name="alert-circle" size={12} color={color} />
+      <Text style={[s.errorText, { color }]}>{msg}</Text>
     </View>
   );
 }
@@ -1251,137 +1391,6 @@ function DatePickerModal({ visible, selected, onConfirm, onClose, C }: DatePicke
 
 // ─── Time picker modal ────────────────────────────────────────────────────────
 
-type TimePickerProps = {
-  visible: boolean;
-  hour: number;
-  minute: number;
-  isAfternoon: boolean;
-  onConfirm: (h: number, m: number, pm: boolean) => void;
-  onClose: () => void;
-  C: ColorsShape;
-};
-
-const MINUTE_STEPS = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
-
-function TimePickerModal({ visible, hour, minute, isAfternoon, onConfirm, onClose, C }: TimePickerProps) {
-  const [draftHour, setDraftHour] = useState(hour);
-  const [draftMin, setDraftMin] = useState(minute);
-  const [draftPm, setDraftPm] = useState(isAfternoon);
-
-  useEffect(() => {
-    if (visible) {
-      setDraftHour(hour);
-      setDraftMin(minute);
-      setDraftPm(isAfternoon);
-    }
-  }, [visible, hour, minute, isAfternoon]);
-
-  const stepHour = (delta: number) =>
-    setDraftHour((h) => {
-      let next = h + delta;
-      if (next < 1) next = 12;
-      if (next > 12) next = 1;
-      return next;
-    });
-
-  const stepMin = (delta: number) =>
-    setDraftMin((m) => {
-      const idx = MINUTE_STEPS.indexOf(m);
-      let nextIdx = idx + delta;
-      if (nextIdx < 0) nextIdx = MINUTE_STEPS.length - 1;
-      if (nextIdx >= MINUTE_STEPS.length) nextIdx = 0;
-      return MINUTE_STEPS[nextIdx] ?? 0;
-    });
-
-  const label = `${draftHour}:${String(draftMin).padStart(2, '0')} ${draftPm ? 'PM' : 'AM'}`;
-
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
-      <Pressable style={s.modalBackdrop} onPress={onClose}>
-        <Pressable
-          style={[s.modalSheet, { backgroundColor: C.surface.card }]}
-          onPress={(e) => e.stopPropagation()}
-        >
-          <View style={[s.modalHandle, { backgroundColor: C.surface.border }]} />
-          <Text style={[s.modalTitle, { color: C.text.primary }]}>Select Time</Text>
-
-          <View style={s.timePicker}>
-            {/* Hour */}
-            <DrumColumn
-              label="Hour"
-              value={String(draftHour)}
-              onUp={() => stepHour(1)}
-              onDown={() => stepHour(-1)}
-              C={C}
-            />
-            <Text style={[s.timeSep, { color: C.text.primary }]}>:</Text>
-            {/* Minute */}
-            <DrumColumn
-              label="Min"
-              value={String(draftMin).padStart(2, '0')}
-              onUp={() => stepMin(1)}
-              onDown={() => stepMin(-1)}
-              C={C}
-            />
-            {/* AM / PM */}
-            <View style={s.ampmCol}>
-              <Text style={[s.drumLabel, { color: C.text.tertiary }]}>Period</Text>
-              <Pressable
-                onPress={() => { void Haptics.selectionAsync(); setDraftPm((v) => !v); }}
-                style={[s.ampmToggle, { borderColor: C.brand.primary, backgroundColor: C.brand.primaryLight }]}
-                accessibilityRole="button"
-                accessibilityLabel={draftPm ? 'PM, tap to switch to AM' : 'AM, tap to switch to PM'}
-              >
-                <Text style={[s.ampmText, { color: C.brand.primary }]}>{draftPm ? 'PM' : 'AM'}</Text>
-              </Pressable>
-            </View>
-          </View>
-
-          <Pressable
-            onPress={() => onConfirm(draftHour, draftMin, draftPm)}
-            style={[s.modalConfirmBtn, { backgroundColor: C.brand.primary }]}
-            accessibilityRole="button"
-            accessibilityLabel={`Confirm time ${label}`}
-          >
-            <Text style={s.modalConfirmText}>Confirm — {label}</Text>
-          </Pressable>
-        </Pressable>
-      </Pressable>
-    </Modal>
-  );
-}
-
-// ─── Drum column (for time picker) ───────────────────────────────────────────
-
-function DrumColumn({
-  label, value, onUp, onDown, C,
-}: { label: string; value: string; onUp: () => void; onDown: () => void; C: ColorsShape }) {
-  return (
-    <View style={s.drumCol}>
-      <Text style={[s.drumLabel, { color: C.text.tertiary }]}>{label}</Text>
-      <Pressable
-        onPress={() => { void Haptics.selectionAsync(); onUp(); }}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        accessibilityRole="button"
-        accessibilityLabel={`Increase ${label}`}
-      >
-        <Feather name="chevron-up" size={22} color={C.brand.primary} />
-      </Pressable>
-      <View style={[s.drumValueBox, { borderColor: C.surface.border, backgroundColor: C.surface.background }]}>
-        <Text style={[s.drumValue, { color: C.text.primary }]}>{value}</Text>
-      </View>
-      <Pressable
-        onPress={() => { void Haptics.selectionAsync(); onDown(); }}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        accessibilityRole="button"
-        accessibilityLabel={`Decrease ${label}`}
-      >
-        <Feather name="chevron-down" size={22} color={C.brand.primary} />
-      </Pressable>
-    </View>
-  );
-}
-
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
@@ -1434,6 +1443,18 @@ const s = StyleSheet.create({
   scroll: { padding: 20 },
   stepContent: { gap: 0 },
   loadingCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
+  draftBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 14,
+  },
+  draftBannerText: { flex: 1, fontSize: 12.5, fontFamily: 'Inter-Medium' },
+  draftBannerAction: { fontSize: 12.5, fontFamily: 'Inter-SemiBold' },
 
   // Footer
   footer: {
@@ -1525,6 +1546,20 @@ const s = StyleSheet.create({
   selectText: {
     ...Typography.bodyMd,
     fontFamily: 'Inter-Regular',
+  },
+  crossDeptChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  crossDeptChipText: {
+    ...Typography.captionSm,
+    fontFamily: 'Inter-Medium',
+    flexShrink: 1,
   },
 
   // Assignee row

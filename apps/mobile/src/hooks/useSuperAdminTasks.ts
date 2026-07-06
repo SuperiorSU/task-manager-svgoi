@@ -1,20 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { dashboardApi, tasksApi } from '@godigitify/api-client';
-import type { DeptHealth, Escalation, EscalationType, RichTask, StaffLoad } from '@godigitify/types';
+import type { DeptHealth, Escalation, EscalationType, GovernanceTask, RichTask, StaffLoad } from '@godigitify/types';
 
 import { queryKeys } from '../constants/queryKeys';
 import { getInitials } from '../utils/initial';
 import { avatarPalette } from '../utils/avatarPalette';
-import { superAdminTasksService } from '../services/superAdminTasks.service';
-
-// Governance-only query key — dept-health/staff-load/escalations use the
-// shared `queryKeys.dashboard.*` builders instead (real dashboard endpoints).
-// Governance task detail/create/approve/revise now live in useGovernance.ts
-// (real governanceApi) — only the groups summary below is still mock-backed.
-const QK = {
-  governanceGroups: ['sa', 'tasks', 'governance'] as const,
-};
+import { useGovernanceTasks } from './useGovernance';
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
@@ -302,15 +294,41 @@ export const useStaffTaskDetail = (taskId: string) => {
   };
 };
 
-// ─── Governance summary tile (aggregate oversight tab) — still mock-backed ──
-// Only the grouped-counts summary used by the org-wide oversight tab remains
-// here; the SA's own governance list/detail/create/approve/revise flow
-// (GovernanceTasksScreen and friends) now uses useGovernance.ts against the
-// real governanceApi.
+// ─── Governance summary tile (aggregate oversight tab, real data) ───────────
+// Grouped-counts summary used by the org-wide oversight tab's "Assigned by
+// me" tile, derived client-side from the same real governanceApi.getList()
+// the SA's own governance list/detail/create/approve/revise flow
+// (GovernanceTasksScreen and friends, via useGovernance.ts) already uses.
 
-export const useGovernanceTaskGroups = () =>
-  useQuery({
-    queryKey: QK.governanceGroups,
-    queryFn: superAdminTasksService.getGovernanceTaskGroups,
-    staleTime: 60 * 1000,
-  });
+export type GovernanceTaskGroup = {
+  id: 'needs_approval' | 'in_progress' | 'awaiting_accept';
+  label: string;
+  count: number;
+  tasks: GovernanceTask[];
+};
+
+function groupGovernanceTasks(tasks: GovernanceTask[]): GovernanceTaskGroup[] {
+  const needsApproval = tasks.filter((t) => t.status === 'UNDER_REVIEW');
+  const inProgress = tasks.filter((t) => t.status === 'IN_PROGRESS' || t.status === 'ACCEPTED');
+  const awaitingAccept = tasks.filter((t) => t.status === 'PENDING');
+
+  const groups: GovernanceTaskGroup[] = [];
+  if (needsApproval.length) {
+    groups.push({ id: 'needs_approval', label: 'Needs your approval', count: needsApproval.length, tasks: needsApproval });
+  }
+  if (inProgress.length) {
+    groups.push({ id: 'in_progress', label: 'In progress', count: inProgress.length, tasks: inProgress });
+  }
+  if (awaitingAccept.length) {
+    groups.push({ id: 'awaiting_accept', label: 'Awaiting accept', count: awaitingAccept.length, tasks: awaitingAccept });
+  }
+  return groups;
+}
+
+export const useGovernanceTaskGroups = () => {
+  const tasksQuery = useGovernanceTasks();
+  return {
+    ...tasksQuery,
+    data: tasksQuery.data ? groupGovernanceTasks(tasksQuery.data) : undefined,
+  };
+};

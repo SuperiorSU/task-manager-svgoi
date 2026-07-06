@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { notificationsApi } from '@godigitify/api-client';
 
 import { queryKeys } from '../constants/queryKeys';
 import { useNotificationStore } from '../stores/notification.store';
+import { useApiMutation } from './useApiMutation';
 
 export const useNotificationList = () =>
   useQuery({
@@ -33,7 +34,7 @@ export const useUnreadCount = () => {
 export const useMarkRead = () => {
   const qc = useQueryClient();
   const { decrementUnread } = useNotificationStore();
-  return useMutation({
+  return useApiMutation({
     mutationFn: (id: string) => notificationsApi.markRead(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.notifications.list() });
@@ -46,7 +47,7 @@ export const useMarkRead = () => {
 export const useMarkAllRead = () => {
   const qc = useQueryClient();
   const { clearUnread } = useNotificationStore();
-  return useMutation({
+  return useApiMutation({
     mutationFn: () => notificationsApi.markAllRead(),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.notifications.list() });

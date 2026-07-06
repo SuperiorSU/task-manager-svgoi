@@ -21,3 +21,22 @@ export type Notification = {
   taskId?: string;
   createdAt: string;
 };
+
+export type NotificationPreferences = {
+  id: string;
+  userId: string;
+  inAppEnabled: boolean;
+  emailEnabled: boolean;
+  pushEnabled: boolean;
+  /** NotificationTypes the user has turned off — empty means everything is enabled. */
+  mutedTypes: NotificationType[];
+  quietHoursEnabled: boolean;
+  quietHoursStart: string;
+  quietHoursEnd: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type UpdateNotificationPreferencesDto = Partial<
+  Omit<NotificationPreferences, 'id' | 'userId' | 'createdAt' | 'updatedAt'>
+>;

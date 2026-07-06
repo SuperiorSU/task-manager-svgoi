@@ -1,31 +1,28 @@
 /**
- * Batch / Group Progress Service
+ * Batch / Group Progress — display-shape transform.
  *
  * A "batch" is what the Create Task flow produces when an Admin duplicates
  * one task to multiple people (FR-23) — N independent, single-assignee task
- * copies that share a `batchId`. Nothing here introduces a new multi-assignee
- * task model; it purely aggregates existing MockTask records for reporting.
- *
- * Mock implementation — swap the body of each method for real API calls
- * (e.g. GET /tasks?batchId=… ) when the backend is ready. Signatures mirror
- * what the production API client will expose.
+ * copies that share a `batchId`. GET /tasks/batch/:id (via `useBatchProgress`
+ * → `tasksApi.getBatchSummary`) returns the real members (`RichTask[]`) plus
+ * a `TaskBatch` header record; this file only reshapes that response into
+ * the friendlier 5-bucket status taxonomy + per-member sub-labels the batch
+ * screens render — no mock data.
  */
 
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 
-import type { TaskPriority } from '@godigitify/types';
-import { MOCK_TASKS, type MockTask, type MockDepartment } from '../data/tasks.mock';
-import { adminTasksService } from './adminTasks.service';
+import type { RichTask, TaskPriority, BatchProgressSummary as ApiBatchProgressSummary } from '@godigitify/types';
 
 dayjs.extend(relativeTime);
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Display types ────────────────────────────────────────────────────────────
 
 export type BatchMemberStatus = 'NOT_STARTED' | 'ACTIVE' | 'REVIEW' | 'DONE' | 'CANCELLED';
 
 export type BatchMemberProgress = {
-  task: MockTask;
+  task: RichTask;
   status: BatchMemberStatus;
   statusLabel: string;
   subLabel: string;
@@ -45,7 +42,7 @@ export type BatchProgressSummary = {
   batchId: string;
   title: string;
   priority: TaskPriority;
-  department: MockDepartment;
+  department: RichTask['department'];
   dueDate: string;
   isolationNote: string;
   totalMembers: number;
@@ -57,14 +54,9 @@ export type BatchProgressSummary = {
 
 export type BatchSortBy = 'status' | 'name';
 
-const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-
 // ─── Status derivation ─────────────────────────────────────────────────────────
 
-const STATUS_CONFIG: Record<
-  BatchMemberStatus,
-  { label: string; barColor: string }
-> = {
+const STATUS_CONFIG: Record<BatchMemberStatus, { label: string; barColor: string }> = {
   REVIEW:      { label: 'REVIEW',   barColor: '#7C3AED' },
   DONE:        { label: 'DONE',     barColor: '#16A34A' },
   ACTIVE:      { label: 'ACTIVE',   barColor: '#F59E0B' },
@@ -81,7 +73,7 @@ const STATUS_SORT_ORDER: Record<BatchMemberStatus, number> = {
   CANCELLED: 4,
 };
 
-function deriveStatus(task: MockTask): BatchMemberStatus {
+function deriveStatus(task: RichTask): BatchMemberStatus {
   switch (task.status) {
     case 'UNDER_REVIEW': return 'REVIEW';
     case 'COMPLETED': return 'DONE';
@@ -93,23 +85,35 @@ function deriveStatus(task: MockTask): BatchMemberStatus {
   }
 }
 
-function deriveSubLabel(task: MockTask, status: BatchMemberStatus, proofCount: number): { subLabel: string; isAtRisk: boolean } {
+/**
+ * `_count.attachments` is a total (references + proof combined) — RichTask's
+ * list shape doesn't break that down further, and fetching each member's
+ * attachments individually would be an N+1 call per batch. Close enough for
+ * a roster sub-label; the member-copy screen (which fetches one task's real
+ * attachments via useTaskAttachments) is the source of truth for proof count.
+ */
+function deriveSubLabel(
+  task: RichTask,
+  status: BatchMemberStatus,
+  attachmentCount: number
+): { subLabel: string; isAtRisk: boolean } {
   switch (status) {
     case 'REVIEW': {
-      const lastActivity = task.activity[task.activity.length - 1];
-      const ts = lastActivity?.createdAt ?? task.createdAt;
-      return { subLabel: `Submitted ${dayjs(ts).fromNow()} · ${proofCount} file${proofCount === 1 ? '' : 's'}`, isAtRisk: false };
+      return {
+        subLabel: `Submitted ${dayjs(task.updatedAt).fromNow()} · ${attachmentCount} file${attachmentCount === 1 ? '' : 's'}`,
+        isAtRisk: false,
+      };
     }
     case 'DONE': {
-      const ts = task.completedAt ?? task.createdAt;
+      const ts = task.completedAt ?? task.updatedAt;
       const onTime = task.completedAt ? dayjs(task.completedAt).isBefore(dayjs(task.dueDate)) : true;
       return { subLabel: `Approved ${dayjs(ts).fromNow()} · ${onTime ? 'on time' : 'late'}`, isAtRisk: false };
     }
     case 'ACTIVE': {
-      if (proofCount === 0) {
+      if (attachmentCount === 0) {
         return { subLabel: 'Accepted · no upload yet', isAtRisk: true };
       }
-      return { subLabel: `Accepted · ${proofCount} file${proofCount === 1 ? '' : 's'} uploaded`, isAtRisk: false };
+      return { subLabel: `Accepted · ${attachmentCount} file${attachmentCount === 1 ? '' : 's'} uploaded`, isAtRisk: false };
     }
     case 'NOT_STARTED': {
       const idleDays = dayjs().diff(dayjs(task.createdAt), 'day');
@@ -124,17 +128,17 @@ function deriveSubLabel(task: MockTask, status: BatchMemberStatus, proofCount: n
   }
 }
 
-function toMemberProgress(task: MockTask): BatchMemberProgress {
+function toMemberProgress(task: RichTask): BatchMemberProgress {
   const status = deriveStatus(task);
-  const proofCount = task.attachments.filter((a) => a.isProof).length;
-  const { subLabel, isAtRisk } = deriveSubLabel(task, status, proofCount);
+  const attachmentCount = task._count.attachments;
+  const { subLabel, isAtRisk } = deriveSubLabel(task, status, attachmentCount);
   return {
     task,
     status,
     statusLabel: STATUS_CONFIG[status].label,
     subLabel,
     isAtRisk,
-    proofCount,
+    proofCount: attachmentCount,
   };
 }
 
@@ -150,90 +154,39 @@ export function sortBatchMembers(members: BatchMemberProgress[], sortBy: BatchSo
   return sorted;
 }
 
-// ─── Service ─────────────────────────────────────────────────────────────────
+// ─── Transform: real API response → display shape ─────────────────────────────
 
-export const batchProgressService = {
-  /**
-   * Helper: does this task belong to a duplicated batch? Returns the
-   * batchId if so — used by the task detail screen to surface a
-   * "View batch progress" entry point.
-   */
-  getBatchIdForTask(taskId: string): string | undefined {
-    return MOCK_TASKS.find((t) => t.id === taskId)?.batchId;
-  },
+export function toBatchDisplaySummary(raw: ApiBatchProgressSummary): BatchProgressSummary {
+  const members = raw.members.map(toMemberProgress);
+  const first = raw.members[0];
 
-  /**
-   * GET /tasks/batch/:batchId
-   * Aggregates every member copy that shares a batchId into a single
-   * progress summary (overall completion + per-member roster).
-   */
-  async getBatchSummary(batchId: string): Promise<BatchProgressSummary | null> {
-    await delay(400);
-    const tasks = MOCK_TASKS.filter((t) => t.batchId === batchId);
-    if (tasks.length === 0) return null;
+  const counts: Record<BatchMemberStatus, number> = {
+    REVIEW: 0, DONE: 0, ACTIVE: 0, NOT_STARTED: 0, CANCELLED: 0,
+  };
+  members.forEach((m) => { counts[m.status] += 1; });
 
-    const first = tasks[0]!;
-    const members = tasks.map(toMemberProgress);
+  const total = members.length;
+  const segments: BatchSegment[] = (['DONE', 'REVIEW', 'ACTIVE', 'NOT_STARTED', 'CANCELLED'] as const)
+    .filter((status) => counts[status] > 0)
+    .map((status) => ({
+      status,
+      label: STATUS_CONFIG[status].label,
+      count: counts[status],
+      percent: total > 0 ? (counts[status] / total) * 100 : 0,
+      color: STATUS_CONFIG[status].barColor,
+    }));
 
-    const counts: Record<BatchMemberStatus, number> = {
-      REVIEW: 0, DONE: 0, ACTIVE: 0, NOT_STARTED: 0, CANCELLED: 0,
-    };
-    members.forEach((m) => { counts[m.status] += 1; });
-
-    const total = members.length;
-    const segments: BatchSegment[] = (['DONE', 'REVIEW', 'ACTIVE', 'NOT_STARTED', 'CANCELLED'] as const)
-      .filter((status) => counts[status] > 0)
-      .map((status) => ({
-        status,
-        label: STATUS_CONFIG[status].label,
-        count: counts[status],
-        percent: (counts[status] / total) * 100,
-        color: STATUS_CONFIG[status].barColor,
-      }));
-
-    return {
-      batchId,
-      title: first.title,
-      priority: first.priority,
-      department: first.department,
-      dueDate: first.dueDate,
-      isolationNote: "Each copy is private — members can't see one another's tasks or proof.",
-      totalMembers: total,
-      doneCount: counts.DONE,
-      segments,
-      members,
-      atRiskCount: members.filter((m) => m.isAtRisk).length,
-    };
-  },
-
-  /**
-   * POST /tasks/batch/:batchId/nudge
-   * Sends a reminder push notification to every member behind schedule.
-   * Mock: writes a TaskActivity entry to each at-risk member's task.
-   */
-  async nudgeStragglers(batchId: string): Promise<{ notifiedCount: number }> {
-    await delay(600);
-    const tasks = MOCK_TASKS.filter((t) => t.batchId === batchId);
-    const members = tasks.map(toMemberProgress).filter((m) => m.isAtRisk);
-
-    members.forEach((m) => {
-      m.task.activity.push({
-        id: `act_${Date.now()}_${m.task.id}`,
-        action: 'UPDATE',
-        description: 'Reminder sent by admin — please update your progress',
-        actor: m.task.creator,
-        createdAt: dayjs().toISOString(),
-      });
-    });
-
-    return { notifiedCount: members.length };
-  },
-
-  /**
-   * Approve / request revision on one member's copy — delegates to the
-   * same admin task service used for single-assignee review, since a
-   * batch member's task is a normal MockTask under the hood.
-   */
-  approveMember: (taskId: string) => adminTasksService.approveTask(taskId),
-  requestMemberRevision: (taskId: string, note: string) => adminTasksService.requestRevision(taskId, note),
-};
+  return {
+    batchId: raw.batch.id,
+    title: raw.batch.title,
+    priority: raw.batch.priority,
+    department: first?.department ?? null,
+    dueDate: raw.batch.dueDate,
+    isolationNote: raw.batch.isolationNote ?? "Each copy is private — members can't see one another's tasks or proof.",
+    totalMembers: total,
+    doneCount: counts.DONE,
+    segments,
+    members,
+    atRiskCount: members.filter((m) => m.isAtRisk).length,
+  };
+}

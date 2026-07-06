@@ -6,6 +6,8 @@ export * from './task.types';
 export * from './user.types';
 export * from './audit.types';
 export * from './dashboard.types';
+export * from './organization.types';
+export * from './report.types';
 export * from './schemas/auth.schema';
 export * from './schemas/task.schema';
 export * from './schemas/user.schema';

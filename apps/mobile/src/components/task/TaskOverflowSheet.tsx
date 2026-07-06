@@ -24,7 +24,8 @@ export type OverflowAction =
   | 'mark_complete'
   | 'upload_proof'
   | 'add_comment'
-  | 'share'
+  | 'reassign'
+  | 'cancel'
   | 'delete';
 
 /** Minimal shape the overflow sheet needs from a task */
@@ -32,6 +33,23 @@ export type TaskOverflowItem = {
   id: string;
   title: string;
   status: TaskStatus;
+};
+
+/**
+ * Client-side hints only — the server is the real gate for all of these
+ * (tasks.service.ts: updateStatus/assign both re-check creator-or-SUPER_ADMIN,
+ * and TASK_DELETE isn't even granted to ADMIN in permissions.ts). This just
+ * keeps the sheet from *offering* an action that would 403 anyway.
+ */
+export type TaskOverflowPermissions = {
+  /** Approve & Complete — task creator only. */
+  canMarkComplete: boolean;
+  /** Cancel — task creator or SUPER_ADMIN only. */
+  canCancel: boolean;
+  /** Reassign — ADMIN or SUPER_ADMIN (further scoped server-side). */
+  canReassign: boolean;
+  /** Delete (hard-hide, distinct from Cancel) — SUPER_ADMIN only. */
+  canDelete: boolean;
 };
 
 type ActionDef = {
@@ -42,16 +60,20 @@ type ActionDef = {
   danger?: boolean;
   showFor?: Array<TaskStatus>;
   hideFor?: Array<TaskStatus>;
+  requires?: keyof TaskOverflowPermissions;
 };
 
 type Props = {
   visible: boolean;
   task: TaskOverflowItem | null;
+  permissions: TaskOverflowPermissions;
+  /** Restrict the sheet to these actions (still subject to status/permission gating). Omit for all. */
+  actions?: OverflowAction[];
   onAction: (action: OverflowAction, task: TaskOverflowItem) => void;
   onClose: () => void;
 };
 
-export const TaskOverflowSheet = ({ visible, task, onAction, onClose }: Props) => {
+export const TaskOverflowSheet = ({ visible, task, permissions, actions, onAction, onClose }: Props) => {
   const insets = useSafeAreaInsets();
   const colors = useColors();
 
@@ -60,18 +82,21 @@ export const TaskOverflowSheet = ({ visible, task, onAction, onClose }: Props) =
     { id: 'accept',         label: 'Accept Task',       icon: 'check-circle',   color: colors.semantic.success,       showFor: ['PENDING'] },
     { id: 'mark_progress',  label: 'Mark In Progress',  icon: 'zap',            color: colors.status.inProgress.text, showFor: ['ACCEPTED'] },
     { id: 'submit_review',  label: 'Submit for Review', icon: 'upload',         color: colors.brand.primary,          showFor: ['IN_PROGRESS'] },
-    { id: 'mark_complete',  label: 'Mark Complete',     icon: 'check-square',   color: colors.semantic.success,       showFor: ['UNDER_REVIEW'] },
+    { id: 'mark_complete',  label: 'Mark Complete',     icon: 'check-square',   color: colors.semantic.success,       showFor: ['UNDER_REVIEW'], requires: 'canMarkComplete' },
     { id: 'upload_proof',   label: 'Upload Proof',      icon: 'paperclip',      hideFor: ['COMPLETED', 'CANCELLED'] },
     { id: 'add_comment',    label: 'Add Comment',       icon: 'message-circle', hideFor: ['COMPLETED', 'CANCELLED'] },
-    { id: 'share',          label: 'Share Task',        icon: 'share-2' },
-    { id: 'delete',         label: 'Delete Task',       icon: 'trash-2',        danger: true },
+    { id: 'reassign',       label: 'Reassign',          icon: 'user-plus',      hideFor: ['COMPLETED', 'CANCELLED'], requires: 'canReassign' },
+    { id: 'cancel',         label: 'Cancel Task',       icon: 'x-circle',       danger: true, hideFor: ['COMPLETED', 'CANCELLED'], requires: 'canCancel' },
+    { id: 'delete',         label: 'Delete Task',       icon: 'trash-2',        danger: true, requires: 'canDelete' },
   ];
 
   if (!task) return null;
 
   const visibleActions = ACTIONS.filter((a) => {
+    if (actions && !actions.includes(a.id)) return false;
     if (a.showFor && !a.showFor.includes(task.status)) return false;
     if (a.hideFor && a.hideFor.includes(task.status)) return false;
+    if (a.requires && !permissions[a.requires]) return false;
     return true;
   });
 

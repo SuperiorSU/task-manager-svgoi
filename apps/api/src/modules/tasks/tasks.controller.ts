@@ -62,8 +62,15 @@ export const tasksController = {
 
   async assign(request: FastifyRequest, reply: FastifyReply) {
     const { id } = request.params as { id: string };
-    const { assigneeId } = request.body as { assigneeId: string };
-    const task = await tasksService.assign(id, assigneeId, request.user.id);
+    const { assigneeId, reason } = request.body as { assigneeId: string; reason?: string };
+    const task = await tasksService.assign(
+      id,
+      assigneeId,
+      request.user.id,
+      request.user.role,
+      request.user.departmentId,
+      reason
+    );
     return sendSuccess(reply, task);
   },
 
@@ -75,8 +82,8 @@ export const tasksController = {
 
   async bulkStatus(request: FastifyRequest, reply: FastifyReply) {
     const { ids, status } = request.body as { ids: string[]; status: string };
-    await tasksService.bulkUpdateStatus(ids, status as never, request.user.id);
-    return sendSuccess(reply, null);
+    const result = await tasksService.bulkUpdateStatus(ids, status as never, request.user.id, request.user.role);
+    return sendSuccess(reply, result);
   },
 
   async getComments(request: FastifyRequest, reply: FastifyReply) {

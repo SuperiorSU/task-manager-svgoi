@@ -123,10 +123,14 @@ export function TeamDirectoryScreen({ role }: Props) {
 
   // This screen is a department roster of employees only (the viewing Admin
   // is the department's own admin/head, never a member of their own team).
+  // "All" means no status filter (active + suspended both show) — "Employees"
+  // and "Suspended" narrow to one status each. Previously "All" forced
+  // isActive:true, making it byte-for-byte identical to "Employees" (the
+  // chip did nothing) and hiding suspended members from "All".
   const filters = useMemo(() => ({
     ...(deptId ? { departmentId: deptId } : {}),
     role: 'EMPLOYEE' as const,
-    ...(filter === 'SUSPENDED' ? { isActive: false } : { isActive: true }),
+    ...(filter === 'SUSPENDED' ? { isActive: false } : filter === 'EMPLOYEES' ? { isActive: true } : {}),
     ...(debouncedSearch ? { search: debouncedSearch } : {}),
     limit: 100,
   }), [deptId, filter, debouncedSearch]);
@@ -171,21 +175,33 @@ export function TeamDirectoryScreen({ role }: Props) {
   }, [router]);
 
   const handleSuspendConfirm = useCallback(async (member: TeamMemberView) => {
-    await deactivateUser.mutateAsync(member.id);
-    setSuspendTarget(null);
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    try {
+      await deactivateUser.mutateAsync(member.id);
+      setSuspendTarget(null);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      // Error toast already shown by useDeactivateUser (useApiMutation) — keep the modal open to retry.
+    }
   }, [deactivateUser]);
 
   const handleReactivate = useCallback(async (member: TeamMemberView) => {
-    await reactivateUser.mutateAsync(member.id);
-    setSuspendTarget(null);
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    try {
+      await reactivateUser.mutateAsync(member.id);
+      setSuspendTarget(null);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      // Error toast already shown by useReactivateUser (useApiMutation) — keep the modal open to retry.
+    }
   }, [reactivateUser]);
 
   const handleResetConfirm = useCallback(async (member: TeamMemberView) => {
-    await resetPassword.mutateAsync(member.id);
-    setResetTarget(null);
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    try {
+      await resetPassword.mutateAsync(member.id);
+      setResetTarget(null);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      // Error toast already shown by useResetUserPassword (useApiMutation) — keep the sheet open to retry.
+    }
   }, [resetPassword]);
 
   const handleAddUser = useCallback(() => {

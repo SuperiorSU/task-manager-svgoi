@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { auditApi } from '@godigitify/api-client';
 import type { AuditFilters, AuditLogEntry } from '@godigitify/types';
 
 import { queryKeys } from '../constants/queryKeys';
+import { useApiMutation } from './useApiMutation';
 import {
   categoryFor,
   fromDateForRange,
@@ -145,7 +146,10 @@ export const useAuditActorOptions = (items: AuditLogEntry[]) =>
 
 // ─── Integrity verification ──────────────────────────────────────────────────
 
+// No successMessage — a 200 response here just means the check ran; the
+// chain itself may report back "broken", which the screen already renders.
+// A generic success toast would misleadingly suggest the chain is intact.
 export const useVerifyAuditEntry = () =>
-  useMutation({
+  useApiMutation({
     mutationFn: (id: string) => auditApi.verify(id),
   });

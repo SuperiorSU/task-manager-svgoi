@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, ScrollView, RefreshControl, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,6 +24,7 @@ import { AuditFeedCard } from '../components/dashboard/AuditFeedCard';
 import { StatsSkeleton } from '../components/dashboard/StatsSkeleton';
 import { ListSkeleton } from '../components/dashboard/ListSkeleton';
 import { EmptyState } from '../components/ui/EmptyState';
+import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus';
 
 export function SuperAdminDashboardScreen() {
   const router = useRouter();
@@ -37,6 +38,13 @@ export function SuperAdminDashboardScreen() {
   const systemHealth = useSystemHealth();
   const deptComparison = useDepartmentComparison();
   const auditFeed = useAuditFeed();
+
+  useRefetchOnFocus(
+    useMemo(
+      () => [orgStats.refetch, systemHealth.refetch, deptComparison.refetch, auditFeed.refetch],
+      [orgStats.refetch, systemHealth.refetch, deptComparison.refetch, auditFeed.refetch]
+    )
+  );
 
   const push = (path: string) => router.push(path as Parameters<typeof router.push>[0]);
 

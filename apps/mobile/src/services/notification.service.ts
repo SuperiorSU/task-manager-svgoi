@@ -23,6 +23,13 @@ export const registerForPushNotifications = async (): Promise<string | null> => 
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
       name: 'default',
+      importance: Notifications.AndroidImportance.DEFAULT,
+      vibrationPattern: [0, 250, 250, 250],
+    });
+    // Critical/high-priority events (assignment, overdue, revision requests)
+    // use this channel so they're visually distinct from routine updates.
+    await Notifications.setNotificationChannelAsync('high-priority', {
+      name: 'Urgent task alerts',
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
     });

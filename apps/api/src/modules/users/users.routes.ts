@@ -209,6 +209,73 @@ export const usersRoutes = async (app: FastifyInstance): Promise<void> => {
     },
   });
 
+  // ─── Role change (SUPER_ADMIN only) ────────────────────────────────
+  app.patch('/:id/role', {
+    preHandler: [requireAuth, requirePermission(PERMISSIONS.USER_ROLE_CHANGE)],
+    schema: {
+      body: {
+        type: 'object',
+        required: ['role'],
+        additionalProperties: false,
+        properties: { role: { type: 'string', enum: ['ADMIN', 'EMPLOYEE'] } },
+      },
+    },
+    handler: async (req, reply) => {
+      const { id } = req.params as { id: string };
+      const { role } = req.body as { role: 'ADMIN' | 'EMPLOYEE' };
+      const user = await usersService.changeRole(id, role, req.user.id);
+      return sendSuccess(reply, user);
+    },
+  });
+
+  // ─── Notification preferences (self-service) ───────────────────────
+  app.get('/me/notification-preferences', {
+    preHandler: [requireAuth],
+    handler: async (req, reply) => {
+      const prefs = await usersService.getNotificationPreferences(req.user.id);
+      return sendSuccess(reply, prefs);
+    },
+  });
+
+  app.patch('/me/notification-preferences', {
+    preHandler: [requireAuth],
+    schema: {
+      body: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          inAppEnabled: { type: 'boolean' },
+          emailEnabled: { type: 'boolean' },
+          pushEnabled: { type: 'boolean' },
+          mutedTypes: {
+            type: 'array',
+            items: {
+              type: 'string',
+              enum: [
+                'TASK_ASSIGNED',
+                'TASK_STATUS_CHANGED',
+                'TASK_DUE_SOON',
+                'TASK_OVERDUE',
+                'COMMENT_ADDED',
+                'CLARIFICATION_REQUESTED',
+                'CLARIFICATION_RESPONDED',
+                'TASK_COMPLETED',
+                'TASK_REASSIGNED',
+              ],
+            },
+          },
+          quietHoursEnabled: { type: 'boolean' },
+          quietHoursStart: { type: 'string' },
+          quietHoursEnd: { type: 'string' },
+        },
+      },
+    },
+    handler: async (req, reply) => {
+      const prefs = await usersService.updateNotificationPreferences(req.user.id, req.body as Record<string, unknown>);
+      return sendSuccess(reply, prefs);
+    },
+  });
+
   // ─── Push token registration ──────────────────────────────────────
   app.post('/push-token', {
     config: { rateLimit: { max: 10, timeWindow: '1 day' } },

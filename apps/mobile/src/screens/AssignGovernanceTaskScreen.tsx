@@ -2,11 +2,16 @@
  * AssignGovernanceTaskScreen — "Assign to admin" compose (HTML screen 61).
  * The Super Admin assigns a governance/administrative task directly to a
  * department admin. Distinct from the full Admin+ CreateTaskScreen
- * (app/(app)/tasks/create.tsx) — fewer fields (no category/attachments/
- * recurring), single admin-only assignee. Every governance task always
- * requires proof + SA approval on the backend (governance.service.ts), so
- * the per-task proof/approval toggles from the old mock UI have no backend
- * equivalent and were dropped.
+ * (app/(app)/tasks/create.tsx) — fewer fields (no category/recurring),
+ * single admin-only assignee. Every governance task always requires proof
+ * + SA approval on the backend (governance.service.ts), so the per-task
+ * proof/approval toggles from the old mock UI have no backend equivalent
+ * and were dropped.
+ *
+ * Attachments are staged locally and uploaded only after the task is
+ * created (governance task creation has no attachments field — see
+ * filesApi.presign/confirm), same two-step pattern as CreateTaskScreen's
+ * uploadAttachmentsTo.
  */
 
 import React, { useCallback, useMemo, useState } from 'react';
@@ -18,13 +23,14 @@ import {
   TextInput,
   Modal,
   FlatList,
-  Alert,
   StyleSheet,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
 import dayjs from 'dayjs';
+import { filesApi } from '@godigitify/api-client';
 
 import type { TaskPriority } from '@godigitify/types';
 import { useOrgAdmins, type OrgUser } from '../hooks/useOrgDirectory';
@@ -32,13 +38,18 @@ import { GOVERNANCE_PRIORITY_OPTIONS } from '../data/superAdminTasks.mock';
 import { useCreateGovernanceTask } from '../hooks/useGovernance';
 import { useColors } from '../constants/colors';
 import { Spacing } from '../constants/spacing';
+import { DueDatePickerModal } from '../components/calendar/DueDatePickerModal';
 
-const DUE_DATE_PRESETS = [
-  { label: 'In 3 days', days: 3 },
-  { label: 'In 1 week', days: 7 },
-  { label: 'In 2 weeks', days: 14 },
-  { label: 'In 1 month', days: 30 },
-];
+const MAX_ATTACHMENTS = 5;
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+
+type PickedFile = { uri: string; name: string; size: number; mimeType: string };
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export function AssignGovernanceTaskScreen() {
   const colors = useColors();
@@ -55,15 +66,77 @@ export function AssignGovernanceTaskScreen() {
   const [dueDate, setDueDate] = useState(() => dayjs().add(7, 'day').toISOString());
   const [adminSheetVisible, setAdminSheetVisible] = useState(false);
   const [dateSheetVisible, setDateSheetVisible] = useState(false);
+  const [attachments, setAttachments] = useState<PickedFile[]>([]);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
 
   const admins = adminsQuery.data ?? [];
   const assigneeDepartmentId = assignee?.departments[0]?.id;
   const canSubmit = title.trim().length > 0 && !!assignee && !!assigneeDepartmentId && !createMutation.isPending;
 
+  const handlePickFile = useCallback(async () => {
+    setAttachmentError(null);
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ['image/jpeg', 'image/png', 'application/pdf'],
+      multiple: true,
+      copyToCacheDirectory: true,
+    });
+    if (result.canceled) return;
+
+    const room = MAX_ATTACHMENTS - attachments.length;
+    const picked = result.assets.slice(0, room);
+    const oversized = picked.some((f) => (f.size ?? 0) > MAX_FILE_SIZE);
+    if (oversized) {
+      setAttachmentError('Each file must be under 10MB');
+    }
+    const accepted = picked.filter((f) => (f.size ?? 0) <= MAX_FILE_SIZE);
+    setAttachments((prev) => [
+      ...prev,
+      ...accepted.map((f) => ({
+        uri: f.uri,
+        name: f.name,
+        size: f.size ?? 0,
+        mimeType: f.mimeType ?? 'application/octet-stream',
+      })),
+    ]);
+  }, [attachments.length]);
+
+  const handleRemoveAttachment = useCallback((uri: string) => {
+    setAttachments((prev) => prev.filter((f) => f.uri !== uri));
+  }, []);
+
+  const uploadAttachmentsTo = useCallback(async (taskId: string) => {
+    for (const file of attachments) {
+      try {
+        const presign = await filesApi.presign({
+          taskId,
+          fileName: file.name,
+          mimeType: file.mimeType,
+          isProof: false,
+        });
+        await fetch(presign.data.uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': file.mimeType },
+          body: await (await fetch(file.uri)).blob(),
+        });
+        await filesApi.confirm({
+          taskId,
+          storageKey: presign.data.storageKey,
+          fileName: file.name,
+          fileSize: file.size,
+          mimeType: file.mimeType,
+          isProof: false,
+        });
+      } catch {
+        // Task creation already succeeded — an attachment failure here is
+        // surfaced nowhere blocking; the SA can re-attach from the task detail screen.
+      }
+    }
+  }, [attachments]);
+
   const handleSubmit = useCallback(async () => {
     if (!assignee || !assigneeDepartmentId) return;
     try {
-      await createMutation.mutateAsync({
+      const res = await createMutation.mutateAsync({
         title: title.trim(),
         ...(description.trim() ? { description: description.trim() } : {}),
         assigneeId: assignee.id,
@@ -71,11 +144,14 @@ export function AssignGovernanceTaskScreen() {
         priority,
         dueDate,
       });
+      if (attachments.length > 0) {
+        await uploadAttachmentsTo(res.data.id);
+      }
       router.back();
     } catch {
-      Alert.alert('Error', 'Could not assign this task. Please try again.');
+      // Error toast already shown by useCreateGovernanceTask (useApiMutation).
     }
-  }, [assignee, assigneeDepartmentId, createMutation, title, description, priority, dueDate, router]);
+  }, [assignee, assigneeDepartmentId, createMutation, title, description, priority, dueDate, attachments, uploadAttachmentsTo, router]);
 
   const dueDateLabel = useMemo(() => dayjs(dueDate).format('MMM D, YYYY'), [dueDate]);
 
@@ -192,6 +268,51 @@ export function AssignGovernanceTaskScreen() {
             accessibilityLabel="Description"
           />
         </View>
+
+        <View style={[s.fieldCard, { backgroundColor: colors.surface.card }]}>
+          <Text style={[s.fieldLabel, { color: colors.text.tertiary }]}>ATTACHMENTS</Text>
+          {attachments.map((file) => (
+            <View key={file.uri} style={s.attachmentRow}>
+              <View style={[s.attachmentIcon, { backgroundColor: colors.surface.background }]}>
+                <Feather
+                  name={file.mimeType.startsWith('image/') ? 'image' : 'file-text'}
+                  size={16}
+                  color={colors.text.secondary}
+                />
+              </View>
+              <View style={s.attachmentInfo}>
+                <Text style={[s.attachmentName, { color: colors.text.primary }]} numberOfLines={1}>
+                  {file.name}
+                </Text>
+                <Text style={[s.attachmentMeta, { color: colors.text.tertiary }]}>{formatBytes(file.size)}</Text>
+              </View>
+              <Pressable
+                onPress={() => handleRemoveAttachment(file.uri)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${file.name}`}
+              >
+                <Feather name="x" size={16} color={colors.text.tertiary} />
+              </Pressable>
+            </View>
+          ))}
+          {attachments.length < MAX_ATTACHMENTS && (
+            <Pressable
+              onPress={handlePickFile}
+              style={[s.attachmentDropzone, { borderColor: colors.surface.border }]}
+              accessibilityRole="button"
+              accessibilityLabel="Add attachment"
+            >
+              <Feather name="upload" size={16} color={colors.text.secondary} />
+              <Text style={[s.attachmentDropzoneText, { color: colors.text.secondary }]}>
+                Add attachment · PDF, JPG, PNG · Max 10MB
+              </Text>
+            </Pressable>
+          )}
+          {attachmentError && (
+            <Text style={[s.attachmentError, { color: colors.semantic.error }]}>{attachmentError}</Text>
+          )}
+        </View>
       </ScrollView>
 
       <View style={[s.footer, { backgroundColor: colors.surface.card, borderTopColor: colors.surface.border, paddingBottom: insets.bottom + 12 }]}>
@@ -248,30 +369,15 @@ export function AssignGovernanceTaskScreen() {
         </Pressable>
       </Modal>
 
-      <Modal visible={dateSheetVisible} transparent animationType="slide" onRequestClose={() => setDateSheetVisible(false)}>
-        <Pressable style={[s.backdrop, { backgroundColor: colors.surface.overlay }]} onPress={() => setDateSheetVisible(false)}>
-          <Pressable style={[s.sheet, { backgroundColor: colors.surface.card, paddingBottom: insets.bottom + Spacing[4] }]}>
-            <View style={[s.handle, { backgroundColor: colors.surface.borderStrong }]} />
-            <Text style={[s.sheetTitle, { color: colors.text.primary }]}>Due date</Text>
-            {DUE_DATE_PRESETS.map((preset) => (
-              <Pressable
-                key={preset.label}
-                onPress={() => {
-                  setDueDate(dayjs().add(preset.days, 'day').toISOString());
-                  setDateSheetVisible(false);
-                }}
-                style={({ pressed }) => [s.adminRow, pressed && s.pressed]}
-                accessibilityRole="button"
-              >
-                <Text style={[s.assigneeName, { color: colors.text.primary, flex: 1 }]}>{preset.label}</Text>
-                <Text style={[s.assigneeDept, { color: colors.text.tertiary }]}>
-                  {dayjs().add(preset.days, 'day').format('MMM D')}
-                </Text>
-              </Pressable>
-            ))}
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <DueDatePickerModal
+        visible={dateSheetVisible}
+        selected={dayjs(dueDate)}
+        onConfirm={(d) => {
+          setDueDate(d.toISOString());
+          setDateSheetVisible(false);
+        }}
+        onClose={() => setDateSheetVisible(false)}
+      />
     </View>
   );
 }
@@ -320,6 +426,24 @@ const s = StyleSheet.create({
   dueDateRow: { flexDirection: 'row', alignItems: 'center', gap: 7, height: 28 },
   dueDateText: { fontSize: 13, fontFamily: 'Inter-SemiBold' },
   descriptionInput: { fontSize: 13, lineHeight: 20, fontFamily: 'Inter-Regular', minHeight: 60, padding: 0, textAlignVertical: 'top' },
+  attachmentRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
+  attachmentIcon: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  attachmentInfo: { flex: 1, minWidth: 0 },
+  attachmentName: { fontSize: 13, fontFamily: 'Inter-Medium' },
+  attachmentMeta: { fontSize: 11, fontFamily: 'Inter-Regular', marginTop: 1 },
+  attachmentDropzone: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderRadius: 10,
+    paddingVertical: 12,
+    marginTop: 6,
+  },
+  attachmentDropzoneText: { fontSize: 12, fontFamily: 'Inter-Medium' },
+  attachmentError: { fontSize: 11, fontFamily: 'Inter-Regular', marginTop: 6 },
   footer: { padding: Spacing[4], borderTopWidth: 1 },
   submitBtn: { height: 50, borderRadius: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   submitText: { fontSize: 14.5, fontFamily: 'Inter-SemiBold', color: '#FFFFFF' },

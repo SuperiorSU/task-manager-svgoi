@@ -44,9 +44,12 @@ export const queryKeys = {
   notifications: {
     list: () => ['notifications'] as const,
     unreadCount: () => ['notifications', 'unread-count'] as const,
+    preferences: () => ['notifications', 'preferences'] as const,
   },
   departments: {
     list: () => ['departments'] as const,
     settings: (id: string) => ['departments', id, 'settings'] as const,
+    detail: (id: string) => ['departments', id] as const,
+    members: (id: string) => ['departments', id, 'members'] as const,
   },
 } as const;

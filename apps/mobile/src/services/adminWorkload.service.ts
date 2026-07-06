@@ -2,31 +2,22 @@
  * Admin Workload & Task History Service — team capacity rollup and
  * per-member task history for the Admin's own department.
  *
- * Mock implementation. Replace method bodies with real API calls when the
- * backend is ready:
- *   GET /users?departmentId=&includeTaskLoad=1   → getTeamWorkload
- *   GET /users/:id?includeTaskLoad=1              → getMemberWorkload
- *   GET /users/:id/tasks?departmentId=            → getMemberTasks
- * Signatures are stable — UI never imports MOCK_* directly, only this
- * service or the hooks in useAdminWorkload.ts.
+ * Real API: GET /dashboard/workload (dept-scoped server-side for ADMIN) for
+ * per-employee assigned/completed/overdue counts, GET /users for designation/
+ * avatar-source data, GET /tasks?assigneeId= for per-member history.
  */
 
+import { usersApi, dashboardApi, tasksApi } from '@godigitify/api-client';
+import type { RichTask } from '@godigitify/types';
+
+import { useAuthStore } from '../stores/auth.store';
+import { getInitials } from '../utils/initial';
 import {
-  MOCK_TASKS,
-  MOCK_USERS,
-  isTaskOverdue,
-  type MockTask,
-} from '../data/tasks.mock';
-import { MOCK_TEAM_MEMBERS } from '../data/team.mock';
-import {
-  ADMIN_DEPT,
   WORKLOAD_CAPACITY_TARGET,
   tierForCapacityPercent,
   paletteForInitials,
   type WorkloadTier,
 } from '../data/adminWorkload.mock';
-
-const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -69,48 +60,6 @@ export type TeamWorkloadOverview = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function computeWorkloadMembers(): WorkloadMember[] {
-  const deptTasks = MOCK_TASKS.filter((t) => t.department.id === ADMIN_DEPT.id);
-
-  const byAssignee = new Map<string, MockTask[]>();
-  for (const task of deptTasks) {
-    const list = byAssignee.get(task.assignee.id);
-    if (list) list.push(task);
-    else byAssignee.set(task.assignee.id, [task]);
-  }
-
-  const users = Object.values(MOCK_USERS);
-  const members: WorkloadMember[] = [];
-
-  for (const [userId, tasks] of byAssignee) {
-    const user = users.find((u) => u.id === userId);
-    if (!user) continue;
-
-    const active = tasks.filter((t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
-    const completed = tasks.filter((t) => t.status === 'COMPLETED');
-    const overdue = tasks.filter(isTaskOverdue);
-    const capacityPercent = Math.round((active.length / WORKLOAD_CAPACITY_TARGET) * 100);
-    const palette = paletteForInitials(user.initials);
-
-    members.push({
-      userId,
-      name: user.name,
-      initials: user.initials,
-      designation: user.designation,
-      avatarBg: palette.bg,
-      avatarFg: palette.fg,
-      activeCount: active.length,
-      completedCount: completed.length,
-      overdueCount: overdue.length,
-      capacityTarget: WORKLOAD_CAPACITY_TARGET,
-      capacityPercent,
-      tier: tierForCapacityPercent(capacityPercent),
-    });
-  }
-
-  return members.sort((a, b) => b.capacityPercent - a.capacityPercent);
-}
-
 function buildBanner(members: WorkloadMember[]): TeamWorkloadBanner | null {
   const overloaded = members.find((m) => m.tier === 'OVER');
   if (!overloaded) return null;
@@ -133,53 +82,81 @@ function buildBanner(members: WorkloadMember[]): TeamWorkloadBanner | null {
   };
 }
 
+async function computeTeamWorkload(): Promise<TeamWorkloadOverview> {
+  const authUser = useAuthStore.getState().user;
+  const departmentId = authUser?.departmentId ?? '';
+  const departmentName = authUser?.department?.name ?? '';
+
+  const [{ data: entries }, { data: usersRes }] = await Promise.all([
+    dashboardApi.getWorkload(),
+    usersApi.getList({ departmentId, role: 'EMPLOYEE', isActive: true, limit: 100 }),
+  ]);
+
+  const designationByUserId = new Map(usersRes.items.map((u) => [u.id, u.designation ?? '']));
+
+  const members: WorkloadMember[] = entries
+    .map((entry): WorkloadMember => {
+      const initials = getInitials(entry.name);
+      const palette = paletteForInitials(initials);
+      // dashboard's `assigned` counts every non-cancelled task (including
+      // completed ones) — "active" work in progress is assigned minus completed.
+      const activeCount = Math.max(entry.assigned - entry.completed, 0);
+      const capacityPercent = Math.round((activeCount / WORKLOAD_CAPACITY_TARGET) * 100);
+      return {
+        userId: entry.userId,
+        name: entry.name,
+        initials,
+        designation: designationByUserId.get(entry.userId) ?? '',
+        avatarBg: palette.bg,
+        avatarFg: palette.fg,
+        activeCount,
+        completedCount: entry.completed,
+        overdueCount: entry.overdue,
+        capacityTarget: WORKLOAD_CAPACITY_TARGET,
+        capacityPercent,
+        tier: tierForCapacityPercent(capacityPercent),
+      };
+    })
+    .sort((a, b) => b.capacityPercent - a.capacityPercent);
+
+  const active = members.reduce((sum, m) => sum + m.activeCount, 0);
+  const avgPerPerson = members.length ? Math.round((active / members.length) * 10) / 10 : 0;
+
+  return {
+    departmentName,
+    memberCount: members.length,
+    members,
+    totals: {
+      active,
+      avgPerPerson,
+      overloadedCount: members.filter((m) => m.tier === 'OVER').length,
+      freeCount: members.filter((m) => m.tier === 'FREE').length,
+    },
+    banner: buildBanner(members),
+  };
+}
+
 // ─── Service ─────────────────────────────────────────────────────────────────
 
 export const adminWorkloadService = {
-  async getTeamWorkload(): Promise<TeamWorkloadOverview> {
-    await delay(300);
-    const members = computeWorkloadMembers();
-    const active = members.reduce((sum, m) => sum + m.activeCount, 0);
-    const avgPerPerson = members.length ? Math.round((active / members.length) * 10) / 10 : 0;
-
-    return {
-      departmentName: ADMIN_DEPT.name,
-      memberCount: members.length,
-      members,
-      totals: {
-        active,
-        avgPerPerson,
-        overloadedCount: members.filter((m) => m.tier === 'OVER').length,
-        freeCount: members.filter((m) => m.tier === 'FREE').length,
-      },
-      banner: buildBanner(members),
-    };
-  },
+  getTeamWorkload: computeTeamWorkload,
 
   async getMemberWorkload(userId: string): Promise<MemberWorkloadDetail> {
-    await delay(250);
-    const member = computeWorkloadMembers().find((m) => m.userId === userId);
+    const overview = await computeTeamWorkload();
+    const member = overview.members.find((m) => m.userId === userId);
     if (!member) throw new Error('Team member not found');
-    return { ...member, departmentName: ADMIN_DEPT.name };
+    return { ...member, departmentName: overview.departmentName };
   },
 
-  async getMemberTasks(userId: string): Promise<MockTask[]> {
-    await delay(300);
-    return MOCK_TASKS.filter(
-      (t) => t.department.id === ADMIN_DEPT.id && t.assignee.id === userId,
-    );
-  },
-
-  /**
-   * Bridges into the separate Team/People mock roster (team.mock.ts, its
-   * own `mbr_*` id space) so a workload member — sourced from
-   * tasks.mock.ts's `usr_*` ids — can link to the existing Employee Profile
-   * screen (`/(app)/people/:id`). Matches by name since the two mock
-   * sources aren't id-linked; returns null (no link shown) when a member
-   * has no corresponding people-directory record rather than guessing.
-   */
-  async resolveProfileId(memberName: string): Promise<string | null> {
-    await delay(100);
-    return MOCK_TEAM_MEMBERS.find((m) => m.name === memberName)?.id ?? null;
+  async getMemberTasks(userId: string): Promise<RichTask[]> {
+    const authUser = useAuthStore.getState().user;
+    const { data } = await tasksApi.getList({
+      assigneeId: userId,
+      ...(authUser?.departmentId ? { departmentId: authUser.departmentId } : {}),
+      limit: 100, // backend's taskFiltersSchema caps limit at 100 — 200 fails AJV validation (400)
+      sortBy: 'createdAt',
+      order: 'desc',
+    });
+    return data;
   },
 };

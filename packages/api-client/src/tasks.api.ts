@@ -33,8 +33,8 @@ export const tasksApi = {
 
   delete: (id: string) => getApiClient().delete<void>(`/tasks/${id}`),
 
-  assign: (id: string, assigneeId: string) =>
-    getApiClient().post<RichTask>(`/tasks/${id}/assign`, { assigneeId }),
+  assign: (id: string, assigneeId: string, reason?: string) =>
+    getApiClient().post<RichTask>(`/tasks/${id}/assign`, { assigneeId, ...(reason ? { reason } : {}) }),
 
   getComments: (taskId: string) =>
     getApiClient().get<TaskComment[]>(`/tasks/${taskId}/comments`),
@@ -49,7 +49,7 @@ export const tasksApi = {
     getApiClient().get<TaskAttachment[]>(`/tasks/${taskId}/attachments`),
 
   bulkUpdateStatus: (ids: string[], status: string) =>
-    getApiClient().post<void>('/tasks/bulk/status', { ids, status }),
+    getApiClient().post<{ cancelledIds: string[]; skippedIds: string[] }>('/tasks/bulk/status', { ids, status }),
 
   /** Fetch tasks with due dates within [from, to] for the calendar view */
   getCalendar: (from: string, to: string) =>

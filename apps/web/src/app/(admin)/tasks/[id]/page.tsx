@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { toast } from 'sonner';
 import dayjs from 'dayjs';
 import { Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
@@ -153,10 +152,7 @@ export default function TaskDetailPage() {
                 <Button
                   loading={isUpdating}
                   onClick={() =>
-                    updateStatus(
-                      { id, dto: { status: nextStatus as TaskStatus, note: '' } },
-                      { onSuccess: () => toast.success('Status updated') }
-                    )
+                    updateStatus({ id, dto: { status: nextStatus as TaskStatus, note: '' } })
                   }
                 >
                   Move to {nextStatus.replace(/_/g, ' ')}
@@ -179,13 +175,8 @@ export default function TaskDetailPage() {
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         onConfirm={() =>
-          deleteTask(id, {
-            onSuccess: () => {
-              toast.success('Task deleted');
-              router.push('/tasks');
-            },
-            onError: () => toast.error('Failed to delete task'),
-          })
+          // Success/error toasts already shown by useDeleteTask (useApiMutation).
+          deleteTask(id, { onSuccess: () => router.push('/tasks') })
         }
         title="Delete Task"
         message="This task will be soft-deleted. You can restore it from the audit log."

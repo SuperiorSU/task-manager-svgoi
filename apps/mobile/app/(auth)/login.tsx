@@ -156,6 +156,14 @@ export default function LoginScreen() {
               No self-registration. Locked accounts reset after 15 min — contact HR if deactivated.
             </Text>
           </View>
+
+          <Pressable
+            style={({ pressed }) => [styles.termsLink, pressed && { opacity: 0.6 }]}
+            onPress={() => router.push('/(auth)/terms')}
+            accessibilityRole="link"
+          >
+            <Text style={[styles.termsText, { color: C.text.tertiary }]}>Terms &amp; Privacy Policy</Text>
+          </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -239,4 +247,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   infoText: { flex: 1, fontSize: 12, lineHeight: 17, fontFamily: 'Inter-Regular' },
+  termsLink: { alignItems: 'center', marginTop: 16 },
+  termsText: { fontSize: 12, fontFamily: 'Inter-Medium', letterSpacing: 0.1 },
 });

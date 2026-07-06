@@ -16,7 +16,6 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useUsers, useDeactivateUser } from '@/hooks/useUsers';
 import { useDebounce } from '@/hooks/useDebounce';
 import { PERMISSIONS } from '@/constants/permissions';
-import { toast } from 'sonner';
 import type { User, Role } from '@godigitify/types';
 
 export default function UsersPage() {
@@ -129,10 +128,8 @@ export default function UsersPage() {
         onClose={() => setDeactivateId(null)}
         onConfirm={() => {
           if (!deactivateId) return;
-          deactivate(deactivateId, {
-            onSuccess: () => { toast.success('User deactivated'); setDeactivateId(null); },
-            onError: () => toast.error('Failed to deactivate user'),
-          });
+          // Success/error toasts already shown by useDeactivateUser (useApiMutation).
+          deactivate(deactivateId, { onSuccess: () => setDeactivateId(null) });
         }}
         title="Deactivate User"
         message="This will revoke all active sessions and block the user from logging in."

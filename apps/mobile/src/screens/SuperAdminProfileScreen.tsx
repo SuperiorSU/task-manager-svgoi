@@ -1,28 +1,33 @@
-import React from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
 
 import { useColors } from '../constants/colors';
 import { Spacing } from '../constants/spacing';
 import { useSuperAdminProfileData } from '../hooks/useProfile';
 import { useSystemHealth } from '../hooks/useSuperAdminDashboard';
+import { useLogout } from '../hooks/useAuth';
 
 import { ProfileHeaderBar } from '../components/profile/ProfileHeaderBar';
 import { SuperAdminProfileHeaderCard } from '../components/profile/SuperAdminProfileHeaderCard';
 import { OrgScopeStatsBar } from '../components/profile/OrgScopeStatsBar';
 import { ScopeAuthorityCard } from '../components/profile/ScopeAuthorityCard';
 import { SystemSecuritySection } from '../components/profile/SystemSecuritySection';
+import { ProfileAccountSection } from '../components/profile/ProfileAccountSection';
+import { ProfileSettingsSection } from '../components/profile/ProfileSettingsSection';
+import { ProfileAboutSection } from '../components/profile/ProfileAboutSection';
+import { ProfileLogoutCard } from '../components/profile/ProfileLogoutCard';
 import { ProfileSkeleton } from '../components/profile/ProfileSkeleton';
+import { LogoutModal } from '../components/profile/LogoutModal';
 
-// Screen 71 — Super Admin Profile Part 1 (identity · org scope · system).
-// Split from Part 2 (SuperAdminProfileAccountScreen) per the HTML's overflow
-// rule. Unlike Admin/Employee's single-scroll Profile, SA's content doesn't
-// fit one screen — Part 2 is a pushed stack route (app/(app)/profile/
-// sa-part-2), matching every other Profile sub-screen's navigation pattern
-// in this app rather than the HTML's literal "same tab bar, second page"
-// treatment (no in-app precedent for horizontal-paged tab screens exists).
+// Screen 71/72 — Super Admin Profile, single scroll (identity · org scope ·
+// system · account · settings · about · log out). Previously split across
+// two screens/routes (Part 1 tab screen + Part 2 pushed stack screen) to
+// match an HTML mock's overflow rule; merged into one screen since every
+// other role's Profile is a single scroll and the split served no
+// navigational purpose — Part 2 had no entry point other than a "continue"
+// row at the bottom of Part 1.
 export function SuperAdminProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -30,6 +35,9 @@ export function SuperAdminProfileScreen() {
 
   const { data: profile, isLoading: profileLoading } = useSuperAdminProfileData();
   const { data: health, isLoading: healthLoading } = useSystemHealth();
+  const { mutate: logout, isPending: logoutPending } = useLogout();
+
+  const [logoutVisible, setLogoutVisible] = useState(false);
 
   const isLoading = profileLoading || healthLoading;
   const handleEditPress = () => router.push('/(app)/profile/edit');
@@ -63,20 +71,29 @@ export function SuperAdminProfileScreen() {
             onOrgConfigPress={() => router.push('/(app)/profile/org-configuration')}
           />
 
-          <Pressable
-            onPress={() => router.push('/(app)/profile/sa-part-2')}
-            style={({ pressed }) => [s.continueRow, pressed && { opacity: 0.6 }]}
-            accessibilityRole="button"
-          >
-            <Text style={[s.continueLabel, { color: colors.text.tertiary }]}>
-              Scroll for account, settings &amp; log out
-            </Text>
-            <Feather name="arrow-right" size={13} color={colors.text.tertiary} />
-          </Pressable>
+          <ProfileAccountSection profile={profile} idLabel="Super Admin ID · read-only" />
+
+          <ProfileSettingsSection />
+
+          <ProfileAboutSection />
+
+          <ProfileLogoutCard onPress={() => setLogoutVisible(true)} />
+
+          <Text style={[s.version, { color: colors.text.tertiary }]}>TaskFlow SVGOI · Super Admin · v1.0</Text>
 
           <View style={{ height: Spacing[8] }} />
         </ScrollView>
       )}
+
+      <LogoutModal
+        visible={logoutVisible}
+        isPending={logoutPending}
+        onConfirm={() => {
+          setLogoutVisible(false);
+          logout();
+        }}
+        onCancel={() => setLogoutVisible(false)}
+      />
     </View>
   );
 }
@@ -87,15 +104,10 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 20,
   },
-  continueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 12,
-  },
-  continueLabel: {
-    fontSize: 12,
+  version: {
+    fontSize: 11,
     fontFamily: 'Inter-Regular',
+    textAlign: 'center',
+    marginBottom: 8,
   },
 });

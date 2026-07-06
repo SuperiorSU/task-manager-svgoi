@@ -1,30 +1,19 @@
 import React from 'react';
 import { Text, View, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 
 import { useColors } from '../../constants/colors';
-import { ProfileSettingsItem } from './ProfileSettingsItem';
 
-// Screen 72's "About" card. No dedicated Terms & Privacy screen exists
-// anywhere in the app yet — "Terms & privacy" routes to Help & support (the
-// closest existing analog) rather than shipping a dead-looking tappable row,
-// same "wire to nearest existing destination" precedent used for the
-// Dashboard's Report/See log links.
+// Screen 72's "About" card. "Terms & privacy" now lives as its own row in
+// ProfileSettingsSection (shared across every role), so it isn't repeated
+// here — this card is just the app version line.
 export const ProfileAboutSection = () => {
   const colors = useColors();
-  const router = useRouter();
 
   return (
     <>
       <Text style={[s.sectionLabel, { color: colors.text.tertiary }]}>About</Text>
       <View style={[s.card, { backgroundColor: colors.surface.card }]}>
-        <ProfileSettingsItem
-          icon="file-text"
-          label="Terms & privacy"
-          onPress={() => router.push('/(app)/profile/help')}
-          showDivider
-        />
         <View style={s.staticRow}>
           <Feather name="info" size={19} color={colors.text.secondary} />
           <Text style={[s.staticLabel, { color: colors.text.primary }]}>App version</Text>

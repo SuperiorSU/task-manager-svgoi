@@ -27,7 +27,6 @@ import { PERMISSIONS } from '@/constants/permissions';
 import { TaskStatusBadge } from '@/components/task/TaskStatusBadge';
 import { TaskPriorityBadge } from '@/components/task/TaskPriorityBadge';
 import { isOverdue } from '@/lib/utils';
-import { toast } from 'sonner';
 import type { Role } from '@godigitify/types';
 
 export default function UserDetailPage() {
@@ -261,10 +260,8 @@ export default function UserDetailPage() {
         open={confirmAction === 'deactivate'}
         onClose={() => setConfirmAction(null)}
         onConfirm={() =>
-          deactivate(id, {
-            onSuccess: () => { toast.success('User suspended'); setConfirmAction(null); },
-            onError: () => toast.error('Failed to suspend user'),
-          })
+          // Success/error toasts already shown by useDeactivateUser (useApiMutation).
+          deactivate(id, { onSuccess: () => setConfirmAction(null) })
         }
         title={`Suspend ${u.name}?`}
         message="They will be immediately logged out of all devices and unable to sign in until reactivated."
@@ -275,10 +272,8 @@ export default function UserDetailPage() {
         open={confirmAction === 'reactivate'}
         onClose={() => setConfirmAction(null)}
         onConfirm={() =>
-          reactivate(id, {
-            onSuccess: () => { toast.success('User reactivated'); setConfirmAction(null); },
-            onError: () => toast.error('Failed to reactivate user'),
-          })
+          // Success/error toasts already shown by useReactivateUser (useApiMutation).
+          reactivate(id, { onSuccess: () => setConfirmAction(null) })
         }
         title={`Reactivate ${u.name}?`}
         message="This will allow them to sign in again with their existing credentials."

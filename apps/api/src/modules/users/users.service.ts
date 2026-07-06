@@ -138,6 +138,13 @@ export const usersService = {
   },
 
   async deactivate(id: string, actorId: string, actorDeptId?: string) {
+    if (id === actorId) {
+      throw Object.assign(new Error('You cannot suspend your own account'), {
+        statusCode: 400,
+        code: 'VALIDATION_ERROR',
+      });
+    }
+
     const user = await prisma.user.findUnique({ where: { id }, select: { departmentId: true, name: true } });
     if (!user) throw Object.assign(new Error('User not found'), { statusCode: 404, code: 'NOT_FOUND' });
 
@@ -164,6 +171,13 @@ export const usersService = {
   },
 
   async resetPassword(id: string, actorId: string, actorDeptId?: string) {
+    if (id === actorId) {
+      throw Object.assign(new Error('Use "Change password" in your profile instead'), {
+        statusCode: 400,
+        code: 'VALIDATION_ERROR',
+      });
+    }
+
     const user = await prisma.user.findUnique({ where: { id }, select: { email: true, name: true, departmentId: true } });
     if (!user) throw Object.assign(new Error('User not found'), { statusCode: 404, code: 'NOT_FOUND' });
 
@@ -191,5 +205,73 @@ export const usersService = {
       create: { token, platform, userId },
       update: { userId, updatedAt: new Date() },
     });
+  },
+
+  async getNotificationPreferences(userId: string) {
+    let prefs = await prisma.notificationPreference.findUnique({ where: { userId } });
+    if (!prefs) {
+      prefs = await prisma.notificationPreference.create({ data: { userId } });
+    }
+    return prefs;
+  },
+
+  async updateNotificationPreferences(userId: string, data: Record<string, unknown>) {
+    return prisma.notificationPreference.upsert({
+      where: { userId },
+      update: data as never,
+      create: { userId, ...data } as never,
+    });
+  },
+
+  async changeRole(id: string, role: 'ADMIN' | 'EMPLOYEE', actorId: string) {
+    if (id === actorId) {
+      throw Object.assign(new Error('You cannot change your own role'), {
+        statusCode: 400,
+        code: 'VALIDATION_ERROR',
+      });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, name: true, role: true, headOfDept: { select: { id: true } } },
+    });
+    if (!user) throw Object.assign(new Error('User not found'), { statusCode: 404, code: 'NOT_FOUND' });
+
+    if (user.role === role) {
+      return prisma.user.findUnique({ where: { id }, select: safeUserSelect });
+    }
+
+    if (user.headOfDept && role !== 'ADMIN') {
+      throw Object.assign(
+        new Error('Reassign the department head before changing this user’s role'),
+        { statusCode: 409, code: 'CONFLICT' }
+      );
+    }
+
+    const oldRole = user.role;
+    const rolePerms = ROLE_PERMISSIONS[role] ?? [];
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.user.update({ where: { id }, data: { role: role as never }, select: safeUserSelect });
+      await tx.userPermission.deleteMany({ where: { userId: id } });
+      if (rolePerms.length) {
+        await tx.userPermission.createMany({
+          data: rolePerms.map((p) => ({ userId: id, permission: p })),
+          skipDuplicates: true,
+        });
+      }
+      return result;
+    });
+
+    await writeAuditLog({
+      action: 'ROLE_CHANGED',
+      entityType: 'User',
+      entityId: id,
+      description: `${user.name} role changed from ${oldRole} to ${role}`,
+      actorId,
+      metadata: { from: oldRole, to: role },
+    });
+
+    return updated;
   },
 };

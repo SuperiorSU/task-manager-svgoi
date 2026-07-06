@@ -2,9 +2,9 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import dayjs, { type Dayjs } from 'dayjs';
 import { dashboardApi, departmentsApi } from '@godigitify/api-client';
+import type { GovernanceTask } from '@godigitify/types';
 
-import type { MockTask } from '../data/tasks.mock';
-import { MOCK_GOVERNANCE_TASKS } from '../data/superAdminTasks.mock';
+import { useGovernanceTasks } from './useGovernance';
 import { queryKeys } from '../constants/queryKeys';
 
 // ─── Department accents (client-side only — no backend color field) ─────────
@@ -30,7 +30,7 @@ export type SuperAdminCalendarDept = {
 
 export type CalendarDayEntry =
   | { kind: 'dept'; departmentId: string; departmentName: string; color: string; count: number }
-  | { kind: 'governance'; task: MockTask };
+  | { kind: 'governance'; task: GovernanceTask };
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
@@ -51,9 +51,9 @@ export const useSuperAdminCalendarDepartments = () =>
  * Day-keyed entry map backing the month grid, agenda list, and day
  * breakdown. Pass departmentId to filter to a single department; omit for
  * org-wide. Merges real department deadline counts (GET
- * /dashboard/calendar-deadlines) with the SA's own governance tasks (still
- * authored in superAdminTasks.mock.ts — that module's migration is tracked
- * separately, see useSuperAdminTasks.ts).
+ * /dashboard/calendar-deadlines) with the SA's own real governance tasks
+ * (GET /governance/tasks, via useGovernanceTasks — same source of truth as
+ * the Assigned-by-me list/detail flow).
  */
 export const useSuperAdminCalendarEntries = (departmentId?: string, from?: string, to?: string) => {
   const range = useMemo(() => {
@@ -63,6 +63,7 @@ export const useSuperAdminCalendarEntries = (departmentId?: string, from?: strin
   }, [from, to]);
 
   const { data: departments = [] } = useSuperAdminCalendarDepartments();
+  const { data: governanceTasks = [] } = useGovernanceTasks();
 
   return useQuery({
     queryKey: queryKeys.dashboard.calendarDeadlines(range.start, range.end),
@@ -86,9 +87,11 @@ export const useSuperAdminCalendarEntries = (departmentId?: string, from?: strin
         map.set(entry.date, list);
       }
 
-      for (const task of MOCK_GOVERNANCE_TASKS) {
-        if (departmentId && task.department.id !== departmentId) continue;
-        const key = dayjs(task.dueDate).format('YYYY-MM-DD');
+      for (const task of governanceTasks) {
+        if (departmentId && task.departmentId !== departmentId) continue;
+        const dueDate = dayjs(task.dueDate);
+        if (dueDate.isBefore(range.start, 'day') || dueDate.isAfter(range.end, 'day')) continue;
+        const key = dueDate.format('YYYY-MM-DD');
         const list = map.get(key) ?? [];
         list.push({ kind: 'governance', task });
         map.set(key, list);

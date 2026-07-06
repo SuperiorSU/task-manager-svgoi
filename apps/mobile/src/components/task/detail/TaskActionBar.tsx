@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -28,6 +28,8 @@ type Props = {
   isAdminCreator?: boolean;
   /** Id of the person viewing this screen — gates the assignee action bar to the actual assignee */
   currentUserId?: string;
+  /** True while a status mutation is in flight — disables every action button and spinners the active one */
+  loading?: boolean;
   onStatusChange: (task: RichTask, nextStatus: TaskStatus) => void;
   onApprove?: (task: RichTask) => void;
   onRevise?: (task: RichTask) => void;
@@ -36,7 +38,7 @@ type Props = {
 };
 
 export const TaskActionBar = React.memo(
-  ({ task, isAdminCreator = false, currentUserId, onStatusChange, onApprove, onRevise, onUploadProof, onAddComment }: Props) => {
+  ({ task, isAdminCreator = false, currentUserId, loading = false, onStatusChange, onApprove, onRevise, onUploadProof, onAddComment }: Props) => {
     const insets = useSafeAreaInsets();
     const pb = insets.bottom + Spacing[2];
 
@@ -50,9 +52,11 @@ export const TaskActionBar = React.memo(
               await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               onRevise?.(task);
             }}
+            disabled={loading}
             style={({ pressed }) => [
               actionStyles.reviseBtn,
               pressed && { opacity: 0.78 },
+              loading && actionStyles.disabled,
             ]}
             accessibilityRole="button"
             accessibilityLabel="Request revision"
@@ -67,15 +71,23 @@ export const TaskActionBar = React.memo(
               await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               onApprove?.(task);
             }}
+            disabled={loading}
             style={({ pressed }) => [
               actionStyles.approveBtn,
               pressed && { opacity: 0.87 },
+              loading && actionStyles.disabled,
             ]}
             accessibilityRole="button"
             accessibilityLabel="Approve and complete"
           >
-            <Feather name="check" size={17} color="#FFFFFF" />
-            <Text style={actionStyles.approveLabel}>Approve &amp; Complete</Text>
+            {loading ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Feather name="check" size={17} color="#FFFFFF" />
+                <Text style={actionStyles.approveLabel}>Approve &amp; Complete</Text>
+              </>
+            )}
           </Pressable>
         </View>
       );
@@ -137,7 +149,8 @@ export const TaskActionBar = React.memo(
             await Haptics.selectionAsync();
             onUploadProof(task);
           }}
-          style={({ pressed }) => [actionStyles.secondaryBtn, pressed && { opacity: 0.75 }]}
+          disabled={loading}
+          style={({ pressed }) => [actionStyles.secondaryBtn, pressed && { opacity: 0.75 }, loading && actionStyles.disabled]}
           accessibilityLabel="Upload proof"
         >
           <Feather name="paperclip" size={18} color={Colors.text.secondary} />
@@ -149,7 +162,8 @@ export const TaskActionBar = React.memo(
             await Haptics.selectionAsync();
             onAddComment(task);
           }}
-          style={({ pressed }) => [actionStyles.secondaryBtn, pressed && { opacity: 0.75 }]}
+          disabled={loading}
+          style={({ pressed }) => [actionStyles.secondaryBtn, pressed && { opacity: 0.75 }, loading && actionStyles.disabled]}
           accessibilityLabel="Add comment"
         >
           <Feather name="message-circle" size={18} color={Colors.text.secondary} />
@@ -162,16 +176,24 @@ export const TaskActionBar = React.memo(
             await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             onStatusChange(task, cta.nextStatus);
           }}
+          disabled={loading}
           style={({ pressed }) => [
             actionStyles.primaryBtn,
             { backgroundColor: cta.color },
             pressed && { opacity: 0.87 },
+            loading && actionStyles.disabled,
           ]}
           accessibilityRole="button"
           accessibilityLabel={cta.label}
         >
-          <Feather name={cta.icon} size={18} color={Colors.text.inverse} />
-          <Text style={actionStyles.primaryLabel}>{cta.label}</Text>
+          {loading ? (
+            <ActivityIndicator size="small" color={Colors.text.inverse} />
+          ) : (
+            <>
+              <Feather name={cta.icon} size={18} color={Colors.text.inverse} />
+              <Text style={actionStyles.primaryLabel}>{cta.label}</Text>
+            </>
+          )}
         </Pressable>
       </View>
     );
@@ -195,6 +217,7 @@ const actionStyles = StyleSheet.create({
       android: { elevation: 8 },
     }),
   },
+  disabled: { opacity: 0.5 },
   secondaryBtn: {
     width: 44,
     height: 44,

@@ -1,6 +1,6 @@
 import { Queue } from 'bullmq';
 
-import { redis } from '../config/redis.js';
+import { bullRedis } from '../config/redis.js';
 
 const defaultJobOptions = {
   attempts: 3,
@@ -10,16 +10,16 @@ const defaultJobOptions = {
 };
 
 export const notificationQueue = new Queue('notifications', {
-  connection: redis,
+  connection: bullRedis,
   defaultJobOptions,
 });
 
 export const reportQueue = new Queue('reports', {
-  connection: redis,
+  connection: bullRedis,
   defaultJobOptions,
 });
 
 export const recurringTaskQueue = new Queue('recurring-tasks', {
-  connection: redis,
+  connection: bullRedis,
   defaultJobOptions,
 });

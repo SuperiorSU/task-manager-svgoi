@@ -14,60 +14,8 @@ import { ProfileHeaderCard } from '../components/profile/ProfileHeaderCard';
 import { ProfileAccountSection } from '../components/profile/ProfileAccountSection';
 import { ProfileManagementSection } from '../components/profile/ProfileManagementSection';
 import { ProfileSettingsSection } from '../components/profile/ProfileSettingsSection';
-import { ProfileSettingsItem } from '../components/profile/ProfileSettingsItem';
 import { ProfileLogoutCard } from '../components/profile/ProfileLogoutCard';
 import { ProfileSkeleton } from '../components/profile/ProfileSkeleton';
-
-// ─── Reports section (admin-only) ────────────────────────────────────────────
-
-const ProfileReportsSection = () => {
-  const colors = useColors();
-  const router = useRouter();
-
-  return (
-    <>
-      <Text style={[rs.sectionLabel, { color: colors.text.tertiary }]}>Reports</Text>
-      <View style={[rs.card, { backgroundColor: colors.surface.card }]}>
-        <ProfileSettingsItem
-          icon="bar-chart-2"
-          label="My Performance"
-          onPress={() =>
-            router.push('/(app)/profile/performance' as Parameters<typeof router.push>[0])
-          }
-          showDivider
-        />
-        <ProfileSettingsItem
-          icon="pie-chart"
-          label="Department Report"
-          onPress={() =>
-            router.push('/(app)/profile/department-report' as Parameters<typeof router.push>[0])
-          }
-        />
-      </View>
-    </>
-  );
-};
-
-const rs = StyleSheet.create({
-  sectionLabel: {
-    fontSize: 11,
-    fontFamily: 'Inter-Bold',
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-    marginBottom: 9,
-    marginLeft: 2,
-  },
-  card: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-});
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
@@ -118,8 +66,6 @@ export function AdminProfileScreen() {
           <ProfileManagementSection />
 
           <ProfileAccountSection profile={profile} />
-
-          <ProfileReportsSection />
 
           <ProfileSettingsSection />
 

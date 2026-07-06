@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View, StyleSheet } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -47,7 +47,14 @@ export function OrgConfigurationScreen() {
 
   const handleSave = () => {
     if (!draft) return;
-    save(draft, { onSuccess: () => router.back() });
+    Alert.alert(
+      'Save organization settings?',
+      'These settings apply org-wide — every department and admin will follow the new working hours, holiday, and cross-department assignment rules immediately.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Save', onPress: () => save(draft, { onSuccess: () => router.back() }) },
+      ]
+    );
   };
 
   const addCategory = (cat: string) =>

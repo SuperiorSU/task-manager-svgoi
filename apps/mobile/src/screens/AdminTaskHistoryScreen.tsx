@@ -10,13 +10,12 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 
-import type { MockTask } from '../data/tasks.mock';
+import type { RichTask } from '@godigitify/types';
 import type { HistoryDateRange } from '../data/adminWorkload.mock';
 import {
   useMemberWorkload,
   useMemberTaskHistory,
   useMemberHistoryFilterState,
-  useMemberProfileLink,
   filterMemberTasks,
 } from '../hooks/useAdminWorkload';
 import { useColors } from '../constants/colors';
@@ -36,14 +35,14 @@ export function AdminTaskHistoryScreen() {
   const router = useRouter();
 
   const { data: member } = useMemberWorkload(memberId ?? '');
-  const { data: profileId } = useMemberProfileLink(member?.name);
+  const profileId = memberId; // real API has one user-id space — the route param is the profile id
   const { filters, setStatusChip, setSearch, applySheet, hasActiveFilters } = useMemberHistoryFilterState();
   const { groups, counts, isLoading, all } = useMemberTaskHistory(memberId ?? '', filters);
 
   const [sheetVisible, setSheetVisible] = useState(false);
 
   const push = useCallback((path: string) => router.push(path as Parameters<typeof router.push>[0]), [router]);
-  const goTask = useCallback((task: MockTask) => push(`/(app)/tasks/${task.id}`), [push]);
+  const goTask = useCallback((task: RichTask) => push(`/(app)/tasks/${task.id}`), [push]);
   const goProfile = useCallback(() => {
     if (profileId) push(`/(app)/people/${profileId}`);
   }, [profileId, push]);

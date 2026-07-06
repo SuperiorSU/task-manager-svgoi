@@ -10,6 +10,10 @@ declare module 'fastify' {
   }
 }
 
+// Background jobs (BullMQ workers, cron) run outside the Fastify request
+// lifecycle and have no access to `app.io` — they read the live instance here.
+export const socketRegistry: { io: Server | null } = { io: null };
+
 export const registerSocket = fp(async (app: FastifyInstance) => {
   const io = new Server(app.server, {
     cors: {
@@ -35,7 +39,9 @@ export const registerSocket = fp(async (app: FastifyInstance) => {
   });
 
   app.decorate('io', io);
+  socketRegistry.io = io;
   app.addHook('onClose', async () => {
+    socketRegistry.io = null;
     await io.close();
   });
 });

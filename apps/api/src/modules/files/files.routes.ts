@@ -41,10 +41,17 @@ export const filesRoutes = async (app: FastifyInstance): Promise<void> => {
       const folder = isProof ? 'proof' : 'references';
       const storageKey = `tasks/${taskId}/${folder}/${uuid}.${ext}`;
 
+      // NOTE: ContentType is deliberately NOT set on the signed command. If it
+      // were, `content-type` becomes a *signed* header and the client PUT must
+      // send a byte-identical value — but React Native's XHR/blob upload can't
+      // reliably reproduce it (the Blob's own type overrides the header),
+      // producing SignatureDoesNotMatch 403s and silent upload failures. The
+      // real mime type is still validated above and persisted via /confirm, so
+      // dropping it from the signature is safe. Downloads serve our stored
+      // mimeType, not the object's S3 content-type.
       const command = new PutObjectCommand({
         Bucket: BUCKET,
         Key: storageKey,
-        ContentType: mimeType,
       });
 
       const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 300 });

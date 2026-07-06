@@ -40,6 +40,12 @@ export const ProfileSettingsSection = () => {
           icon="info"
           label="Help & support"
           onPress={() => router.push('/(app)/profile/help')}
+          showDivider
+        />
+        <ProfileSettingsItem
+          icon="file-text"
+          label="Terms & privacy"
+          onPress={() => router.push('/(app)/profile/terms')}
         />
       </View>
     </>

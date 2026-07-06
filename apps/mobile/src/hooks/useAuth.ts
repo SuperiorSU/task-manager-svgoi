@@ -1,10 +1,14 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
-import { authApi } from '@godigitify/api-client';
+import { authApi, usersApi } from '@godigitify/api-client';
 
 import { useAuthStore } from '../stores/auth.store';
+import { useNotificationStore } from '../stores/notification.store';
+import { useAppStore } from '../stores/app.store';
 import { getErrorMessage } from '../utils/errorHandler';
+import { registerForPushNotifications } from '../services/notification.service';
 
 const REFRESH_TOKEN_KEY = 'refresh_token';
 
@@ -19,6 +23,16 @@ export const useLogin = () => {
       const { tokens, user } = res.data;
       await login(tokens.accessToken, tokens.refreshToken, user);
       qc.clear();
+
+      // Best-effort: a denied permission or missing device token must never block login.
+      try {
+        const pushToken = await registerForPushNotifications();
+        if (pushToken) {
+          await usersApi.registerPushToken(pushToken, Platform.OS === 'ios' ? 'ios' : 'android');
+        }
+      } catch {
+        // Silently ignore — push is a convenience feature, not auth-critical.
+      }
     },
     onError: (err) => getErrorMessage(err),
   });
@@ -39,6 +53,11 @@ export const useLogout = () => {
     onSettled: async () => {
       await logout();
       qc.clear();
+      // These two stores are never touched by auth.store.logout() — left
+      // uncleared, a stale unread badge or a previous user's queued offline
+      // mutations could carry over into the next session on the same device.
+      useNotificationStore.getState().clearUnread();
+      useAppStore.getState().clearOfflineQueue();
     },
   });
 };

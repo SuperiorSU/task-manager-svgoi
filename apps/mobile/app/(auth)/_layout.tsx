@@ -29,6 +29,10 @@ export default function AuthLayout() {
         name="forgot-password"
         options={{ animation: 'slide_from_right' }}
       />
+      <Stack.Screen
+        name="terms"
+        options={{ animation: 'slide_from_right' }}
+      />
     </Stack>
   );
 }

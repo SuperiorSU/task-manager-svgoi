@@ -27,8 +27,10 @@ import {
   useUpdateTaskStatus,
   useAddComment,
   useDeleteTask,
+  useReassignTask,
 } from '../../../src/hooks/useTasks';
 import { useFileUpload } from '../../../src/hooks/useFileUpload';
+import { useToast } from '../../../src/hooks/useToast';
 import { useAuthStore } from '../../../src/stores/auth.store';
 import { filesApi } from '@godigitify/api-client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -45,6 +47,9 @@ import { TaskActivityTimeline } from '../../../src/components/task/detail/TaskAc
 import { TaskCommentsSection } from '../../../src/components/task/detail/TaskCommentsSection';
 import { TaskActionBar } from '../../../src/components/task/detail/TaskActionBar';
 import { TaskOverflowSheet, type OverflowAction } from '../../../src/components/task/TaskOverflowSheet';
+import { ReassignTaskModal } from '../../../src/components/task/detail/ReassignTaskModal';
+import { UploadPreviewModal } from '../../../src/components/task/detail/UploadPreviewModal';
+import { AttachmentViewerModal } from '../../../src/components/task/detail/AttachmentViewerModal';
 import { Avatar } from '../../../src/components/ui/Avatar';
 import { Skeleton } from '../../../src/components/ui/Skeleton';
 
@@ -130,42 +135,73 @@ export default function TaskDetailScreen() {
   const updateStatus = useUpdateTaskStatus();
   const addComment = useAddComment(taskId);
   const deleteTask = useDeleteTask();
-  const { uploadFile, uploading } = useFileUpload(taskId);
+  const reassignTask = useReassignTask();
+  const toast = useToast();
+  const { pendingFile, uploading, progress, error: uploadError, pickFile, confirmUpload, cancelUpload } = useFileUpload(taskId);
 
   const [overflowVisible, setOverflowVisible] = useState(false);
   const [revisionModalVisible, setRevisionModalVisible] = useState(false);
   const [revisionNote, setRevisionNote] = useState('');
+  const [reassignVisible, setReassignVisible] = useState(false);
+  const [viewerAttachment, setViewerAttachment] = useState<TaskAttachment | null>(null);
 
   const isAdminCreator = task ? task.creatorId === currentUser?.id : false;
+  const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
+  const isAssignee = task ? task.assigneeId === currentUser?.id : false;
+  // The assignee must Accept a task before they can work it (upload proof) or
+  // discuss it (comment) — a PENDING task has not been accepted yet. Terminal
+  // states are read-only. Non-assignees (e.g. the creator) aren't blocked from
+  // commenting pre-acceptance.
+  const isTerminal = task ? ['COMPLETED', 'CANCELLED'].includes(task.status) : true;
+  const assigneeMustAcceptFirst = isAssignee && task?.status === 'PENDING';
+  const canUpload = isAssignee && !!task && ['ACCEPTED', 'IN_PROGRESS', 'UNDER_REVIEW'].includes(task.status);
+  const commentsLocked = assigneeMustAcceptFirst || isTerminal;
+
+  // Client-side hints only — tasks.service.ts re-checks creator-or-SUPER_ADMIN
+  // (cancel/complete) and role (reassign/delete) server-side regardless.
+  const overflowPermissions = {
+    canMarkComplete: isAdminCreator,
+    canCancel: isAdminCreator || isSuperAdmin,
+    canReassign: currentUser?.role === 'ADMIN' || isSuperAdmin,
+    canDelete: isSuperAdmin,
+  };
 
   // ── handlers ──
   const handleBack = useCallback(() => router.back(), [router]);
 
   const handleStatusChange = useCallback(async (t: RichTask, nextStatus: TaskStatus) => {
+    // Forward transitions (Accept → Start Working → Submit for Review) are
+    // non-destructive and reversible, so they fire immediately — the action
+    // bar's own loading/disabled state (updateStatus.isPending) is the feedback,
+    // no confirmation dialog. The irreversible actions (Approve & Complete,
+    // Cancel) keep their own explicit confirmations elsewhere.
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert(
-      'Update Status',
-      `Move "${t.title}" to ${nextStatus.replace(/_/g, ' ')}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Confirm',
-          onPress: () => updateStatus.mutate({ id: t.id, dto: { status: nextStatus } }),
-        },
-      ]
-    );
+    // Error toast already shown by useUpdateTaskStatus (useApiMutation).
+    updateStatus.mutate({ id: t.id, dto: { status: nextStatus } });
   }, [updateStatus]);
 
   const handleApprove = useCallback((t: RichTask) => {
-    updateStatus.mutate(
-      { id: t.id, dto: { status: 'COMPLETED' } },
-      {
-        onSuccess: async () => {
-          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          router.back();
+    Alert.alert(
+      'Approve & Complete',
+      `This marks "${t.title}" as complete and notifies ${t.assignee.name}. This can't be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Approve & Complete',
+          onPress: () => {
+            updateStatus.mutate(
+              { id: t.id, dto: { status: 'COMPLETED' } },
+              {
+                onSuccess: async () => {
+                  await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  router.back();
+                },
+                // Error toast already shown by useUpdateTaskStatus (useApiMutation).
+              }
+            );
+          },
         },
-        onError: () => Alert.alert('Error', 'Could not approve the task. Please try again.'),
-      }
+      ]
     );
   }, [updateStatus, router]);
 
@@ -185,18 +221,25 @@ export default function TaskDetailScreen() {
           await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           router.back();
         },
-        onError: () => Alert.alert('Error', 'Could not request revision. Please try again.'),
+        // Error toast already shown by useUpdateTaskStatus (useApiMutation).
       }
     );
   }, [task, revisionNote, updateStatus, router]);
 
-  const handleUploadProof = useCallback(async (t: RichTask) => {
-    const result = await uploadFile(true);
+  // Only opens the picker — the preview/confirm modal (driven by pendingFile)
+  // is what actually triggers the upload, so the user reviews the file first.
+  const handleUploadProof = useCallback(() => {
+    void pickFile();
+  }, [pickFile]);
+
+  const handleConfirmUpload = useCallback(async () => {
+    const result = await confirmUpload(true);
     if (result) {
-      void qc.invalidateQueries({ queryKey: queryKeys.tasks.attachments(t.id) });
-      void qc.invalidateQueries({ queryKey: queryKeys.tasks.activity(t.id) });
+      toast.success('File uploaded');
+      void qc.invalidateQueries({ queryKey: queryKeys.tasks.attachments(taskId) });
+      void qc.invalidateQueries({ queryKey: queryKeys.tasks.activity(taskId) });
     }
-  }, [uploadFile, qc]);
+  }, [confirmUpload, qc, taskId, toast]);
 
   const handleAddComment = useCallback((_t: RichTask) => {
     // No-op: comment composer is always visible in the Comments section below.
@@ -210,13 +253,20 @@ export default function TaskDetailScreen() {
   );
 
   const handleOpenAttachment = useCallback(async (attachment: TaskAttachment) => {
+    // Images open in the in-app viewer (with download progress); PDFs/other
+    // types have no in-app renderer, so they open in the device's viewer.
+    if (attachment.mimeType.startsWith('image/')) {
+      setViewerAttachment(attachment);
+      return;
+    }
     try {
+      toast.info('Opening…');
       const res = await filesApi.getDownloadUrl(attachment.id);
       await Linking.openURL(res.data.url);
     } catch {
       Alert.alert('Error', 'Could not open this file. Please try again.');
     }
-  }, []);
+  }, [toast]);
 
   const handleOverflowAction = useCallback((action: OverflowAction) => {
     if (!task) return;
@@ -231,9 +281,47 @@ export default function TaskDetailScreen() {
       ]);
     }
     if (action === 'mark_complete') {
-      updateStatus.mutate({ id: task.id, dto: { status: 'COMPLETED' } });
+      Alert.alert(
+        'Approve & Complete',
+        `This marks "${task.title}" as complete and notifies ${task.assignee.name}. This can't be undone.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Approve & Complete',
+            onPress: () => updateStatus.mutate({ id: task.id, dto: { status: 'COMPLETED' } }),
+          },
+        ]
+      );
+    }
+    if (action === 'cancel') {
+      Alert.alert(
+        'Cancel Task',
+        `This cancels "${task.title}" and notifies ${task.assignee.name}. This can't be undone.`,
+        [
+          { text: 'No, keep it', style: 'cancel' },
+          {
+            text: 'Cancel Task',
+            style: 'destructive',
+            onPress: () => updateStatus.mutate({ id: task.id, dto: { status: 'CANCELLED' } }),
+          },
+        ]
+      );
+    }
+    if (action === 'reassign') {
+      setReassignVisible(true);
     }
   }, [task, deleteTask, updateStatus, router]);
+
+  const handleReassignConfirm = useCallback(
+    (assigneeId: string, reason: string) => {
+      if (!task) return;
+      reassignTask.mutate(
+        { id: task.id, assigneeId, ...(reason ? { reason } : {}) },
+        { onSuccess: () => setReassignVisible(false) }
+      );
+    },
+    [task, reassignTask]
+  );
 
   if (isLoading) {
     return <DetailSkeleton insets={insets} />;
@@ -392,11 +480,11 @@ export default function TaskDetailScreen() {
           </MetaRow>
         </View>
 
-        {/* Attachments */}
+        {/* Attachments — only the assignee, and only once the task is accepted */}
         <TaskAttachmentsSection
           attachments={attachments}
-          canAdd={!uploading && !['COMPLETED', 'CANCELLED'].includes(t.status)}
-          onAdd={() => handleUploadProof(t)}
+          canAdd={!uploading && canUpload}
+          onAdd={handleUploadProof}
           onOpen={handleOpenAttachment}
         />
 
@@ -407,6 +495,16 @@ export default function TaskDetailScreen() {
           currentUserName={currentUser?.name ?? 'You'}
           onSubmit={handleSubmitComment}
           isSubmitting={addComment.isPending}
+          disabled={commentsLocked}
+          disabledHint={
+            assigneeMustAcceptFirst
+              ? 'Accept this task to add comments'
+              : 'Comments are closed for this task'
+          }
+          mentionCandidates={[
+            { id: t.creator.id, name: t.creator.name },
+            { id: t.assignee.id, name: t.assignee.name },
+          ]}
         />
 
         {/* Activity Timeline */}
@@ -418,6 +516,7 @@ export default function TaskDetailScreen() {
         task={t}
         isAdminCreator={isAdminCreator}
         currentUserId={currentUser?.id ?? ''}
+        loading={updateStatus.isPending}
         onStatusChange={handleStatusChange}
         onApprove={handleApprove}
         onRevise={handleRevise}
@@ -429,8 +528,40 @@ export default function TaskDetailScreen() {
       <TaskOverflowSheet
         visible={overflowVisible}
         task={t}
+        permissions={overflowPermissions}
         onAction={handleOverflowAction}
         onClose={() => setOverflowVisible(false)}
+      />
+
+      {/* ── Reassign modal ── */}
+      <ReassignTaskModal
+        visible={reassignVisible}
+        taskId={t.id}
+        taskTitle={t.title}
+        currentAssigneeId={t.assigneeId}
+        {...(currentUser?.role === 'ADMIN' && currentUser.departmentId
+          ? { viewerDeptId: currentUser.departmentId }
+          : {})}
+        loading={reassignTask.isPending}
+        onConfirm={handleReassignConfirm}
+        onClose={() => setReassignVisible(false)}
+      />
+
+      {/* ── Upload preview + progress ── */}
+      <UploadPreviewModal
+        file={pendingFile}
+        uploading={uploading}
+        progress={progress}
+        error={uploadError}
+        isProof
+        onConfirm={handleConfirmUpload}
+        onCancel={cancelUpload}
+      />
+
+      {/* ── In-app attachment viewer (images) ── */}
+      <AttachmentViewerModal
+        attachment={viewerAttachment}
+        onClose={() => setViewerAttachment(null)}
       />
 
       {/* ── Revision note modal ── */}

@@ -1,7 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { orgConfigService } from '../services/orgConfig.service';
 import type { OrgConfig } from '../data/orgConfig.mock';
+import { useApiMutation } from './useApiMutation';
 
 // ─── Keys ─────────────────────────────────────────────────────────────────────
 
@@ -20,8 +21,9 @@ export const useOrgConfig = () =>
 
 export const useUpdateOrgConfig = () => {
   const qc = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: (patch: Partial<OrgConfig>) => orgConfigService.updateOrgConfig(patch),
+    successMessage: 'Settings saved',
     onSuccess: (updated) => qc.setQueryData(QK.orgConfig, updated),
   });
 };

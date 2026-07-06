@@ -28,28 +28,6 @@ export type ProfileUser = {
   avatarUrl?: string;
 };
 
-export type DeliveryMethod = {
-  id: string;
-  key: 'inApp' | 'email' | 'push';
-  label: string;
-  enabled: boolean;
-};
-
-export type NotificationType = {
-  id: string;
-  key: string;
-  label: string;
-  enabled: boolean;
-};
-
-export type NotificationPreferences = {
-  delivery: DeliveryMethod[];
-  types: NotificationType[];
-  quietHoursEnabled: boolean;
-  quietHoursStart: string;
-  quietHoursEnd: string;
-};
-
 // ─── Mock profile ─────────────────────────────────────────────────────────────
 
 export const MOCK_PROFILE_USER: ProfileUser = {
@@ -105,24 +83,4 @@ export const MOCK_SA_PROFILE_USER: ProfileUser = {
   designation: 'Super Administrator',
   department: 'SVGOI',
   role: 'Super Admin',
-};
-
-// ─── Mock notification preferences ───────────────────────────────────────────
-
-export const MOCK_NOTIFICATION_PREFS: NotificationPreferences = {
-  delivery: [
-    { id: 'del_1', key: 'inApp', label: 'In-app', enabled: true },
-    { id: 'del_2', key: 'email', label: 'Email', enabled: true },
-    { id: 'del_3', key: 'push', label: 'Push', enabled: false },
-  ],
-  types: [
-    { id: 'typ_1', key: 'task_assignments', label: 'Task assignments', enabled: true },
-    { id: 'typ_2', key: 'due_reminders', label: 'Due date reminders', enabled: true },
-    { id: 'typ_3', key: 'overdue_alerts', label: 'Overdue alerts', enabled: true },
-    { id: 'typ_4', key: 'comments', label: 'Comments & @mentions', enabled: true },
-    { id: 'typ_5', key: 'completions', label: 'Completion & approvals', enabled: false },
-  ],
-  quietHoursEnabled: true,
-  quietHoursStart: '22:00',
-  quietHoursEnd: '07:00',
 };

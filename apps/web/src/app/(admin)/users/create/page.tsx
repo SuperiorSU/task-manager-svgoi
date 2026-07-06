@@ -4,7 +4,6 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { toast } from 'sonner';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
@@ -37,10 +36,8 @@ export default function CreateUserPage() {
 
       <form
         onSubmit={handleSubmit((data) =>
-          createUser(data, {
-            onSuccess: () => { toast.success('User created'); router.push('/users'); },
-            onError: () => toast.error('Failed to create user'),
-          })
+          // Success/error toasts already shown by useCreateUser (useApiMutation).
+          createUser(data, { onSuccess: () => router.push('/users') })
         )}
         className="space-y-6"
       >

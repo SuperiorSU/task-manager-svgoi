@@ -141,7 +141,7 @@ export function SuperAdminCalendarDayScreen() {
                 <GovernanceCalendarCard
                   key={entry.task.id}
                   task={entry.task}
-                  subtitle={`${entry.task.assignee.name} · ${entry.task.department.name} · due ${dayjs(entry.task.dueDate).format('h:mm A')}`}
+                  subtitle={`${entry.task.assignee.name} · ${entry.task.department?.name ?? '—'} · due ${dayjs(entry.task.dueDate).format('h:mm A')}`}
                   onPress={() =>
                     router.push(`/(app)/sa-tasks/assigned-by-me/${entry.task.id}` as Parameters<typeof router.push>[0])
                   }

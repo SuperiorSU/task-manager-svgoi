@@ -14,3 +14,4 @@ export { governanceApi } from './governance.api';
 export type { GovernanceFilters, GovernanceListMeta } from './governance.api';
 export { auditApi } from './audit.api';
 export type { AuditListResponse, AuditListMeta } from './audit.api';
+export { organizationApi } from './organization.api';

@@ -1,8 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { governanceApi, type GovernanceFilters } from '@godigitify/api-client';
 import type { CreateTaskDto } from '@godigitify/types';
 
 import { queryKeys } from '../constants/queryKeys';
+import { useApiMutation } from './useApiMutation';
 
 /**
  * Governance tasks — the Super Admin's "Assign to Admin & Track" flow
@@ -30,8 +31,9 @@ export const useGovernanceTask = (id: string) =>
 
 export const useCreateGovernanceTask = () => {
   const qc = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: (dto: CreateTaskDto & { departmentId: string }) => governanceApi.create(dto),
+    successMessage: 'Task assigned',
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.governance.list() });
     },
@@ -40,8 +42,9 @@ export const useCreateGovernanceTask = () => {
 
 export const useApproveGovernanceTask = () => {
   const qc = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: (id: string) => governanceApi.approve(id),
+    successMessage: 'Task approved',
     onSuccess: (_, id) => {
       void qc.invalidateQueries({ queryKey: queryKeys.governance.list() });
       void qc.invalidateQueries({ queryKey: queryKeys.governance.detail(id) });
@@ -51,8 +54,9 @@ export const useApproveGovernanceTask = () => {
 
 export const useRequestGovernanceRevision = () => {
   const qc = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: ({ id, note }: { id: string; note: string }) => governanceApi.requestRevision(id, note),
+    successMessage: 'Revision requested',
     onSuccess: (_, { id }) => {
       void qc.invalidateQueries({ queryKey: queryKeys.governance.list() });
       void qc.invalidateQueries({ queryKey: queryKeys.governance.detail(id) });

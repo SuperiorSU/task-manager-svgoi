@@ -62,13 +62,17 @@ export function SuperAdminPeopleScreen() {
     (user: OrgUser) => router.push(`/(app)/people/org/${user.id}` as Parameters<typeof router.push>[0]),
     [router]
   );
+  const goDeptDetail = useCallback(
+    (dept: OrgDepartmentWithStats) => router.push(`/(app)/people/department/${dept.id}` as Parameters<typeof router.push>[0]),
+    [router]
+  );
   const renderUser = useCallback(
     ({ item }: { item: OrgUser }) => <OrgUserCard user={item} onPress={goUserDetail} />,
     [goUserDetail]
   );
   const renderDept = useCallback(
-    ({ item }: { item: OrgDepartmentWithStats }) => <OrgDepartmentCard department={item} />,
-    []
+    ({ item }: { item: OrgDepartmentWithStats }) => <OrgDepartmentCard department={item} onPress={goDeptDetail} />,
+    [goDeptDetail]
   );
 
   const totalUsers = usersQuery.data?.total ?? 0;

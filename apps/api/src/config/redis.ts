@@ -26,6 +26,21 @@ redis.on('reconnecting', () => {
   console.warn('[Redis] reconnecting...');
 });
 
+// BullMQ's blocking commands (Worker) require maxRetriesPerRequest: null on
+// the connection it's given — sharing the general-purpose `redis` client
+// (which sets a finite retry count for regular command reliability) throws
+// at Worker construction time. Kept as a separate connection for that reason.
+export const bullRedis = new Redis(env.REDIS_URL, {
+  maxRetriesPerRequest: null,
+  enableReadyCheck: false,
+  lazyConnect: true,
+  tls: env.REDIS_URL.startsWith('rediss://') ? { rejectUnauthorized: true } : undefined,
+});
+
+bullRedis.on('error', (err: Error) => {
+  console.error('[Redis:BullMQ] connection error:', err);
+});
+
 export const cache = {
   get: async <T>(key: string): Promise<T | null> => {
     const data = await redis.get(key);

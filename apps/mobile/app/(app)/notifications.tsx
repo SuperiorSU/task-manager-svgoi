@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,21 +14,52 @@ import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeabl
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 
-import type { MockNotification, MockNotificationType } from '../../src/data/notifications.mock';
-import type { NotificationFilter } from '../../src/hooks/useNotificationsMock';
-import {
-  useNotificationsMock,
-  useMarkReadMock,
-  useMarkAllReadMock,
-  groupNotifications,
-} from '../../src/hooks/useNotificationsMock';
+import type { Notification, NotificationType } from '@godigitify/types';
+import { useNotificationList, useMarkRead, useMarkAllRead, useUnreadCount } from '../../src/hooks/useNotifications';
 import { useColors } from '../../src/constants/colors';
 import { Typography } from '../../src/constants/typography';
 import { Spacing, Layout } from '../../src/constants/spacing';
-import { useNotificationStore } from '../../src/stores/notification.store';
 import { Skeleton } from '../../src/components/ui/Skeleton';
 
 dayjs.extend(relativeTime);
+
+export type NotificationFilter = 'all' | 'unread';
+
+export type NotificationGroup = { title: string; data: Notification[] };
+
+// Groups newest-first notifications into the four buckets specced in
+// 8_overview.md §4.9 — "Today", "Yesterday", "This week", "Earlier".
+export function groupNotifications(notifications: Notification[]): NotificationGroup[] {
+  const now = dayjs();
+  const todayStart = now.startOf('day');
+  const yesterdayStart = todayStart.subtract(1, 'day');
+  const weekStart = todayStart.subtract(7, 'day');
+
+  const today: Notification[] = [];
+  const yesterday: Notification[] = [];
+  const thisWeek: Notification[] = [];
+  const earlier: Notification[] = [];
+
+  for (const n of notifications) {
+    const d = dayjs(n.createdAt);
+    if (d.isAfter(todayStart)) {
+      today.push(n);
+    } else if (d.isAfter(yesterdayStart)) {
+      yesterday.push(n);
+    } else if (d.isAfter(weekStart)) {
+      thisWeek.push(n);
+    } else {
+      earlier.push(n);
+    }
+  }
+
+  const groups: NotificationGroup[] = [];
+  if (today.length > 0) groups.push({ title: 'Today', data: today });
+  if (yesterday.length > 0) groups.push({ title: 'Yesterday', data: yesterday });
+  if (thisWeek.length > 0) groups.push({ title: 'This week', data: thisWeek });
+  if (earlier.length > 0) groups.push({ title: 'Earlier', data: earlier });
+  return groups;
+}
 
 // ─── Notification type config ─────────────────────────────────────────────────
 
@@ -39,7 +70,7 @@ type NotifConfig = {
   borderColor: string;
 };
 
-function getNotifConfig(type: MockNotificationType, colors: ReturnType<typeof useColors>): NotifConfig {
+function getNotifConfig(type: NotificationType, colors: ReturnType<typeof useColors>): NotifConfig {
   switch (type) {
     case 'TASK_OVERDUE':
       return {
@@ -61,13 +92,6 @@ function getNotifConfig(type: MockNotificationType, colors: ReturnType<typeof us
         iconBg: colors.semantic.successBg,
         iconColor: colors.semantic.success,
         borderColor: colors.semantic.success,
-      };
-    case 'MENTION':
-      return {
-        icon: 'at-sign',
-        iconBg: colors.brand.primaryLight,
-        iconColor: colors.brand.primary,
-        borderColor: colors.brand.primary,
       };
     case 'TASK_ASSIGNED':
       return {
@@ -146,7 +170,7 @@ const MarkReadAction = ({ onPress }: { onPress: () => void }) => {
 // ─── Notification card ────────────────────────────────────────────────────────
 
 type CardProps = {
-  notification: MockNotification;
+  notification: Notification;
   onPress: () => void;
   onMarkRead: () => void;
 };
@@ -191,11 +215,6 @@ const NotificationCard = React.memo(({ notification, onPress, onMarkRead }: Card
           <Text style={{ color: isRead ? colors.text.tertiary : colors.text.secondary }}>
             {notification.body}
           </Text>
-          {notification.taskTitle && (
-            <Text style={{ color: colors.brand.primary }}>
-              {' '}{notification.taskTitle}
-            </Text>
-          )}
         </Text>
         <Text style={[styles.timeText, { color: colors.text.tertiary }]}>
           {dayjs(notification.createdAt).fromNow()}
@@ -269,21 +288,15 @@ export default function NotificationsScreen() {
 
   const [filter, setFilter] = useState<NotificationFilter>('all');
 
-  const { data, isLoading, refetch, isRefetching } = useNotificationsMock();
-  const { mutate: markRead } = useMarkReadMock();
-  const { mutate: markAllRead, isPending: isMarkingAll } = useMarkAllReadMock();
-  const { setUnreadCount } = useNotificationStore();
+  const { data, isLoading, refetch, isRefetching } = useNotificationList();
+  const { data: unreadCount = 0 } = useUnreadCount(); // also syncs notification.store as a side effect
+  const { mutate: markRead } = useMarkRead();
+  const { mutate: markAllRead, isPending: isMarkingAll } = useMarkAllRead();
 
   const notifications = data ?? [];
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
   const filtered = filter === 'unread' ? notifications.filter((n) => !n.isRead) : notifications;
   const sections = groupNotifications(filtered);
   const hasUnread = unreadCount > 0;
-
-  // Sync unread count to store
-  useEffect(() => {
-    setUnreadCount(unreadCount);
-  }, [unreadCount, setUnreadCount]);
 
   const handleMarkRead = useCallback(
     (id: string, taskId?: string) => {
@@ -294,7 +307,9 @@ export default function NotificationsScreen() {
   );
 
   const handleMarkAllRead = useCallback(() => {
-    if (!isMarkingAll) markAllRead();
+    if (isMarkingAll) return;
+    // Error toast already shown by useMarkAllRead (useApiMutation).
+    markAllRead();
   }, [isMarkingAll, markAllRead]);
 
   return (
@@ -404,7 +419,7 @@ export default function NotificationsScreen() {
       ) : sections.length === 0 ? (
         <EmptyNotifications isFiltered={filter === 'unread'} />
       ) : (
-        <SectionList<MockNotification>
+        <SectionList<Notification>
           sections={sections}
           keyExtractor={(item) => item.id}
           renderSectionHeader={({ section }) => <SectionLabel title={section.title} />}

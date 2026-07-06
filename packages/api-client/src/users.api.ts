@@ -1,4 +1,10 @@
-import type { User, Role } from '@godigitify/types';
+import type {
+  User,
+  Role,
+  ChangeUserRoleDto,
+  NotificationPreferences,
+  UpdateNotificationPreferencesDto,
+} from '@godigitify/types';
 
 import { getApiClient } from './client';
 
@@ -35,6 +41,15 @@ export const usersApi = {
   resetPassword: (id: string) => getApiClient().patch<void>(`/users/${id}/reset-password`),
 
   updateProfile: (dto: unknown) => getApiClient().patch<User>('/users/me', dto),
+
+  changeRole: (id: string, dto: ChangeUserRoleDto) =>
+    getApiClient().patch<User>(`/users/${id}/role`, dto),
+
+  getNotificationPreferences: () =>
+    getApiClient().get<NotificationPreferences>('/users/me/notification-preferences'),
+
+  updateNotificationPreferences: (dto: UpdateNotificationPreferencesDto) =>
+    getApiClient().patch<NotificationPreferences>('/users/me/notification-preferences', dto),
 
   registerPushToken: (token: string, platform: 'ios' | 'android') =>
     getApiClient().post<void>('/users/push-token', { token, platform }),

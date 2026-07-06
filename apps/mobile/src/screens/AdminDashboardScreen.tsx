@@ -21,102 +21,18 @@ import { Typography } from '../constants/typography';
 import { buildGreeting } from '../utils/greeting';
 import { useUnreadCount, useEmployeeStats, useWorkload } from '../hooks/useDashboard';
 import { useTasks } from '../hooks/useTasks';
+import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus';
 import { getInitials } from '../utils/initial';
 import { DashboardHeader } from '../components/dashboard/DashboardHeader';
 import { OverdueAlertBanner } from '../components/dashboard/OverdueAlertBanner';
 import { StatsSkeleton } from '../components/dashboard/StatsSkeleton';
 import { TaskStatusBadge } from '../components/task/TaskStatusBadge';
+import { ProgressRing } from '../components/ui/ProgressRing';
 
 dayjs.extend(relativeTime);
 
 const isOverdue = (t: RichTask) =>
   !['COMPLETED', 'CANCELLED'].includes(t.status) && dayjs(t.dueDate).isBefore(dayjs());
-
-// ─── Donut Ring ────────────────────────────────────────────────────────────────
-// Circular "fill level" gauge — no SVG dependency, no border-rotation geometry.
-// (The previous pure-View implementation used a uniformly single-colored border
-// on all four sides for its "fill" ring, so clipping + rotating it was a visual
-// no-op — a circle is rotationally symmetric, so it always rendered fully
-// colored regardless of the actual percentage.)
-//
-// This version clips a bottom-anchored fill rectangle to a circle, i.e. a
-// circular thermometer: the ring fills upward from 6 o'clock as the
-// percentage increases. Every value here is a plain height percentage —
-// no trigonometry, so there's no rotation math that can be silently wrong.
-
-function DonutRing({
-  percentage,
-  size = 96,
-  strokeWidth = 11,
-  fillColor = '#1A5CF8',
-  trackColor = '#E2E8F0',
-  bgColor = '#FFFFFF',
-}: {
-  percentage: number;
-  size?: number;
-  strokeWidth?: number;
-  fillColor?: string;
-  trackColor?: string;
-  bgColor?: string;
-}) {
-  const clamped = Math.min(Math.max(percentage, 0), 100);
-  const half = size / 2;
-  const innerSize = size - strokeWidth * 2;
-  const innerRadius = innerSize / 2;
-
-  return (
-    <View style={{ width: size, height: size }}>
-      {/* Outer disc, clipped to a circle: track color background + fill
-          rectangle rising from the bottom by `clamped`% of the height */}
-      <View
-        style={{
-          width: size,
-          height: size,
-          borderRadius: half,
-          overflow: 'hidden',
-          backgroundColor: trackColor,
-        }}
-      >
-        <View
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height: `${clamped}%`,
-            backgroundColor: fillColor,
-          }}
-        />
-      </View>
-
-      {/* White donut hole + center text */}
-      <View
-        style={{
-          position: 'absolute',
-          top: strokeWidth,
-          left: strokeWidth,
-          width: innerSize,
-          height: innerSize,
-          borderRadius: innerRadius,
-          backgroundColor: bgColor,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Text
-          style={{
-            fontSize: 17,
-            fontFamily: 'Inter-Bold',
-            color: '#1E293B',
-            lineHeight: 20,
-          }}
-        >
-          {percentage}%
-        </Text>
-      </View>
-    </View>
-  );
-}
 
 // ─── Priority stripe colours ───────────────────────────────────────────────────
 
@@ -148,6 +64,10 @@ export function AdminDashboardScreen() {
   } = useTasks({ limit: 100, sortBy: 'createdAt', order: 'desc' });
 
   const [refreshing, setRefreshing] = useState(false);
+
+  useRefetchOnFocus(
+    useMemo(() => [refetchStats, refetchWorkload, refetchTasks], [refetchStats, refetchWorkload, refetchTasks])
+  );
 
   const push = (path: string) =>
     router.push(path as Parameters<typeof router.push>[0]);
@@ -433,10 +353,18 @@ export function AdminDashboardScreen() {
               },
             ]}
           >
-            <DonutRing
-              percentage={derivedStats.completionRate}
-              bgColor={colors.surface.card}
-            />
+            <ProgressRing
+              percent={Math.min(Math.max(derivedStats.completionRate, 0), 100)}
+              size={96}
+              thickness={11}
+              color="#1A5CF8"
+              trackColor="#E2E8F0"
+              holeColor={colors.surface.card}
+            >
+              <Text style={{ fontSize: 17, fontFamily: 'Inter-Bold', color: colors.text.primary, lineHeight: 20 }}>
+                {Math.min(Math.max(derivedStats.completionRate, 0), 100)}%
+              </Text>
+            </ProgressRing>
             <View style={s.completionRight}>
               <Text
                 style={[s.completionTitle, { color: colors.text.primary }]}

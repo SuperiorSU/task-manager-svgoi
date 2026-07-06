@@ -4,7 +4,6 @@ import React from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { toast } from 'sonner';
 import { ChevronLeft } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
@@ -104,16 +103,8 @@ export default function EditUserPage() {
 
       <form
         onSubmit={handleSubmit((data) =>
-          updateUser(
-            { id, dto: data },
-            {
-              onSuccess: () => {
-                toast.success('User updated');
-                router.push(`/users/${id}`);
-              },
-              onError: () => toast.error('Failed to update user'),
-            }
-          )
+          // Success/error toasts already shown by useUpdateUser (useApiMutation).
+          updateUser({ id, dto: data }, { onSuccess: () => router.push(`/users/${id}`) })
         )}
         className="space-y-5"
       >

@@ -1,11 +1,13 @@
+import type { ReportRecord, RequestReportDto } from '@godigitify/types';
+
 import { getApiClient } from './client';
 
 export const reportsApi = {
-  requestReport: (type: string, params: Record<string, unknown>) =>
-    getApiClient().post<{ reportId: string }>('/reports', { type, ...params }),
+  requestReport: (dto: RequestReportDto) =>
+    getApiClient().post<ReportRecord>('/reports/request', dto),
 
   getDownloadUrl: (reportId: string) =>
-    getApiClient().get<{ url: string }>(`/reports/${reportId}/download`),
+    getApiClient().get<{ reportId: string; label: string; message: string }>(`/reports/${reportId}/download`),
 
-  getList: () => getApiClient().get<unknown[]>('/reports'),
+  getList: () => getApiClient().get<ReportRecord[]>('/reports'),
 };

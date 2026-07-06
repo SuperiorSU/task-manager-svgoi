@@ -22,6 +22,8 @@ export const PERMISSIONS = {
   GOVERNANCE_TASK_CREATE: 'governance:task:create',
   GOVERNANCE_TASK_REVIEW: 'governance:task:review',
   DEPT_SETTINGS_MANAGE: 'dept:settings:manage',
+  ORG_CONFIG_MANAGE: 'org:config:manage',
+  USER_ROLE_CHANGE: 'user:role:change',
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -32,9 +34,12 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.TASK_CREATE,
     PERMISSIONS.TASK_READ_ALL,
     PERMISSIONS.TASK_UPDATE_ALL,
+    PERMISSIONS.TASK_UPDATE_STATUS,
     PERMISSIONS.TASK_ASSIGN,
     PERMISSIONS.TASK_REASSIGN,
     PERMISSIONS.TASK_BULK_OPS,
+    PERMISSIONS.BATCH_CREATE,
+    PERMISSIONS.BATCH_MANAGE,
     PERMISSIONS.USER_CREATE,
     PERMISSIONS.USER_READ,
     PERMISSIONS.USER_UPDATE,

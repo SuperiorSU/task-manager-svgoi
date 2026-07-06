@@ -13,7 +13,6 @@
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -41,6 +40,7 @@ import { useColors } from '../../../src/constants/colors';
 import { Spacing } from '../../../src/constants/spacing';
 import { SuspendConfirmModal } from '../../../src/components/team/SuspendConfirmModal';
 import { ResetPasswordSheet } from '../../../src/components/team/ResetPasswordSheet';
+import { ConfirmActionModal } from '../../../src/components/ui/ConfirmActionModal';
 
 // ─── Priority stripe colours ──────────────────────────────────────────────────
 
@@ -92,89 +92,6 @@ const sl = StyleSheet.create({
   },
 });
 
-// ─── Overflow menu ────────────────────────────────────────────────────────────
-
-type OverflowMenuProps = {
-  visible: boolean;
-  member: TeamMemberView;
-  onEdit: () => void;
-  onResetPwd: () => void;
-  onSuspend: () => void;
-  onReactivate: () => void;
-  onDismiss: () => void;
-};
-
-function OverflowMenu({ visible, member, onEdit, onResetPwd, onSuspend, onReactivate, onDismiss }: OverflowMenuProps) {
-  const colors = useColors();
-  if (!visible) return null;
-  return (
-    <Modal transparent animationType="fade" visible={visible} onRequestClose={onDismiss} statusBarTranslucent>
-      <Pressable style={om.scrim} onPress={onDismiss} />
-      <View style={[om.menu, { backgroundColor: colors.surface.card, top: 110, right: 16 }]}>
-        <MenuItem icon="edit-2" label="Edit profile" onPress={onEdit} colors={colors} />
-        <View style={[om.divider, { backgroundColor: colors.surface.border }]} />
-        <MenuItem icon="lock" label="Reset password" onPress={onResetPwd} colors={colors} accent={colors.brand.primary} />
-        <View style={[om.divider, { backgroundColor: colors.surface.border }]} />
-        {member.isActive ? (
-          <MenuItem icon="user-x" label="Suspend account" onPress={onSuspend} colors={colors} danger />
-        ) : (
-          <MenuItem icon="user-check" label="Reactivate account" onPress={onReactivate} colors={colors} accent="#16A34A" />
-        )}
-      </View>
-    </Modal>
-  );
-}
-
-function MenuItem({
-  icon, label, onPress, colors, danger, accent,
-}: {
-  icon: React.ComponentProps<typeof Feather>['name'];
-  label: string;
-  onPress: () => void;
-  colors: ReturnType<typeof useColors>;
-  danger?: boolean;
-  accent?: string;
-}) {
-  const color = danger ? colors.semantic.error : accent ?? colors.text.primary;
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [om.item, pressed && { backgroundColor: colors.surface.background }]}
-    >
-      <Feather name={icon} size={17} color={color} />
-      <Text style={[om.itemText, { color }]}>{label}</Text>
-    </Pressable>
-  );
-}
-
-const om = StyleSheet.create({
-  scrim: { ...StyleSheet.absoluteFillObject },
-  menu: {
-    position: 'absolute',
-    borderRadius: 14,
-    paddingVertical: 4,
-    minWidth: 200,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.16,
-    shadowRadius: 16,
-    elevation: 12,
-  },
-  item: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 13,
-    paddingHorizontal: 16,
-  },
-  itemText: {
-    fontSize: 14,
-    fontFamily: 'Inter-Medium',
-    letterSpacing: 0,
-  },
-  divider: { height: 1, marginHorizontal: 12 },
-});
-
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function MemberDetailScreen() {
@@ -184,8 +101,8 @@ export default function MemberDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const currentUser = useAuthStore((s) => s.user);
 
-  const [overflowVisible, setOverflowVisible] = useState(false);
   const [suspendVisible, setSuspendVisible] = useState(false);
+  const [confirmReactivateVisible, setConfirmReactivateVisible] = useState(false);
   const [resetVisible, setResetVisible] = useState(false);
 
   const { data: user, isLoading } = useUser(id ?? '');
@@ -207,22 +124,38 @@ export default function MemberDetailScreen() {
     member.department.id !== currentUser.departmentId;
 
   const handleSuspendConfirm = useCallback(async (m: TeamMemberView) => {
-    await deactivateUser.mutateAsync(m.id);
-    setSuspendVisible(false);
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    try {
+      await deactivateUser.mutateAsync(m.id);
+      setSuspendVisible(false);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      // Error toast already shown by useDeactivateUser (useApiMutation) — keep the modal open to retry.
+    }
   }, [deactivateUser]);
+
+  const requestReactivate = useCallback(() => {
+    setConfirmReactivateVisible(true);
+  }, []);
 
   const handleReactivate = useCallback(async () => {
     if (!member) return;
-    await reactivateUser.mutateAsync(member.id);
-    setOverflowVisible(false);
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    try {
+      await reactivateUser.mutateAsync(member.id);
+      setConfirmReactivateVisible(false);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      // Error toast already shown by useReactivateUser (useApiMutation) — keep the modal open to retry.
+    }
   }, [member, reactivateUser]);
 
   const handleResetConfirm = useCallback(async (m: TeamMemberView) => {
-    await resetPassword.mutateAsync(m.id);
-    setResetVisible(false);
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    try {
+      await resetPassword.mutateAsync(m.id);
+      setResetVisible(false);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      // Error toast already shown by useResetUserPassword (useApiMutation) — keep the sheet open to retry.
+    }
   }, [resetPassword]);
 
   if (isLoading) {
@@ -273,19 +206,9 @@ export default function MemberDetailScreen() {
 
         <Text style={[s.headerTitle, { color: colors.text.primary }]}>Team member</Text>
 
-        {isReadOnly ? (
-          <View style={s.headerBtn} />
-        ) : (
-          <Pressable
-            onPress={() => setOverflowVisible(true)}
-            style={s.headerBtn}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="More actions"
-          >
-            <Feather name="more-vertical" size={20} color={colors.text.tertiary} />
-          </Pressable>
-        )}
+        {/* Spacer keeps the title centered — member actions live in the inline
+            "Manage" card below, so there is no header overflow menu. */}
+        <View style={s.headerBtn} />
       </View>
 
       <ScrollView
@@ -405,10 +328,9 @@ export default function MemberDetailScreen() {
               <ManageRow
                 icon="edit-2"
                 label="Edit profile"
-                onPress={() => {
-                  setOverflowVisible(false);
-                  router.push(`/(app)/people/${member.id}/edit` as Parameters<typeof router.push>[0]);
-                }}
+                onPress={() =>
+                  router.push(`/(app)/people/${member.id}/edit` as Parameters<typeof router.push>[0])
+                }
                 colors={colors}
               />
               <View style={[s.cardDivider, { backgroundColor: '#F4F6FA' }]} />
@@ -416,10 +338,7 @@ export default function MemberDetailScreen() {
                 icon="lock"
                 label="Reset password"
                 accent={colors.brand.primary}
-                onPress={() => {
-                  setOverflowVisible(false);
-                  setResetVisible(true);
-                }}
+                onPress={() => setResetVisible(true)}
                 colors={colors}
               />
               <View style={[s.cardDivider, { backgroundColor: '#F4F6FA' }]} />
@@ -428,10 +347,7 @@ export default function MemberDetailScreen() {
                   icon="user-x"
                   label="Suspend account"
                   danger
-                  onPress={() => {
-                    setOverflowVisible(false);
-                    setSuspendVisible(true);
-                  }}
+                  onPress={() => setSuspendVisible(true)}
                   colors={colors}
                 />
               ) : (
@@ -439,34 +355,15 @@ export default function MemberDetailScreen() {
                   icon="user-check"
                   label="Reactivate account"
                   accent="#16A34A"
-                  onPress={handleReactivate}
+                  onPress={requestReactivate}
                   colors={colors}
+                  loading={reactivateUser.isPending}
                 />
               )}
             </View>
           </>
         )}
       </ScrollView>
-
-      {/* ── Overflow menu ────────────────────────────────────────────────── */}
-      <OverflowMenu
-        visible={overflowVisible}
-        member={member}
-        onEdit={() => {
-          setOverflowVisible(false);
-          router.push(`/(app)/people/${member.id}/edit` as Parameters<typeof router.push>[0]);
-        }}
-        onResetPwd={() => {
-          setOverflowVisible(false);
-          setResetVisible(true);
-        }}
-        onSuspend={() => {
-          setOverflowVisible(false);
-          setSuspendVisible(true);
-        }}
-        onReactivate={handleReactivate}
-        onDismiss={() => setOverflowVisible(false)}
-      />
 
       {/* ── Modals ───────────────────────────────────────────────────────── */}
       <SuspendConfirmModal
@@ -475,6 +372,21 @@ export default function MemberDetailScreen() {
         onConfirm={handleSuspendConfirm}
         onDismiss={() => setSuspendVisible(false)}
       />
+
+      {member && (
+        <ConfirmActionModal
+          visible={confirmReactivateVisible}
+          icon="user-check"
+          iconBg="#F0FDF4"
+          iconColor="#16A34A"
+          title={`Reactivate ${member.name}?`}
+          body="They'll regain app access immediately and can log in again."
+          confirmLabel="Reactivate account"
+          confirmColor="#16A34A"
+          onConfirm={handleReactivate}
+          onDismiss={() => setConfirmReactivateVisible(false)}
+        />
+      )}
 
       <ResetPasswordSheet
         member={member}
@@ -589,6 +501,7 @@ function ManageRow({
   colors,
   danger,
   accent,
+  loading,
 }: {
   icon: React.ComponentProps<typeof Feather>['name'];
   label: string;
@@ -596,21 +509,28 @@ function ManageRow({
   colors: ReturnType<typeof useColors>;
   danger?: boolean;
   accent?: string;
+  loading?: boolean;
 }) {
   const color = danger ? colors.semantic.error : accent ?? colors.text.primary;
   return (
     <Pressable
       onPress={onPress}
+      disabled={loading}
       style={({ pressed }) => [
         mr.row,
         pressed && { backgroundColor: colors.surface.background },
+        loading && { opacity: 0.5 },
       ]}
       accessibilityRole="button"
       accessibilityLabel={label}
     >
       <Feather name={icon} size={18} color={color} />
       <Text style={[mr.label, { color, flex: 1 }]}>{label}</Text>
-      <Feather name="chevron-right" size={18} color={colors.surface.borderStrong} />
+      {loading ? (
+        <ActivityIndicator size="small" color={color} />
+      ) : (
+        <Feather name="chevron-right" size={18} color={colors.surface.borderStrong} />
+      )}
     </Pressable>
   );
 }

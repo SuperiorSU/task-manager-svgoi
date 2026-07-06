@@ -10,6 +10,7 @@ import {
   TextInput,
   Animated,
   Platform,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,12 +20,18 @@ import dayjs from 'dayjs';
 
 import type { RichTask } from '@godigitify/types';
 import { useAuthStore } from '../stores/auth.store';
-import { useTasks } from '../hooks/useTasks';
+import { useTasks, useBulkCancelTasks } from '../hooks/useTasks';
+import { useDebounce } from '../hooks/useDebounce';
+import { useTaskSelection } from '../hooks/useTaskSelection';
+import { useToast } from '../hooks/useToast';
 import { useColors } from '../constants/colors';
 import { Layout, Spacing } from '../constants/spacing';
 import { Typography } from '../constants/typography';
 import { AdminTaskCard } from '../components/task/AdminTaskCard';
+import { BulkActionBar } from '../components/task/BulkActionBar';
 import { EmptyState } from '../components/ui/EmptyState';
+
+const CANCELLABLE_STATUSES = new Set(['PENDING', 'ACCEPTED', 'IN_PROGRESS', 'UNDER_REVIEW']);
 
 type AdminTaskScope = 'managed' | 'assigned';
 type AdminTaskFilter = 'ALL' | 'TO_REVIEW' | 'CROSS_DEPT' | 'OVERDUE';
@@ -98,8 +105,16 @@ export function AdminTasksScreen() {
   const searchRef = useRef<TextInput>(null);
   const searchAnim = useRef(new Animated.Value(0)).current;
 
+  const selection = useTaskSelection();
+  const bulkCancel = useBulkCancelTasks();
+  const toast = useToast();
+
   // ── Data loading ──────────────────────────────────────────────────────────
   // Server scopes ADMIN queries to: own dept + self-created cross-dept + assigned-to-me.
+
+  // Debounced per 8_overview.md §4.5 — keystrokes update the input instantly,
+  // the network query waits 300ms.
+  const debouncedSearch = useDebounce(search, 300);
 
   const {
     data: listData,
@@ -109,15 +124,21 @@ export function AdminTasksScreen() {
     limit: 100,
     sortBy: 'createdAt',
     order: 'desc',
-    ...(search ? { search } : {}),
+    ...(debouncedSearch ? { search: debouncedSearch } : {}),
   });
 
   const allTasks: RichTask[] = listData ?? [];
 
-  // "I manage" = tasks in my own dept, or tasks I created for another dept.
+  // "I manage" = tasks in my own dept, or tasks I created for another dept —
+  // but NOT tasks where I'm personally the assignee (e.g. a governance task
+  // the SA assigned to me, tagged with my own department). Those belong
+  // exclusively in "Assigned to me", never both tabs at once.
   // "Assigned to me" = tasks someone else assigned to me personally.
   const managedTasks = useMemo(
-    () => allTasks.filter((t) => t.departmentId === adminDeptId || t.creatorId === adminId),
+    () =>
+      allTasks.filter(
+        (t) => (t.departmentId === adminDeptId || t.creatorId === adminId) && t.assigneeId !== adminId,
+      ),
     [allTasks, adminDeptId, adminId],
   );
   const assignedToMeTasks = useMemo(
@@ -183,6 +204,49 @@ export function AdminTasksScreen() {
     (id: string) => push(`/(app)/tasks/${id}`),
     [push],
   );
+
+  // ── Bulk selection (long-press → multi-select → bulk cancel) ─────────────
+  // Only tasks this Admin created are eligible — matches the server's
+  // creator-or-SUPER_ADMIN rule in bulkUpdateStatus, so nothing selectable
+  // here can come back from the server as "skipped."
+
+  const handleLongPressTask = useCallback(
+    async (id: string) => {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      selection.enter(id);
+    },
+    [selection],
+  );
+
+  const handleBulkCancel = useCallback(() => {
+    const ids = Array.from(selection.selectedIds);
+    Alert.alert(
+      'Cancel Tasks',
+      `Cancel ${ids.length} task${ids.length !== 1 ? 's' : ''}? This can't be undone.`,
+      [
+        { text: 'No, keep them', style: 'cancel' },
+        {
+          text: 'Cancel Tasks',
+          style: 'destructive',
+          onPress: () => {
+            bulkCancel.mutate(ids, {
+              onSuccess: (res) => {
+                const { cancelledIds, skippedIds } = res.data;
+                selection.clear();
+                if (skippedIds.length === 0) {
+                  toast.success(`${cancelledIds.length} task${cancelledIds.length !== 1 ? 's' : ''} cancelled`);
+                } else {
+                  toast.info(
+                    `${cancelledIds.length} cancelled, ${skippedIds.length} skipped (not created by you)`
+                  );
+                }
+              },
+            });
+          },
+        },
+      ]
+    );
+  }, [selection, bulkCancel, toast]);
 
   const handleCreateTask = useCallback(async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -263,9 +327,14 @@ export function AdminTasksScreen() {
         task={item.task}
         isCrossDept={item.task.creatorId === adminId && item.task.departmentId !== adminDeptId}
         onPress={handleTaskPress}
+        selectable={item.task.creatorId === adminId && CANCELLABLE_STATUSES.has(item.task.status)}
+        selectionMode={selection.selectionMode}
+        selected={selection.selectedIds.has(item.task.id)}
+        onLongPress={handleLongPressTask}
+        onToggleSelect={selection.toggle}
       />
     ),
-    [handleTaskPress, adminId, adminDeptId],
+    [handleTaskPress, adminId, adminDeptId, selection.selectionMode, selection.selectedIds, handleLongPressTask, selection.toggle],
   );
 
   const keyExtractor = useCallback((item: SectionItem) => item.id, []);
@@ -485,23 +554,32 @@ export function AdminTasksScreen() {
         ListEmptyComponent={ListEmptyComponent}
       />
 
-      {/* ── FAB ───────────────────────────────────────────────────────────── */}
-      <Pressable
-        onPress={handleCreateTask}
-        style={({ pressed }) => [
-          s.fab,
-          {
-            right: Spacing[4],
-            bottom: insets.bottom + 90,
-            backgroundColor: colors.brand.primary,
-          },
-          pressed && { opacity: 0.86, transform: [{ scale: 0.97 }] },
-        ]}
-        accessibilityRole="button"
-        accessibilityLabel="Create task"
-      >
-        <Feather name="plus" size={26} color="#FFFFFF" />
-      </Pressable>
+      {/* ── FAB / bulk action bar ──────────────────────────────────────────── */}
+      {selection.selectionMode ? (
+        <BulkActionBar
+          count={selection.selectedIds.size}
+          loading={bulkCancel.isPending}
+          onCancelTasks={handleBulkCancel}
+          onDismiss={selection.clear}
+        />
+      ) : (
+        <Pressable
+          onPress={handleCreateTask}
+          style={({ pressed }) => [
+            s.fab,
+            {
+              right: Spacing[4],
+              bottom: insets.bottom + 90,
+              backgroundColor: colors.brand.primary,
+            },
+            pressed && { opacity: 0.86, transform: [{ scale: 0.97 }] },
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="Create task"
+        >
+          <Feather name="plus" size={26} color="#FFFFFF" />
+        </Pressable>
+      )}
     </View>
   );
 }

@@ -28,6 +28,7 @@ import {
   useSuspendOrgUser,
   useReactivateOrgUser,
 } from '../hooks/useOrgDirectory';
+import { useAuthStore } from '../stores/auth.store';
 import { useColors } from '../constants/colors';
 import { Spacing } from '../constants/spacing';
 
@@ -92,6 +93,7 @@ export function OrgUserDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const currentUserId = useAuthStore((s) => s.user?.id);
 
   const { data: user, isLoading } = useOrgUserDetail(id ?? '');
   const changeRole = useChangeOrgUserRole(id ?? '');
@@ -117,28 +119,40 @@ export function OrgUserDetailScreen() {
 
   const handleChangeRole = useCallback(
     async (u: OrgUser, role: OrgUser['role']) => {
-      await changeRole.mutateAsync(role);
-      setRoleSheetVisible(false);
-      setOverflowVisible(false);
+      try {
+        await changeRole.mutateAsync(role);
+        setRoleSheetVisible(false);
+        setOverflowVisible(false);
+      } catch {
+        // Error toast already shown by useChangeOrgUserRole (useApiMutation) — keep the sheet open to retry.
+      }
     },
     [changeRole]
   );
 
   const handleResetPassword = useCallback(async () => {
-    await resetPassword.mutateAsync();
-    setResetVisible(false);
-    setOverflowVisible(false);
+    try {
+      await resetPassword.mutateAsync();
+      setResetVisible(false);
+      setOverflowVisible(false);
+    } catch {
+      // Error toast already shown by useResetOrgUserPassword (useApiMutation) — keep the sheet open to retry.
+    }
   }, [resetPassword]);
 
   const handleSuspendToggle = useCallback(async () => {
     if (!user) return;
-    if (user.status === 'ACTIVE') {
-      await suspend.mutateAsync();
-    } else {
-      await reactivate.mutateAsync();
+    try {
+      if (user.status === 'ACTIVE') {
+        await suspend.mutateAsync();
+      } else {
+        await reactivate.mutateAsync();
+      }
+      setSuspendVisible(false);
+      setOverflowVisible(false);
+    } catch {
+      // Error toast already shown by useSuspendOrgUser/useReactivateOrgUser (useApiMutation) — keep the modal open to retry.
     }
-    setSuspendVisible(false);
-    setOverflowVisible(false);
   }, [user, suspend, reactivate]);
 
   if (isLoading || !user) {
@@ -161,6 +175,12 @@ export function OrgUserDetailScreen() {
   }
 
   const isActive = user.status === 'ACTIVE';
+  // This is a "manage other people" console — the viewer can't change their
+  // own role, reset their own password, or suspend themselves from here
+  // (self-service password change is a separate flow; role-change/suspend
+  // on your own account makes no sense in an admin console). Enforced again
+  // server-side in users.service.ts's changeRole/resetPassword/deactivate.
+  const isSelf = !!currentUserId && user.id === currentUserId;
   const deptLabel = user.departments.map((d) => d.name).join(', ') || '—';
   const joined = dayjs(user.createdAt);
   const yearsTenure = (dayjs().diff(joined, 'day') / 365).toFixed(1);
@@ -179,9 +199,13 @@ export function OrgUserDetailScreen() {
           <Feather name="chevron-left" size={22} color={colors.text.primary} />
         </Pressable>
         <Text style={[s.headerTitle, { color: colors.text.primary }]}>User record</Text>
-        <Pressable onPress={() => setOverflowVisible(true)} style={s.headerBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="More actions">
-          <Feather name="more-vertical" size={20} color={colors.text.tertiary} />
-        </Pressable>
+        {isSelf ? (
+          <View style={s.headerBtn} />
+        ) : (
+          <Pressable onPress={() => setOverflowVisible(true)} style={s.headerBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="More actions">
+            <Feather name="more-vertical" size={20} color={colors.text.tertiary} />
+          </Pressable>
+        )}
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}>
@@ -273,36 +297,42 @@ export function OrgUserDetailScreen() {
         {/* ── Activity history ─────────────────────────────────────────── */}
         <OrgUserActivityTimeline events={user.activityHistory} />
 
-        {/* ── Manage ───────────────────────────────────────────────────── */}
-        <SectionLabel>Manage</SectionLabel>
-        <View style={[s.card, { backgroundColor: colors.surface.card, marginHorizontal: Spacing[4] }]}>
-          <OrgUserManageRow icon="shield" label="Change role" onPress={() => setRoleSheetVisible(true)} />
-          <View style={[s.cardDivider, { backgroundColor: colors.surface.border }]} />
-          <OrgUserManageRow icon="lock" label="Reset password" accent={colors.brand.primary} onPress={() => setResetVisible(true)} />
-          <View style={[s.cardDivider, { backgroundColor: colors.surface.border }]} />
-          {isActive ? (
-            <OrgUserManageRow icon="user-x" label="Suspend account" danger onPress={() => setSuspendVisible(true)} />
-          ) : (
-            <OrgUserManageRow icon="user-check" label="Reactivate account" accent="#16A34A" onPress={() => setSuspendVisible(true)} />
-          )}
-        </View>
+        {/* ── Manage (hidden for your own account — see isSelf comment above) ── */}
+        {!isSelf && (
+          <>
+            <SectionLabel>Manage</SectionLabel>
+            <View style={[s.card, { backgroundColor: colors.surface.card, marginHorizontal: Spacing[4] }]}>
+              <OrgUserManageRow icon="shield" label="Change role" onPress={() => setRoleSheetVisible(true)} />
+              <View style={[s.cardDivider, { backgroundColor: colors.surface.border }]} />
+              <OrgUserManageRow icon="lock" label="Reset password" accent={colors.brand.primary} onPress={() => setResetVisible(true)} />
+              <View style={[s.cardDivider, { backgroundColor: colors.surface.border }]} />
+              {isActive ? (
+                <OrgUserManageRow icon="user-x" label="Suspend account" danger onPress={() => setSuspendVisible(true)} />
+              ) : (
+                <OrgUserManageRow icon="user-check" label="Reactivate account" accent="#16A34A" onPress={() => setSuspendVisible(true)} />
+              )}
+            </View>
+          </>
+        )}
       </ScrollView>
 
       {/* ── Overflow menu (mirrors Manage — quick access from header) ───── */}
-      <Modal transparent animationType="fade" visible={overflowVisible} onRequestClose={() => setOverflowVisible(false)} statusBarTranslucent>
-        <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setOverflowVisible(false)} />
-        <View style={[s.overflowMenu, { backgroundColor: colors.surface.card, top: insets.top + 60, right: 16 }]}>
-          <OrgUserManageRow icon="shield" label="Change role" onPress={() => { setOverflowVisible(false); setRoleSheetVisible(true); }} />
-          <View style={[s.cardDivider, { backgroundColor: colors.surface.border }]} />
-          <OrgUserManageRow icon="lock" label="Reset password" accent={colors.brand.primary} onPress={() => { setOverflowVisible(false); setResetVisible(true); }} />
-          <View style={[s.cardDivider, { backgroundColor: colors.surface.border }]} />
-          {isActive ? (
-            <OrgUserManageRow icon="user-x" label="Suspend account" danger onPress={() => { setOverflowVisible(false); setSuspendVisible(true); }} />
-          ) : (
-            <OrgUserManageRow icon="user-check" label="Reactivate account" accent="#16A34A" onPress={() => { setOverflowVisible(false); setSuspendVisible(true); }} />
-          )}
-        </View>
-      </Modal>
+      {!isSelf && (
+        <Modal transparent animationType="fade" visible={overflowVisible} onRequestClose={() => setOverflowVisible(false)} statusBarTranslucent>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setOverflowVisible(false)} />
+          <View style={[s.overflowMenu, { backgroundColor: colors.surface.card, top: insets.top + 60, right: 16 }]}>
+            <OrgUserManageRow icon="shield" label="Change role" onPress={() => { setOverflowVisible(false); setRoleSheetVisible(true); }} />
+            <View style={[s.cardDivider, { backgroundColor: colors.surface.border }]} />
+            <OrgUserManageRow icon="lock" label="Reset password" accent={colors.brand.primary} onPress={() => { setOverflowVisible(false); setResetVisible(true); }} />
+            <View style={[s.cardDivider, { backgroundColor: colors.surface.border }]} />
+            {isActive ? (
+              <OrgUserManageRow icon="user-x" label="Suspend account" danger onPress={() => { setOverflowVisible(false); setSuspendVisible(true); }} />
+            ) : (
+              <OrgUserManageRow icon="user-check" label="Reactivate account" accent="#16A34A" onPress={() => { setOverflowVisible(false); setSuspendVisible(true); }} />
+            )}
+          </View>
+        </Modal>
+      )}
 
       {/* ── Modals ───────────────────────────────────────────────────────── */}
       <OrgChangeRoleSheet user={user} visible={roleSheetVisible} onConfirm={handleChangeRole} onDismiss={() => setRoleSheetVisible(false)} />

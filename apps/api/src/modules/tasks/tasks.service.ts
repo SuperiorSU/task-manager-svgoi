@@ -3,6 +3,7 @@ import type { TaskStatus, TaskPriority, CreateTaskBatchDto, BatchProgressSegment
 import { prisma } from '../../config/database.js';
 import { cache } from '../../config/redis.js';
 import { writeAuditLog } from '../../utils/audit.utils.js';
+import { notifyUsers } from '../notifications/notifications.service.js';
 
 const invalidateDashboardCaches = async (): Promise<void> => {
   await Promise.all([
@@ -30,6 +31,30 @@ const VALID_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
   UNDER_REVIEW: ['COMPLETED', 'IN_PROGRESS'],
   COMPLETED: [],
   CANCELLED: [],
+};
+
+// Who gets notified for a status transition, and with what type/copy.
+// The assignee acts on PENDING/ACCEPTED/IN_PROGRESS/UNDER_REVIEW transitions
+// (creator is notified); the creator acts on COMPLETED/CANCELLED/revision
+// (assignee is notified) — see 8_overview.md §2 status-transition matrix.
+const resolveStatusChangeNotification = (
+  prevStatus: TaskStatus,
+  newStatus: TaskStatus,
+  task: { assigneeId: string; creatorId: string }
+): { recipientId: string; type: 'TASK_STATUS_CHANGED' | 'TASK_COMPLETED'; statusLabel: string } => {
+  if (newStatus === 'COMPLETED') {
+    return { recipientId: task.assigneeId, type: 'TASK_COMPLETED', statusLabel: 'completed' };
+  }
+  if (newStatus === 'CANCELLED') {
+    return { recipientId: task.assigneeId, type: 'TASK_STATUS_CHANGED', statusLabel: 'cancelled' };
+  }
+  if (newStatus === 'IN_PROGRESS' && prevStatus === 'UNDER_REVIEW') {
+    return { recipientId: task.assigneeId, type: 'TASK_STATUS_CHANGED', statusLabel: 'sent back for revision' };
+  }
+  if (newStatus === 'UNDER_REVIEW') {
+    return { recipientId: task.creatorId, type: 'TASK_STATUS_CHANGED', statusLabel: 'submitted for review' };
+  }
+  return { recipientId: task.creatorId, type: 'TASK_STATUS_CHANGED', statusLabel: STATUS_LABELS[newStatus].toLowerCase() };
 };
 
 const taskSelect = {
@@ -213,6 +238,16 @@ export const tasksService = {
     // Invalidate dashboard cache
     await invalidateDashboardCaches();
 
+    await notifyUsers({
+      type: 'TASK_ASSIGNED',
+      recipientIds: [task.assigneeId],
+      actorId: input.creatorId,
+      actorName: task.creator.name,
+      taskId: task.id,
+      taskTitle: task.title,
+      pushPriority: 'high',
+    });
+
     return task;
   },
 
@@ -292,10 +327,13 @@ export const tasksService = {
       throw Object.assign(new Error('Task not found'), { statusCode: 404, code: 'NOT_FOUND' });
     }
 
-    // Only creator/admin can approve (UNDER_REVIEW → COMPLETED) or cancel
+    // Approving (COMPLETED) or cancelling a task is restricted to the task's
+    // creator or a SUPER_ADMIN — matches 8_overview.md §2's status-transition
+    // matrix ("Task creator OR SUPER_ADMIN only"), not just "any non-employee."
     if (
       (newStatus === 'COMPLETED' || newStatus === 'CANCELLED') &&
-      actorRole === 'EMPLOYEE'
+      actorRole !== 'SUPER_ADMIN' &&
+      task.creatorId !== actorId
     ) {
       throw Object.assign(new Error('Insufficient permissions'), { statusCode: 403, code: 'FORBIDDEN' });
     }
@@ -331,15 +369,71 @@ export const tasksService = {
 
     await invalidateDashboardCaches();
 
+    const { recipientId, type, statusLabel } = resolveStatusChangeNotification(
+      task.status as TaskStatus,
+      newStatus,
+      task
+    );
+    const actor = await prisma.user.findUnique({ where: { id: actorId }, select: { name: true } });
+    await notifyUsers({
+      type,
+      recipientIds: [recipientId],
+      actorId,
+      actorName: actor?.name,
+      taskId: id,
+      taskTitle: task.title,
+      statusLabel,
+      pushPriority: newStatus === 'CANCELLED' || newStatus === 'UNDER_REVIEW' ? 'high' : 'default',
+    });
+
     return updated;
   },
 
-  async assign(id: string, newAssigneeId: string, actorId: string) {
-    const task = await prisma.task.findUnique({
-      where: { id, isDeleted: false },
-      select: { id: true, assigneeId: true, title: true },
+  async assign(
+    id: string,
+    newAssigneeId: string,
+    actorId: string,
+    actorRole: string,
+    actorDeptId?: string,
+    reason?: string
+  ) {
+    // Scoped the same way getById/getList already scope ADMIN visibility:
+    // their own department's tasks, or tasks they personally created
+    // (covers a cross-dept task an Admin created for another department).
+    // SUPER_ADMIN is unrestricted; EMPLOYEE never reaches this (route-level
+    // TASK_ASSIGN permission excludes that role).
+    const task = await prisma.task.findFirst({
+      where: {
+        id,
+        isDeleted: false,
+        ...(actorRole === 'ADMIN' && actorDeptId
+          ? { OR: [{ departmentId: actorDeptId }, { creatorId: actorId }] }
+          : {}),
+      },
+      select: { id: true, status: true, assigneeId: true, title: true },
     });
     if (!task) throw Object.assign(new Error('Task not found'), { statusCode: 404, code: 'NOT_FOUND' });
+
+    if (task.status === 'COMPLETED' || task.status === 'CANCELLED') {
+      throw Object.assign(
+        new Error(`Cannot reassign a task that is already ${task.status.toLowerCase()}`),
+        { statusCode: 400, code: 'INVALID_STATUS_TRANSITION' }
+      );
+    }
+
+    const newAssignee = await prisma.user.findUnique({
+      where: { id: newAssigneeId },
+      select: { id: true, name: true, isActive: true, role: true },
+    });
+    if (!newAssignee || !newAssignee.isActive) {
+      throw Object.assign(new Error('Assignee not found'), { statusCode: 404, code: 'NOT_FOUND' });
+    }
+    if (newAssignee.role !== 'ADMIN' && newAssignee.role !== 'EMPLOYEE') {
+      throw Object.assign(
+        new Error('Tasks can only be assigned to an Admin or Employee'),
+        { statusCode: 400, code: 'INVALID_ASSIGNEE' }
+      );
+    }
 
     const updated = await prisma.task.update({
       where: { id },
@@ -352,9 +446,22 @@ export const tasksService = {
         taskId: id,
         actorId,
         action: 'REASSIGNED',
-        description: `Task reassigned to ${updated.assignee.name}`,
-        metadata: { previousAssigneeId: task.assigneeId, newAssigneeId },
+        description: reason
+          ? `Task reassigned to ${updated.assignee.name}: ${reason}`
+          : `Task reassigned to ${updated.assignee.name}`,
+        metadata: { previousAssigneeId: task.assigneeId, newAssigneeId, ...(reason ? { reason } : {}) },
       },
+    });
+
+    const actor = await prisma.user.findUnique({ where: { id: actorId }, select: { name: true } });
+    await notifyUsers({
+      type: 'TASK_REASSIGNED',
+      recipientIds: [task.assigneeId, newAssigneeId],
+      actorId,
+      actorName: actor?.name,
+      taskId: id,
+      taskTitle: updated.title,
+      pushPriority: 'high',
     });
 
     return updated;
@@ -375,22 +482,60 @@ export const tasksService = {
     });
   },
 
-  async bulkUpdateStatus(ids: string[], status: TaskStatus, actorId: string) {
-    await prisma.task.updateMany({
-      where: { id: { in: ids }, isDeleted: false },
-      data: { status: status as never },
+  // Schema restricts `status` to 'CANCELLED' only (bulkStatusBodySchema) — this
+  // is the bulk equivalent of updateStatus's cancel path, so it uses the same
+  // creator-or-SUPER_ADMIN rule rather than trusting whatever ids the client sent.
+  async bulkUpdateStatus(ids: string[], status: TaskStatus, actorId: string, actorRole: string) {
+    const candidates = await prisma.task.findMany({
+      where: { id: { in: ids }, isDeleted: false, status: { notIn: ['COMPLETED', 'CANCELLED'] } },
+      select: { id: true, status: true, assigneeId: true, creatorId: true, title: true },
     });
 
-    const activities = ids.map((taskId) => ({
-      taskId,
-      actorId,
-      action: 'STATUS_CHANGED' as const,
-      description: `Bulk status update to ${status}`,
-      metadata: { to: status },
-    }));
+    const tasks =
+      actorRole === 'SUPER_ADMIN' ? candidates : candidates.filter((t) => t.creatorId === actorId);
+    const cancellableIds = new Set(candidates.map((t) => t.id));
+    const skippedIds = ids.filter(
+      (id) => !cancellableIds.has(id) || !tasks.some((t) => t.id === id)
+    );
 
-    await prisma.taskActivity.createMany({ data: activities as never });
-    await invalidateDashboardCaches();
+    if (tasks.length > 0) {
+      await prisma.task.updateMany({
+        where: { id: { in: tasks.map((t) => t.id) } },
+        data: { status: status as never },
+      });
+
+      await prisma.taskActivity.createMany({
+        data: tasks.map((task) => ({
+          taskId: task.id,
+          actorId,
+          action: 'STATUS_CHANGED' as const,
+          description: `Bulk status update to ${status}`,
+          metadata: { to: status },
+        })) as never,
+      });
+
+      await invalidateDashboardCaches();
+
+      const actor = await prisma.user.findUnique({ where: { id: actorId }, select: { name: true } });
+      for (const task of tasks) {
+        const { recipientId, type, statusLabel } = resolveStatusChangeNotification(
+          task.status as TaskStatus,
+          status,
+          task
+        );
+        await notifyUsers({
+          type,
+          recipientIds: [recipientId],
+          actorId,
+          actorName: actor?.name,
+          taskId: task.id,
+          taskTitle: task.title,
+          statusLabel,
+        });
+      }
+    }
+
+    return { cancelledIds: tasks.map((t) => t.id), skippedIds };
   },
 
   async getComments(taskId: string, viewerId: string, viewerRole: string, viewerDeptId?: string) {
@@ -419,7 +564,7 @@ export const tasksService = {
     viewerRole?: string,
     viewerDeptId?: string
   ) {
-    await tasksService.getById(taskId, authorId, viewerRole ?? 'EMPLOYEE', viewerDeptId);
+    const task = await tasksService.getById(taskId, authorId, viewerRole ?? 'EMPLOYEE', viewerDeptId);
 
     const comment = await prisma.comment.create({
       data: { taskId, authorId, content, ...(parentId !== undefined ? { parentId } : {}) },
@@ -439,6 +584,16 @@ export const tasksService = {
         action: 'UPDATE',
         description: `Comment added`,
       },
+    });
+
+    // Notify task stakeholders (creator + assignee), never the comment author.
+    await notifyUsers({
+      type: 'COMMENT_ADDED',
+      recipientIds: [task.creatorId, task.assigneeId],
+      actorId: authorId,
+      actorName: comment.author.name,
+      taskId,
+      taskTitle: task.title,
     });
 
     return comment;
@@ -603,15 +758,13 @@ export const tasksService = {
       select: { id: true, title: true, assigneeId: true },
     });
 
-    if (stragglers.length > 0) {
-      await prisma.notification.createMany({
-        data: stragglers.map((task) => ({
-          type: 'TASK_DUE_SOON' as const,
-          title: 'Task nudge',
-          body: `Reminder: "${task.title}" is still pending and needs your attention.`,
-          userId: task.assigneeId,
-          taskId: task.id,
-        })) as never,
+    for (const task of stragglers) {
+      await notifyUsers({
+        type: 'TASK_DUE_SOON',
+        recipientIds: [task.assigneeId],
+        actorId,
+        taskId: task.id,
+        taskTitle: task.title,
       });
     }
 

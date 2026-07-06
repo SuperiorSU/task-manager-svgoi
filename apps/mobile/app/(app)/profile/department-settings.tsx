@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View, StyleSheet } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -126,7 +126,14 @@ export default function DepartmentSettingsScreen() {
 
   const handleSave = () => {
     if (!draft) return;
-    save(draft, { onSuccess: () => router.back() });
+    Alert.alert(
+      'Save department settings?',
+      'These settings apply to every member of your department, including task visibility, default priority, and due-window rules.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Save', onPress: () => save(draft, { onSuccess: () => router.back() }) },
+      ]
+    );
   };
 
   const addCategory = (cat: string) =>

@@ -1,12 +1,20 @@
 import { useMemo } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { usersApi, departmentsApi, dashboardApi, auditApi } from '@godigitify/api-client';
 import type { UserFilters } from '@godigitify/api-client';
-import type { User, CreateDepartmentDto, AuditLogEntry } from '@godigitify/types';
+import type {
+  User,
+  CreateDepartmentDto,
+  UpdateDepartmentDto,
+  DepartmentMember,
+  AuditLogEntry,
+} from '@godigitify/types';
 
 import { queryKeys } from '../constants/queryKeys';
 import { getInitials } from '../utils/initial';
 import { avatarPalette } from '../utils/avatarPalette';
+import { useAuthStore } from '../stores/auth.store';
+import { useApiMutation } from './useApiMutation';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 // Org-wide, cross-department, both roles (ADMIN + EMPLOYEE) — distinct from
@@ -47,6 +55,58 @@ export type OrgDepartmentWithStats = {
   completionRate: number;
   /** True only for departments created during this session — drives the "NEW" badge. */
   createdInSession: boolean;
+};
+
+// ─── Department detail + members (SA "Department detail/members", 56a/56b) ───
+
+export type OrgDepartmentDetail = {
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+  createdAt: string;
+  memberCount: number;
+  headId?: string;
+  headName?: string;
+  taskStats: {
+    activeCount: number;
+    completedCount: number;
+    inProgressCount: number;
+    overdueCount: number;
+    onTimeRate: number;
+  };
+};
+
+export type OrgDepartmentMemberFilter = 'ALL' | 'ADMINS' | 'EMPLOYEES' | 'SUSPENDED';
+
+export type OrgDepartmentMember = {
+  id: string;
+  name: string;
+  initials: string;
+  avatarBg: string;
+  avatarText: string;
+  staffId: string;
+  designation: string;
+  role: OrgRole;
+  isHead: boolean;
+  status: OrgUserStatus;
+};
+
+const toOrgDepartmentMember = (m: DepartmentMember, headId?: string): OrgDepartmentMember => {
+  const initials = getInitials(m.name);
+  const palette = avatarPalette(initials);
+  return {
+    id: m.id,
+    name: m.name,
+    initials,
+    avatarBg: palette.bg,
+    avatarText: palette.fg,
+    staffId: m.employeeId ?? '—',
+    designation: m.designation ?? '',
+    role: m.role === 'ADMIN' ? 'ADMIN' : 'EMPLOYEE',
+    isHead: m.id === headId,
+    status: m.isActive ? 'ACTIVE' : 'SUSPENDED',
+  };
 };
 
 // ─── User detail — account activity + ongoing load (SA "User detail", 68) ────
@@ -147,10 +207,22 @@ const toActivityEvent = (entry: AuditLogEntry): OrgUserActivityEvent => ({
 
 export const useOrgUsers = (filter: OrgUserFilter, search: string) => {
   const filters = filterToUserFilters(filter, search);
+  const currentUserId = useAuthStore((s) => s.user?.id);
   return useQuery({
     queryKey: queryKeys.users.list(filters as Record<string, unknown>),
     queryFn: () => usersApi.getList(filters),
-    select: (res) => ({ users: res.data.items.map(toOrgUser), total: res.data.total }),
+    // This is a "manage other people" console — the viewer's own account
+    // never belongs in it (they can't suspend/change-role/reset-password on
+    // themselves; see OrgUserDetailScreen's isSelf guard for the same rule
+    // enforced again at the detail screen, and users.service.ts's deactivate/
+    // resetPassword/changeRole for the server-side enforcement).
+    select: (res) => {
+      const selfIncluded = res.data.items.some((u) => u.id === currentUserId);
+      return {
+        users: res.data.items.filter((u) => u.id !== currentUserId).map(toOrgUser),
+        total: res.data.total - (selfIncluded ? 1 : 0),
+      };
+    },
     staleTime: 60 * 1000,
   });
 };
@@ -230,6 +302,83 @@ export const useOrgDepartmentRefs = () =>
   });
 
 /**
+ * Department detail (screen 56a): identity + task-stat KPIs, assembled from
+ * departmentsApi (identity/head/member count) + dashboardApi.getDeptStats
+ * (the same org-wide aggregate useOrgDepartments already uses), filtered to
+ * this one department.
+ */
+export const useOrgDepartmentDetail = (id: string) =>
+  useQuery({
+    queryKey: queryKeys.departments.detail(id),
+    queryFn: async () => {
+      const [{ data: dept }, { data: allStats }] = await Promise.all([
+        departmentsApi.getById(id),
+        dashboardApi.getDeptStats(),
+      ]);
+      const stats = allStats.find((s) => s.id === id);
+      const total = stats?.total ?? 0;
+      const completed = stats?.completed ?? 0;
+      const overdue = stats?.overdue ?? 0;
+
+      const detail: OrgDepartmentDetail = {
+        id: dept.id,
+        name: dept.name,
+        code: dept.code,
+        ...(dept.description ? { description: dept.description } : {}),
+        createdAt: dept.createdAt,
+        memberCount: dept._count?.users ?? 0,
+        ...(dept.headId ? { headId: dept.headId } : {}),
+        ...(dept.head?.name ? { headName: dept.head.name } : {}),
+        taskStats: {
+          activeCount: Math.max(total - completed, 0),
+          completedCount: completed,
+          inProgressCount: Math.max(total - completed - overdue, 0),
+          overdueCount: overdue,
+          onTimeRate: stats?.completionRate ?? 0,
+        },
+      };
+      return detail;
+    },
+    enabled: !!id,
+    staleTime: 60 * 1000,
+  });
+
+/** Department roster (screen 56b), with client-side role/status filtering + composition counts. */
+export const useOrgDepartmentMembers = (id: string, filter: OrgDepartmentMemberFilter) =>
+  useQuery({
+    queryKey: queryKeys.departments.members(id),
+    queryFn: async () => {
+      const [{ data: members }, { data: dept }] = await Promise.all([
+        departmentsApi.getMembers(id),
+        departmentsApi.getById(id),
+      ]);
+      const all = members.map((m) => toOrgDepartmentMember(m, dept.headId));
+
+      const filtered = all.filter((m) => {
+        switch (filter) {
+          case 'ADMINS': return m.role === 'ADMIN' && m.status === 'ACTIVE';
+          case 'EMPLOYEES': return m.role === 'EMPLOYEE' && m.status === 'ACTIVE';
+          case 'SUSPENDED': return m.status === 'SUSPENDED';
+          case 'ALL':
+          default: return true;
+        }
+      });
+
+      return {
+        members: filtered,
+        total: all.length,
+        composition: {
+          admins: all.filter((m) => m.role === 'ADMIN' && m.status === 'ACTIVE').length,
+          employees: all.filter((m) => m.role === 'EMPLOYEE' && m.status === 'ACTIVE').length,
+          suspended: all.filter((m) => m.status === 'SUSPENDED').length,
+        },
+      };
+    },
+    enabled: !!id,
+    staleTime: 60 * 1000,
+  });
+
+/**
  * Full user record for the "User detail" screen (68): identity + account
  * info + ongoing load + activity history — assembled from usersApi (identity),
  * dashboardApi (dept-health / staff-load, the same aggregates the rest of the
@@ -292,8 +441,9 @@ export const useOrgUserDetail = (id: string) =>
 
 export const useCreateOrgUser = () => {
   const qc = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: (dto: unknown) => usersApi.create(dto),
+    successMessage: 'User created',
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.users.all() });
     },
@@ -302,24 +452,20 @@ export const useCreateOrgUser = () => {
 
 export const useCreateOrgDepartment = () => {
   const qc = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: (dto: CreateDepartmentDto) => departmentsApi.create(dto),
+    successMessage: 'Department created',
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.departments.list() });
     },
   });
 };
 
-/**
- * NOTE: the backend's PATCH /users/:id whitelists only name/phone/designation/
- * departmentId/managerId — `role` is currently accepted here but silently
- * dropped server-side (no role-change endpoint exists yet). Wired ahead of
- * that backend support landing rather than left unimplemented.
- */
 export const useChangeOrgUserRole = (id: string) => {
   const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (role: OrgRole) => usersApi.update(id, { role }),
+  return useApiMutation({
+    mutationFn: (role: OrgRole) => usersApi.changeRole(id, { role }),
+    successMessage: 'Role updated',
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.users.orgDetail(id) });
       void qc.invalidateQueries({ queryKey: queryKeys.users.all() });
@@ -329,16 +475,18 @@ export const useChangeOrgUserRole = (id: string) => {
 
 export const useResetOrgUserPassword = (id: string) => {
   const qc = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: () => usersApi.resetPassword(id),
+    successMessage: 'Password reset link sent',
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.users.orgDetail(id) }),
   });
 };
 
 export const useSuspendOrgUser = (id: string) => {
   const qc = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: () => usersApi.deactivate(id),
+    successMessage: 'User suspended',
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.users.orgDetail(id) });
       void qc.invalidateQueries({ queryKey: queryKeys.users.all() });
@@ -348,10 +496,49 @@ export const useSuspendOrgUser = (id: string) => {
 
 export const useReactivateOrgUser = (id: string) => {
   const qc = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: () => usersApi.reactivate(id),
+    successMessage: 'User reactivated',
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.users.orgDetail(id) });
+      void qc.invalidateQueries({ queryKey: queryKeys.users.all() });
+    },
+  });
+};
+
+export const useUpdateOrgDepartment = (id: string) => {
+  const qc = useQueryClient();
+  return useApiMutation({
+    mutationFn: (dto: UpdateDepartmentDto) => departmentsApi.update(id, dto),
+    successMessage: 'Department updated',
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.departments.detail(id) });
+      void qc.invalidateQueries({ queryKey: queryKeys.departments.list() });
+    },
+  });
+};
+
+export const useArchiveOrgDepartment = (id: string) => {
+  const qc = useQueryClient();
+  return useApiMutation({
+    mutationFn: () => departmentsApi.archive(id),
+    successMessage: 'Department archived',
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.departments.list() });
+    },
+  });
+};
+
+export const useReassignDepartmentHead = (id: string) => {
+  const qc = useQueryClient();
+  return useApiMutation({
+    mutationFn: (newHeadId: string) => departmentsApi.reassignHead(id, { newHeadId }),
+    successMessage: 'Department head reassigned',
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.departments.detail(id) });
+      void qc.invalidateQueries({ queryKey: queryKeys.departments.members(id) });
+      void qc.invalidateQueries({ queryKey: queryKeys.departments.list() });
+      // Reassignment also flips both users' roles.
       void qc.invalidateQueries({ queryKey: queryKeys.users.all() });
     },
   });

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 
-import { isTaskOverdue, type MockTask } from '../data/tasks.mock';
+import type { RichTask } from '@godigitify/types';
 import {
   DEFAULT_DATE_RANGE,
   type HistoryDateRange,
@@ -11,11 +11,13 @@ import {
 } from '../data/adminWorkload.mock';
 import { adminWorkloadService } from '../services/adminWorkload.service';
 
+const isTaskOverdue = (t: RichTask) =>
+  !['COMPLETED', 'CANCELLED'].includes(t.status) && dayjs(t.dueDate).isBefore(dayjs());
+
 const QK = {
   team: ['admin', 'workload', 'team'] as const,
   member: (userId: string) => ['admin', 'workload', 'member', userId] as const,
   memberTasks: (userId: string) => ['admin', 'workload', 'member', userId, 'tasks'] as const,
-  profileLink: (name: string) => ['admin', 'workload', 'profile-link', name] as const,
 };
 
 // ─── Query hooks ──────────────────────────────────────────────────────────────
@@ -43,14 +45,6 @@ export const useMemberTasksRaw = (userId: string) =>
     staleTime: 2 * 60 * 1000,
   });
 
-export const useMemberProfileLink = (memberName: string | undefined) =>
-  useQuery({
-    queryKey: QK.profileLink(memberName ?? ''),
-    queryFn: () => adminWorkloadService.resolveProfileId(memberName ?? ''),
-    enabled: !!memberName,
-    staleTime: 5 * 60 * 1000,
-  });
-
 // ─── Task history filter state (screens 74/75) ────────────────────────────────
 
 export type MemberHistoryFilters = {
@@ -67,12 +61,12 @@ export const DEFAULT_HISTORY_FILTERS: MemberHistoryFilters = {
   search: '',
 };
 
-function inDateRange(task: MockTask, range: HistoryDateRange): boolean {
+function inDateRange(task: RichTask, range: HistoryDateRange): boolean {
   if (range === 'ALL') return true;
   return dayjs(task.createdAt).isAfter(dayjs().subtract(range, 'day'));
 }
 
-function matchesStatusChip(task: MockTask, chip: HistoryStatusChip): boolean {
+function matchesStatusChip(task: RichTask, chip: HistoryStatusChip): boolean {
   switch (chip) {
     case 'ALL':
       return true;
@@ -88,9 +82,9 @@ function matchesStatusChip(task: MockTask, chip: HistoryStatusChip): boolean {
 /** Applies date range + status chip + search, in that order — used for both
  * the rendered list and the filter sheet's live "Show N tasks" preview. */
 export function filterMemberTasks(
-  tasks: MockTask[],
+  tasks: RichTask[],
   filters: Pick<MemberHistoryFilters, 'dateRange' | 'statusChip' | 'search'>,
-): MockTask[] {
+): RichTask[] {
   let result = tasks.filter((t) => inDateRange(t, filters.dateRange));
   result = result.filter((t) => matchesStatusChip(t, filters.statusChip));
 
@@ -102,7 +96,7 @@ export function filterMemberTasks(
   return result;
 }
 
-function sortByRecency(tasks: MockTask[], order: HistorySortOrder): MockTask[] {
+function sortByRecency(tasks: RichTask[], order: HistorySortOrder): RichTask[] {
   const dir = order === 'newest' ? -1 : 1;
   return [...tasks].sort((a, b) => (dayjs(a.createdAt).valueOf() - dayjs(b.createdAt).valueOf()) * dir);
 }
@@ -156,7 +150,7 @@ export const useMemberTaskHistory = (userId: string, filters: MemberHistoryFilte
   const sorted = useMemo(() => sortByRecency(filtered, filters.sortOrder), [filtered, filters.sortOrder]);
 
   const grouped = useMemo(() => {
-    const groups: { title: string; data: MockTask[] }[] = [];
+    const groups: { title: string; data: RichTask[] }[] = [];
     for (const task of sorted) {
       const label = dayjs(task.createdAt).format('MMMM YYYY');
       const last = groups[groups.length - 1];

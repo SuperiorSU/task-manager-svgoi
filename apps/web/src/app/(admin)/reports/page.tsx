@@ -29,10 +29,9 @@ export default function ReportsPage() {
   const { mutate: requestReport, isPending } = useRequestReport();
 
   const handleRequest = (type: string) => {
+    // Error toast already shown by useRequestReport (useApiMutation).
     requestReport({ type }, {
-      onSuccess: () =>
-        toast.success("Report queued — you'll be notified when it's ready"),
-      onError: () => toast.error('Failed to request report'),
+      onSuccess: () => toast.success("Report queued — you'll be notified when it's ready"),
     });
   };
 

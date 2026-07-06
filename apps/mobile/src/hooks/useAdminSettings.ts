@@ -1,11 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { departmentsApi } from '@godigitify/api-client';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { departmentsApi, usersApi } from '@godigitify/api-client';
 import type { UpdateDepartmentSettingsDto } from '@godigitify/types';
 
 import { queryKeys } from '../constants/queryKeys';
 import { useAuthStore } from '../stores/auth.store';
-import { teamService } from '../services/team.service';
-import { ADMIN_DEPT } from '../data/team.mock';
+import { useApiMutation } from './useApiMutation';
 
 // ─── Department settings (Approval preferences + Department settings screens) ─
 // Both screens read/write the same combined DepartmentSettings row — each
@@ -24,9 +23,10 @@ export const useAdminSettings = () => {
 export const useUpdateAdminSettings = () => {
   const qc = useQueryClient();
   const departmentId = useAuthStore((s) => s.user?.departmentId) ?? '';
-  return useMutation({
+  return useApiMutation({
     mutationFn: (dto: UpdateDepartmentSettingsDto) =>
       departmentsApi.updateSettings(departmentId, dto),
+    successMessage: 'Settings saved',
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.departments.settings(departmentId) });
     },
@@ -35,12 +35,15 @@ export const useUpdateAdminSettings = () => {
 
 // ─── Team member count (for the Management → "Manage team members" badge) ────
 
-export const useTeamCount = () =>
-  useQuery({
-    queryKey: ['admin', 'team', 'count'],
+export const useTeamCount = () => {
+  const departmentId = useAuthStore((s) => s.user?.departmentId) ?? '';
+  return useQuery({
+    queryKey: ['admin', 'team', 'count', departmentId],
     queryFn: async () => {
-      const { members } = await teamService.getTeamList('ALL', '', ADMIN_DEPT.id);
-      return members.length;
+      const { data } = await usersApi.getList({ departmentId, isActive: true, limit: 1 });
+      return data.total;
     },
+    enabled: !!departmentId,
     staleTime: 5 * 60 * 1000,
   });
+};

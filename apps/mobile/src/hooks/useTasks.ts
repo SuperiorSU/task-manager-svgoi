@@ -1,8 +1,9 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { tasksApi } from '@godigitify/api-client';
-import type { TaskFilters, UpdateTaskStatusDto, CreateTaskDto } from '@godigitify/types';
+import type { TaskFilters, UpdateTaskStatusDto, CreateTaskDto, CreateTaskBatchDto } from '@godigitify/types';
 
 import { queryKeys } from '../constants/queryKeys';
+import { useApiMutation } from './useApiMutation';
 
 export const useTasks = (filters?: TaskFilters) =>
   useQuery({
@@ -46,9 +47,10 @@ export const useTaskAttachments = (taskId: string) =>
 
 export const useUpdateTaskStatus = () => {
   const qc = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: ({ id, dto }: { id: string; dto: UpdateTaskStatusDto }) =>
       tasksApi.updateStatus(id, dto),
+    successMessage: 'Status updated',
     onSuccess: (_, { id }) => {
       void qc.invalidateQueries({ queryKey: queryKeys.tasks.all() });
       void qc.invalidateQueries({ queryKey: queryKeys.tasks.detail(id) });
@@ -60,8 +62,49 @@ export const useUpdateTaskStatus = () => {
 
 export const useCreateTask = () => {
   const qc = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: (dto: CreateTaskDto) => tasksApi.create(dto),
+    successMessage: 'Task created',
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.tasks.all() });
+      void qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats('week') });
+    },
+  });
+};
+
+/** Duplicate-to-team (FR-23): one shared batchId across N single-assignee
+ * copies, so the Batch Progress screens can track them as one group. */
+export const useCreateTaskBatch = () => {
+  const qc = useQueryClient();
+  return useApiMutation({
+    mutationFn: (dto: CreateTaskBatchDto) => tasksApi.createBatch(dto),
+    successMessage: 'Tasks created',
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.tasks.all() });
+      void qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats('week') });
+    },
+  });
+};
+
+export const useReassignTask = () => {
+  const qc = useQueryClient();
+  return useApiMutation({
+    mutationFn: ({ id, assigneeId, reason }: { id: string; assigneeId: string; reason?: string }) =>
+      tasksApi.assign(id, assigneeId, reason),
+    successMessage: 'Task reassigned',
+    onSuccess: (_, { id }) => {
+      void qc.invalidateQueries({ queryKey: queryKeys.tasks.all() });
+      void qc.invalidateQueries({ queryKey: queryKeys.tasks.detail(id) });
+      void qc.invalidateQueries({ queryKey: queryKeys.tasks.activity(id) });
+      void qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats('week') });
+    },
+  });
+};
+
+export const useBulkCancelTasks = () => {
+  const qc = useQueryClient();
+  return useApiMutation({
+    mutationFn: (ids: string[]) => tasksApi.bulkUpdateStatus(ids, 'CANCELLED'),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.tasks.all() });
       void qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats('week') });
@@ -71,8 +114,9 @@ export const useCreateTask = () => {
 
 export const useDeleteTask = () => {
   const qc = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: (id: string) => tasksApi.delete(id),
+    successMessage: 'Task deleted',
     onSuccess: (_, id) => {
       void qc.invalidateQueries({ queryKey: queryKeys.tasks.all() });
       void qc.invalidateQueries({ queryKey: queryKeys.tasks.detail(id) });
@@ -83,7 +127,7 @@ export const useDeleteTask = () => {
 
 export const useAddComment = (taskId: string) => {
   const qc = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: ({ content, parentId }: { content: string; parentId?: string }) =>
       tasksApi.addComment(taskId, content, parentId),
     onSuccess: () => {

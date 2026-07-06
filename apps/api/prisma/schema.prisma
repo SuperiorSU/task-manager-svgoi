@@ -105,6 +105,47 @@ model DepartmentSettings {
   updatedAt DateTime @updatedAt
 }
 
+model OrganizationConfig {
+  id        String @id @default(cuid())
+  singleton Int    @unique @default(1) // enforces a single row via upsert-by-singleton
+
+  orgName                          String       @default("SVGOI")
+  allowCrossDeptEmployeeAssignment Boolean      @default(true)
+  workingDays                      Json         @default("[1,2,3,4,5,6]")
+  workingHoursStart                String       @default("09:00")
+  workingHoursEnd                  String       @default("17:00")
+  weeklyHoliday                    Int          @default(0)
+  defaultPriority                  TaskPriority @default(MEDIUM)
+  defaultDueWindowDays              Int         @default(3)
+  taskCategories                    Json        @default("[]")
+  requireProofOfWork                Boolean     @default(true)
+  autoApproveLowPriority            Boolean     @default(false)
+  onRejection                       String      @default("REASSIGN_TO_CREATOR")
+  approverScope                     String      @default("DEPT_ADMIN")
+  reviewWithinHours                 Int         @default(24)
+  escalateOverdueReviews            Boolean     @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model NotificationPreference {
+  id     String @id @default(cuid())
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String @unique
+
+  inAppEnabled      Boolean @default(true)
+  emailEnabled      Boolean @default(true)
+  pushEnabled       Boolean @default(true)
+  mutedTypes        Json    @default("[]") // NotificationType[] the user has turned off
+  quietHoursEnabled Boolean @default(false)
+  quietHoursStart   String  @default("22:00")
+  quietHoursEnd     String  @default("07:00")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model User {
   id                String    @id @default(cuid())
   email             String    @unique
@@ -138,6 +179,7 @@ model User {
   auditLogs      AuditLog[]
   taskActivities TaskActivity[]
   permissions    UserPermission[]
+  notificationPreference NotificationPreference?
 
   @@index([email])
   @@index([departmentId])

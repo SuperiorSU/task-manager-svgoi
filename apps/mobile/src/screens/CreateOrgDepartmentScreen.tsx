@@ -8,7 +8,6 @@
 import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -176,7 +175,7 @@ export function CreateOrgDepartmentScreen() {
   const [defaultDueWindowDays, setDefaultDueWindowDays] = useState(3);
   const [activePicker, setActivePicker] = useState<PickerKind>(null);
 
-  const [focused, setFocused] = useState<string | null>('name');
+  const [focused, setFocused] = useState<string | null>(null);
   const [errors, setErrors] = useState<{ name?: string; code?: string }>({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -230,7 +229,7 @@ export function CreateOrgDepartmentScreen() {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
     } catch {
-      Alert.alert('Error', 'Could not create this department. Please try again.');
+      // Error toast already shown by useCreateOrgDepartment (useApiMutation).
     } finally {
       setSubmitting(false);
     }
@@ -282,7 +281,7 @@ export function CreateOrgDepartmentScreen() {
                 focused={focused === 'code'}
                 onFocus={() => setFocused('code')}
                 onBlur={() => setFocused(null)}
-                autoCapitalize="characters"
+                autoCapitalize="none"
                 mono
               />
             </View>

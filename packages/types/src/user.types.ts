@@ -21,3 +21,5 @@ export type User = {
 };
 
 export type UserProfile = Omit<User, 'permissions'>;
+
+export type ChangeUserRoleDto = { role: Extract<Role, 'ADMIN' | 'EMPLOYEE'> };

@@ -20,6 +20,7 @@ import {
   useUnreadCount,
   useDashboardRefresh,
 } from '../../../src/hooks/useDashboard';
+import { useRefetchOnFocus } from '../../../src/hooks/useRefetchOnFocus';
 
 import { DashboardHeader } from '../../../src/components/dashboard/DashboardHeader';
 import { OverdueAlertBanner } from '../../../src/components/dashboard/OverdueAlertBanner';
@@ -47,6 +48,7 @@ export default function EmployeeDashboardScreen() {
     [refetchStats, refetchUpcoming, refetchActivity]
   );
   const { refreshing, onRefresh } = useDashboardRefresh(refetchers);
+  useRefetchOnFocus(refetchers);
 
   const firstName = user?.name?.split(' ')[0] ?? 'there';
   const greeting = buildGreeting();

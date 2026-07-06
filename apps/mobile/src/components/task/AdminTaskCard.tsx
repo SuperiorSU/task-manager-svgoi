@@ -69,9 +69,25 @@ type Props = {
   task: RichTask;
   isCrossDept?: boolean;
   onPress?: (id: string) => void;
+  /** Multi-select (Admin bulk cancel) — only offered for cancellable statuses by the caller. */
+  selectable?: boolean;
+  selectionMode?: boolean;
+  selected?: boolean;
+  onLongPress?: (id: string) => void;
+  onToggleSelect?: (id: string) => void;
 };
 
-export const AdminTaskCard = React.memo(({ task, isCrossDept = false, onPress }: Props) => {
+export const AdminTaskCard = React.memo(
+  ({
+    task,
+    isCrossDept = false,
+    onPress,
+    selectable = false,
+    selectionMode = false,
+    selected = false,
+    onLongPress,
+    onToggleSelect,
+  }: Props) => {
   const router = useRouter();
   const colors = useColors();
   const overdue = isTaskOverdue(task);
@@ -83,16 +99,23 @@ export const AdminTaskCard = React.memo(({ task, isCrossDept = false, onPress }:
   const meta = getMetaLabel(task);
 
   const handlePress = useCallback(() => {
-    if (onPress) {
+    if (selectionMode) {
+      onToggleSelect?.(task.id);
+    } else if (onPress) {
       onPress(task.id);
     } else {
       router.push(`/(app)/tasks/${task.id}` as Parameters<typeof router.push>[0]);
     }
-  }, [task.id, onPress, router]);
+  }, [task.id, onPress, router, selectionMode, onToggleSelect]);
+
+  const handleLongPress = useCallback(() => {
+    if (selectable && !selectionMode) onLongPress?.(task.id);
+  }, [selectable, selectionMode, onLongPress, task.id]);
 
   return (
     <Pressable
       onPress={handlePress}
+      onLongPress={handleLongPress}
       style={({ pressed }) => [
         s.card,
         {
@@ -100,11 +123,23 @@ export const AdminTaskCard = React.memo(({ task, isCrossDept = false, onPress }:
           shadowColor: '#000',
         },
         overdue && { backgroundColor: '#FFF5F5' },
+        selected && { backgroundColor: colors.brand.primaryLight },
         pressed && s.pressed,
       ]}
       accessibilityRole="button"
       accessibilityLabel={`Task: ${task.title}`}
+      accessibilityState={selectionMode ? { selected } : undefined}
     >
+      {selectionMode && (
+        <View style={s.checkboxWrap}>
+          <Feather
+            name={selected ? 'check-circle' : 'circle'}
+            size={20}
+            color={selected ? colors.brand.primary : colors.surface.borderStrong}
+          />
+        </View>
+      )}
+
       {/* Priority stripe */}
       <View style={[s.stripe, { backgroundColor: stripeColor }]} />
 
@@ -163,6 +198,7 @@ const s = StyleSheet.create({
     minHeight: 66,
   },
   pressed: { opacity: 0.88, transform: [{ scale: 0.99 }] },
+  checkboxWrap: { paddingLeft: 12, alignItems: 'center', justifyContent: 'center' },
   stripe: {
     width: 4,
     alignSelf: 'stretch',

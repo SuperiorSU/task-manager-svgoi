@@ -13,7 +13,6 @@
 import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -23,7 +22,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -137,6 +136,9 @@ export function CreateOrgUserScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  // Pre-selects the department when reached from a department's "Add member"
+  // row (Department members screen, 56b) — otherwise unset, same as before.
+  const { departmentId: prefillDepartmentId } = useLocalSearchParams<{ departmentId?: string }>();
 
   const deptRefsQuery = useOrgDepartmentRefs();
   const createUser = useCreateOrgUser();
@@ -147,7 +149,7 @@ export function CreateOrgUserScreen() {
   const [staffId, setStaffId] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [departmentIds, setDepartmentIds] = useState<string[]>([]);
+  const [departmentIds, setDepartmentIds] = useState<string[]>(prefillDepartmentId ? [prefillDepartmentId] : []);
   const [deptSheetVisible, setDeptSheetVisible] = useState(false);
 
   const [focused, setFocused] = useState<string | null>('name');
@@ -206,7 +208,7 @@ export function CreateOrgUserScreen() {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
     } catch {
-      Alert.alert('Error', 'Could not create this user. Please try again.');
+      // Error toast already shown by useCreateOrgUser (useApiMutation).
     } finally {
       setSubmitting(false);
     }

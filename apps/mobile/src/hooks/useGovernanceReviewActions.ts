@@ -1,5 +1,4 @@
 import { useCallback, useState } from 'react';
-import { Alert } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
 import type { GovernanceTask } from '@godigitify/types';
@@ -41,7 +40,7 @@ export function useGovernanceReviewActions(task: ReviewTarget, options: Options 
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setApprovedVisible(true);
     } catch {
-      Alert.alert('Error', 'Could not approve the task. Please try again.');
+      // Error toast already shown by useApproveGovernanceTask (useApiMutation).
     }
   }, [task, approveMutation]);
 
@@ -54,7 +53,7 @@ export function useGovernanceReviewActions(task: ReviewTarget, options: Options 
         setRevisionVisible(false);
         options.onRevised?.();
       } catch {
-        Alert.alert('Error', 'Could not request revision. Please try again.');
+        // Error toast already shown by useRequestGovernanceRevision (useApiMutation).
       }
     },
     [task, revisionMutation, options]

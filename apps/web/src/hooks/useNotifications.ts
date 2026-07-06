@@ -1,8 +1,9 @@
 'use client';
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/constants/queryKeys';
 import { notificationsService } from '@/services/notifications.service';
+import { useApiMutation } from './useApiMutation';
 
 export const useNotifications = () =>
   useQuery({
@@ -21,7 +22,7 @@ export const useUnreadCount = () =>
 
 export const useMarkNotificationRead = () => {
   const qc = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: (id: string) => notificationsService.markRead(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.notifications.list() });
@@ -32,7 +33,7 @@ export const useMarkNotificationRead = () => {
 
 export const useMarkAllNotificationsRead = () => {
   const qc = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: () => notificationsService.markAllRead(),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.notifications.list() });

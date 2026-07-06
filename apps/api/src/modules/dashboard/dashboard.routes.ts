@@ -623,9 +623,10 @@ export const dashboardRoutes = async (app: FastifyInstance): Promise<void> => {
         return sendError(reply, 400, ErrorCodes.VALIDATION_ERROR, 'Invalid from/to date range');
       }
 
+      // Client default is prev-month-start through next-month-end (~92 days worst case).
       const rangeDays = (toDate.getTime() - fromDate.getTime()) / 86_400_000;
-      if (rangeDays > 62) {
-        return sendError(reply, 400, ErrorCodes.VALIDATION_ERROR, 'Date range cannot exceed 62 days');
+      if (rangeDays > 100) {
+        return sendError(reply, 400, ErrorCodes.VALIDATION_ERROR, 'Date range cannot exceed 100 days');
       }
 
       const scope = req.user.role === 'SUPER_ADMIN' ? 'org' : (req.user.departmentId ?? '');

@@ -1,5 +1,4 @@
 import { useCallback, useState } from 'react';
-import { Alert } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
 import type { RichTask } from '@godigitify/types';
@@ -23,13 +22,21 @@ type Options = {
 export function useTaskReviewActions(task: ReviewTarget, options: Options = {}) {
   const [revisionVisible, setRevisionVisible] = useState(false);
   const [approvedVisible, setApprovedVisible] = useState(false);
+  const [confirmApproveVisible, setConfirmApproveVisible] = useState(false);
   const updateStatus = useUpdateTaskStatus();
 
   const openRevision = useCallback(() => setRevisionVisible(true), []);
   const closeRevision = useCallback(() => setRevisionVisible(false), []);
 
+  // COMPLETED is a terminal status (no transition back out per the state
+  // machine) and immediately notifies the assignee — gate it behind an
+  // explicit confirm step rather than firing on the first tap.
+  const requestApprove = useCallback(() => setConfirmApproveVisible(true), []);
+  const cancelApprove = useCallback(() => setConfirmApproveVisible(false), []);
+
   const approve = useCallback(async () => {
     if (!task) return;
+    setConfirmApproveVisible(false);
     updateStatus.mutate(
       { id: task.id, dto: { status: 'COMPLETED' } },
       {
@@ -37,7 +44,7 @@ export function useTaskReviewActions(task: ReviewTarget, options: Options = {}) 
           await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           setApprovedVisible(true);
         },
-        onError: () => Alert.alert('Error', 'Could not approve the task. Please try again.'),
+        // Error toast already shown by useUpdateTaskStatus (useApiMutation).
       }
     );
   }, [task, updateStatus]);
@@ -52,7 +59,7 @@ export function useTaskReviewActions(task: ReviewTarget, options: Options = {}) 
           setRevisionVisible(false);
           options.onRevised?.();
         },
-        onError: () => Alert.alert('Error', 'Could not request revision. Please try again.'),
+        // Error toast already shown by useUpdateTaskStatus (useApiMutation).
       }
     );
   }, [task, updateStatus, options]);
@@ -66,8 +73,11 @@ export function useTaskReviewActions(task: ReviewTarget, options: Options = {}) 
     loading: updateStatus.isPending,
     revisionVisible,
     approvedVisible,
+    confirmApproveVisible,
     openRevision,
     closeRevision,
+    requestApprove,
+    cancelApprove,
     approve,
     submitRevision,
     closeApproved,

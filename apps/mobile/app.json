@@ -19,6 +19,7 @@
     },
     "android": {
       "package": "com.godigitify.svgoitasks",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icons/adaptive-icon.png",
         "backgroundColor": "#1A1F2E"

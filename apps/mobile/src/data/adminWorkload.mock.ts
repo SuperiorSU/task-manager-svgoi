@@ -1,24 +1,14 @@
 /**
- * Admin — Workload & Task History module (HTML reference screens 73–75:
- * "Team workload — full", "User task history — filterable", "Task history
- * filters — sheet"), reached from Admin Dashboard → Workload distribution →
- * See all (screen 23).
+ * Admin — Workload & Task History module config (HTML reference screens
+ * 73–75: "Team workload — full", "User task history — filterable", "Task
+ * history filters — sheet"), reached from Admin Dashboard → Workload
+ * distribution → See all (screen 23).
  *
- * Unlike the Super Admin oversight module (see superAdminTasks.mock.ts),
- * every member of the Admin's own department already has real MockTask
- * records in tasks.mock.ts — so there is no authored aggregate mock here.
- * Workload numbers are computed live from MOCK_TASKS + MOCK_USERS in
- * adminWorkload.service.ts. This file only holds the tier taxonomy, the
- * capacity target, and small presentation constants shared by the service
- * and the screens.
- *
- * Swap the service's methods for GET /users?departmentId=&includeTaskLoad=1
- * and GET /users/:id/tasks?departmentId= when the backend is ready.
+ * Despite the filename, this file holds no mock records — only the tier
+ * taxonomy, capacity target, and presentation constants shared by
+ * adminWorkload.service.ts (real API-backed) and the screens/components
+ * under components/task/workload/.
  */
-
-import { ADMIN_DEPT } from './team.mock';
-
-export { ADMIN_DEPT };
 
 // ─── Capacity tiers ───────────────────────────────────────────────────────────
 // 4-tier scheme matching HTML screen 73's bar-fill colours exactly: an "OVER"

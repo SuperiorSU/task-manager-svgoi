@@ -1,8 +1,9 @@
-import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import { usersApi, tasksApi } from '@godigitify/api-client';
 import type { UserFilters } from '@godigitify/api-client';
 
 import { queryKeys } from '../constants/queryKeys';
+import { useApiMutation } from './useApiMutation';
 
 export const useUsers = (filters?: UserFilters) =>
   useQuery({
@@ -49,8 +50,9 @@ export const useUserRecentTasks = (id: string) =>
 
 export const useCreateUser = () => {
   const qc = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: (dto: unknown) => usersApi.create(dto),
+    successMessage: 'User created',
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.users.all() });
     },
@@ -59,8 +61,9 @@ export const useCreateUser = () => {
 
 export const useUpdateUser = () => {
   const qc = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: ({ id, dto }: { id: string; dto: unknown }) => usersApi.update(id, dto),
+    successMessage: 'User updated',
     onSuccess: (_, { id }) => {
       void qc.invalidateQueries({ queryKey: queryKeys.users.all() });
       void qc.invalidateQueries({ queryKey: queryKeys.users.profile(id) });
@@ -70,8 +73,9 @@ export const useUpdateUser = () => {
 
 export const useDeactivateUser = () => {
   const qc = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: (id: string) => usersApi.deactivate(id),
+    successMessage: 'User suspended',
     onSuccess: (_, id) => {
       void qc.invalidateQueries({ queryKey: queryKeys.users.all() });
       void qc.invalidateQueries({ queryKey: queryKeys.users.profile(id) });
@@ -81,8 +85,9 @@ export const useDeactivateUser = () => {
 
 export const useReactivateUser = () => {
   const qc = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: (id: string) => usersApi.reactivate(id),
+    successMessage: 'User reactivated',
     onSuccess: (_, id) => {
       void qc.invalidateQueries({ queryKey: queryKeys.users.all() });
       void qc.invalidateQueries({ queryKey: queryKeys.users.profile(id) });
@@ -91,6 +96,7 @@ export const useReactivateUser = () => {
 };
 
 export const useResetUserPassword = () =>
-  useMutation({
+  useApiMutation({
     mutationFn: (id: string) => usersApi.resetPassword(id),
+    successMessage: 'Password reset link sent',
   });

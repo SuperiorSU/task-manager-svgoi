@@ -1,10 +1,11 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useBulkUpdateStatus } from '@/hooks/useTasks';
 import { cn } from '@/lib/utils';
+import type { TaskStatus } from '@godigitify/types';
 
 type Props = {
   selectedIds: string[];
@@ -13,11 +14,15 @@ type Props = {
 
 export const BulkActionBar = ({ selectedIds, onClear }: Props) => {
   const { mutate: bulkUpdate, isPending } = useBulkUpdateStatus();
+  // Tracked separately from `isPending` so clicking Accept doesn't also
+  // spinner/disable the unrelated Cancel button (both share one mutation).
+  const [pendingAction, setPendingAction] = useState<TaskStatus | null>(null);
 
-  const handleBulk = (status: string) => {
+  const handleBulk = (status: TaskStatus) => {
+    setPendingAction(status);
     bulkUpdate(
       { taskIds: selectedIds, status },
-      { onSuccess: onClear }
+      { onSuccess: onClear, onSettled: () => setPendingAction(null) }
     );
   };
 
@@ -38,7 +43,8 @@ export const BulkActionBar = ({ selectedIds, onClear }: Props) => {
           variant="ghost"
           className="text-white hover:bg-white/10"
           onClick={() => handleBulk('ACCEPTED')}
-          loading={isPending}
+          disabled={isPending}
+          loading={pendingAction === 'ACCEPTED'}
         >
           Accept
         </Button>
@@ -47,13 +53,15 @@ export const BulkActionBar = ({ selectedIds, onClear }: Props) => {
           variant="ghost"
           className="text-white hover:bg-white/10"
           onClick={() => handleBulk('CANCELLED')}
-          loading={isPending}
+          disabled={isPending}
+          loading={pendingAction === 'CANCELLED'}
         >
           Cancel
         </Button>
         <button
           onClick={onClear}
-          className="ml-1 rounded p-1 text-white/60 hover:text-white"
+          disabled={isPending}
+          className="ml-1 rounded p-1 text-white/60 hover:text-white disabled:opacity-40"
           aria-label="Clear selection"
         >
           <X className="h-4 w-4" />

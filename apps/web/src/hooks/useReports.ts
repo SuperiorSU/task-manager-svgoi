@@ -1,8 +1,9 @@
 'use client';
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/constants/queryKeys';
 import { reportsService } from '@/services/reports.service';
+import { useApiMutation } from './useApiMutation';
 
 export const useReports = () =>
   useQuery({
@@ -13,7 +14,9 @@ export const useReports = () =>
 
 export const useRequestReport = () => {
   const qc = useQueryClient();
-  return useMutation({
+  // No successMessage — the reports page shows its own, more specific
+  // "queued — you'll be notified" copy on success.
+  return useApiMutation({
     mutationFn: ({ type, dateRange }: { type: string; dateRange?: { from: string; to: string } }) =>
       reportsService.request(type, dateRange),
     onSuccess: () => {

@@ -6,6 +6,16 @@ import { requireAuth } from '../../shared/guards/requireAuth.guard.js';
 import { requirePermission } from '../../shared/guards/requirePermission.guard.js';
 import { PERMISSIONS } from '../../shared/guards/permissions.js';
 import { sendSuccess, sendError, ErrorCodes } from '../../utils/response.utils.js';
+import { writeAuditLog } from '../../utils/audit.utils.js';
+
+const memberSelect = {
+  id: true,
+  name: true,
+  employeeId: true,
+  designation: true,
+  role: true,
+  isActive: true,
+} as const;
 
 const deptSelect = {
   id: true,
@@ -94,6 +104,28 @@ export const departmentsRoutes = async (app: FastifyInstance): Promise<void> => 
         settings?: Record<string, unknown>;
       };
 
+      if (await prisma.department.findUnique({ where: { code }, select: { id: true } })) {
+        return sendError(reply, 409, ErrorCodes.CONFLICT, 'A department with this code already exists');
+      }
+
+      if (headId !== undefined) {
+        const head = await prisma.user.findUnique({
+          where: { id: headId },
+          select: { isActive: true, headOfDept: { select: { id: true } } },
+        });
+        if (!head || !head.isActive) {
+          return sendError(reply, 400, ErrorCodes.VALIDATION_ERROR, 'Selected head must be an active user');
+        }
+        if (head.headOfDept) {
+          return sendError(
+            reply,
+            409,
+            ErrorCodes.CONFLICT,
+            'This admin already heads another department — reassign them there first'
+          );
+        }
+      }
+
       const dept = await prisma.$transaction(async (tx) => {
         const created = await tx.department.create({
           data: {
@@ -120,6 +152,17 @@ export const departmentsRoutes = async (app: FastifyInstance): Promise<void> => 
 
   app.patch('/:id', {
     preHandler: [requireAuth, requirePermission(PERMISSIONS.DEPT_MANAGE)],
+    schema: {
+      body: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          name: { type: 'string' },
+          code: { type: 'string' },
+          description: { type: 'string' },
+        },
+      },
+    },
     handler: async (req, reply) => {
       const { id } = req.params as { id: string };
       const dept = await prisma.department.update({
@@ -127,7 +170,145 @@ export const departmentsRoutes = async (app: FastifyInstance): Promise<void> => 
         data: req.body as never,
         select: deptSelect,
       });
+
+      await writeAuditLog({
+        action: 'UPDATE',
+        entityType: 'Department',
+        entityId: id,
+        description: `Department ${dept.name} updated`,
+        actorId: req.user.id,
+      });
+
       return sendSuccess(reply, dept);
+    },
+  });
+
+  // ─── Members ────────────────────────────────────────────────────────
+  app.get('/:id/members', {
+    preHandler: [requireAuth],
+    handler: async (req, reply) => {
+      const { id } = req.params as { id: string };
+
+      if (req.user.role === 'ADMIN' && req.user.departmentId !== id) {
+        return sendError(reply, 403, ErrorCodes.FORBIDDEN, 'Insufficient permissions');
+      }
+
+      const dept = await prisma.department.findUnique({ where: { id }, select: { id: true } });
+      if (!dept) return sendError(reply, 404, ErrorCodes.NOT_FOUND, 'Department not found');
+
+      const members = await prisma.user.findMany({
+        where: { departmentId: id },
+        select: memberSelect,
+        orderBy: { name: 'asc' },
+      });
+
+      return sendSuccess(reply, members);
+    },
+  });
+
+  // ─── Archive / reactivate (soft-delete, same pattern as users.service.deactivate) ──
+  app.patch('/:id/archive', {
+    preHandler: [requireAuth, requirePermission(PERMISSIONS.DEPT_MANAGE)],
+    handler: async (req, reply) => {
+      const { id } = req.params as { id: string };
+      const dept = await prisma.department.findUnique({ where: { id }, select: { name: true } });
+      if (!dept) return sendError(reply, 404, ErrorCodes.NOT_FOUND, 'Department not found');
+
+      await prisma.department.update({ where: { id }, data: { isActive: false } });
+
+      await writeAuditLog({
+        action: 'DELETE',
+        entityType: 'Department',
+        entityId: id,
+        description: `Department ${dept.name} archived`,
+        actorId: req.user.id,
+      });
+
+      return sendSuccess(reply, null);
+    },
+  });
+
+  app.patch('/:id/reactivate', {
+    preHandler: [requireAuth, requirePermission(PERMISSIONS.DEPT_MANAGE)],
+    handler: async (req, reply) => {
+      const { id } = req.params as { id: string };
+      const dept = await prisma.department.findUnique({ where: { id }, select: { name: true } });
+      if (!dept) return sendError(reply, 404, ErrorCodes.NOT_FOUND, 'Department not found');
+
+      await prisma.department.update({ where: { id }, data: { isActive: true } });
+
+      await writeAuditLog({
+        action: 'UPDATE',
+        entityType: 'Department',
+        entityId: id,
+        description: `Department ${dept.name} reactivated`,
+        actorId: req.user.id,
+      });
+
+      return sendSuccess(reply, null);
+    },
+  });
+
+  // ─── Reassign head — promotes the new head to ADMIN, demotes the outgoing
+  // head to EMPLOYEE (headId is @unique, so an existing headship elsewhere
+  // is cleared first to avoid a P2002 conflict) ─────────────────────────
+  app.post('/:id/reassign-head', {
+    preHandler: [requireAuth, requirePermission(PERMISSIONS.DEPT_MANAGE)],
+    schema: {
+      body: {
+        type: 'object',
+        required: ['newHeadId'],
+        additionalProperties: false,
+        properties: { newHeadId: { type: 'string' } },
+      },
+    },
+    handler: async (req, reply) => {
+      const { id } = req.params as { id: string };
+      const { newHeadId } = req.body as { newHeadId: string };
+
+      const dept = await prisma.department.findUnique({ where: { id }, select: { name: true, headId: true } });
+      if (!dept) return sendError(reply, 404, ErrorCodes.NOT_FOUND, 'Department not found');
+
+      const newHead = await prisma.user.findUnique({
+        where: { id: newHeadId },
+        select: { id: true, name: true, departmentId: true, isActive: true, headOfDept: { select: { id: true } } },
+      });
+      if (!newHead || newHead.departmentId !== id || !newHead.isActive) {
+        return sendError(reply, 400, ErrorCodes.VALIDATION_ERROR, 'New head must be an active member of this department');
+      }
+
+      const oldHeadId = dept.headId;
+      const oldHead = oldHeadId && oldHeadId !== newHeadId
+        ? await prisma.user.findUnique({ where: { id: oldHeadId }, select: { id: true, name: true } })
+        : null;
+
+      await prisma.$transaction(async (tx) => {
+        // Clear the new head's existing headship elsewhere, if any, before
+        // assigning here (headId is unique on Department).
+        if (newHead.headOfDept && newHead.headOfDept.id !== id) {
+          await tx.department.update({ where: { id: newHead.headOfDept.id }, data: { headId: null } });
+        }
+
+        await tx.department.update({ where: { id }, data: { headId: newHeadId } });
+        await tx.user.update({ where: { id: newHeadId }, data: { role: 'ADMIN' } });
+
+        if (oldHead) {
+          await tx.user.update({ where: { id: oldHead.id }, data: { role: 'EMPLOYEE' } });
+        }
+      });
+
+      await writeAuditLog({
+        action: 'REASSIGNED',
+        entityType: 'Department',
+        entityId: id,
+        description: oldHead
+          ? `Department ${dept.name} head changed from ${oldHead.name} to ${newHead.name}`
+          : `Department ${dept.name} head set to ${newHead.name}`,
+        actorId: req.user.id,
+      });
+
+      const updated = await prisma.department.findUnique({ where: { id }, select: deptSelect });
+      return sendSuccess(reply, updated);
     },
   });
 

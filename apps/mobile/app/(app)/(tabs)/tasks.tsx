@@ -15,6 +15,7 @@ import dayjs from 'dayjs';
 import type { RichTask } from '@godigitify/types';
 import { useTasks } from '../../../src/hooks/useTasks';
 import { useTaskFilterState } from '../../../src/hooks/useTasksMock';
+import { useDebounce } from '../../../src/hooks/useDebounce';
 import type { TaskCardItem } from '../../../src/components/task/TaskCard';
 import type { TaskOverflowItem } from '../../../src/components/task/TaskOverflowSheet';
 
@@ -44,14 +45,19 @@ export default function TasksScreen() {
   const [overflowTask, setOverflowTask] = useState<TaskOverflowItem | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Debounced so keystrokes don't each fire a network request (8_overview.md
+  // §4.5: "Search bar (sticky): debounced 300ms") — the input itself stays
+  // controlled by the un-debounced `filters.search` for zero-lag typing.
+  const debouncedSearch = useDebounce(filters.search, 300);
+
   const apiFilters = useMemo(() => ({
     ...(filters.status !== 'ALL' && filters.status !== 'OVERDUE' ? { status: filters.status } : {}),
     ...(filters.priorities.length === 1 ? { priority: filters.priorities[0] } : {}),
-    ...(filters.search ? { search: filters.search } : {}),
+    ...(debouncedSearch ? { search: debouncedSearch } : {}),
     sortBy: filters.sortBy,
     order: filters.sortOrder,
     limit: 100,
-  }), [filters]);
+  }), [filters, debouncedSearch]);
 
   const { data: listData, isLoading, refetch } = useTasks(apiFilters);
 
@@ -267,6 +273,7 @@ export default function TasksScreen() {
       <TaskOverflowSheet
         visible={overflowTask !== null}
         task={overflowTask}
+        permissions={{ canMarkComplete: false, canCancel: false, canReassign: false, canDelete: false }}
         onAction={handleOverflowAction}
         onClose={() => setOverflowTask(null)}
       />

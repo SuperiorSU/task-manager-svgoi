@@ -1,49 +1,15 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
 
 import { useColors } from '../../constants/colors';
 import { Spacing } from '../../constants/spacing';
-import type { AuditEvent, AuditEventCategory } from '../../data/superAdminDashboard.mock';
-
-dayjs.extend(relativeTime);
+import type { DashboardAuditEvent } from '../../hooks/useSuperAdminDashboard';
 
 type Props = {
-  events: AuditEvent[];
+  events: DashboardAuditEvent[];
   onSeeLogPress?: () => void;
 };
-
-const CATEGORY_ICON: Record<AuditEventCategory, { icon: keyof typeof Feather.glyphMap; bg: string; color: string }> = {
-  USER_CREATED: { icon: 'user-plus', bg: '#EEF2FF', color: '#4F46E5' },
-  USER_SUSPENDED: { icon: 'x-circle', bg: '#FEF2F2', color: '#DC2626' },
-  DEPARTMENT_CREATED: { icon: 'briefcase', bg: '#EEF2FF', color: '#4F46E5' },
-  SYSTEM: { icon: 'refresh-cw', bg: '#F0FDF4', color: '#15803D' },
-};
-
-function BoldSegments({ text, ranges, color }: { text: string; ranges: [number, number][]; color: string }) {
-  if (ranges.length === 0) {
-    return <Text style={[styles.eventText, { color }]}>{text}</Text>;
-  }
-
-  const sorted = [...ranges].sort((a, b) => a[0] - b[0]);
-  const nodes: React.ReactNode[] = [];
-  let cursor = 0;
-
-  sorted.forEach(([start, end], idx) => {
-    if (start > cursor) nodes.push(text.slice(cursor, start));
-    nodes.push(
-      <Text key={idx} style={styles.eventBold}>
-        {text.slice(start, end)}
-      </Text>
-    );
-    cursor = end;
-  });
-  if (cursor < text.length) nodes.push(text.slice(cursor));
-
-  return <Text style={[styles.eventText, { color }]}>{nodes}</Text>;
-}
 
 export const AuditFeedCard = React.memo(({ events, onSeeLogPress }: Props) => {
   const colors = useColors();
@@ -70,26 +36,23 @@ export const AuditFeedCard = React.memo(({ events, onSeeLogPress }: Props) => {
       <View
         style={[styles.card, { backgroundColor: colors.surface.card, borderColor: colors.surface.border }]}
       >
-        {events.map((event, idx) => {
-          const meta = CATEGORY_ICON[event.category];
-          return (
-            <View
-              key={event.id}
-              style={[
-                styles.row,
-                idx < events.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.surface.border },
-              ]}
-            >
-              <View style={[styles.iconBox, { backgroundColor: meta.bg }]}>
-                <Feather name={meta.icon} size={16} color={meta.color} />
-              </View>
-              <View style={styles.body}>
-                <BoldSegments text={event.description} ranges={event.boldRanges} color={colors.text.primary} />
-                <Text style={[styles.contextLabel, { color: colors.text.tertiary }]}>{event.contextLabel}</Text>
-              </View>
+        {events.map((event, idx) => (
+          <View
+            key={event.id}
+            style={[
+              styles.row,
+              idx < events.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.surface.border },
+            ]}
+          >
+            <View style={[styles.iconBox, { backgroundColor: event.iconBg }]}>
+              <Feather name={event.icon} size={16} color={event.iconColor} />
             </View>
-          );
-        })}
+            <View style={styles.body}>
+              <Text style={[styles.eventText, { color: colors.text.primary }]}>{event.headline}</Text>
+              <Text style={[styles.contextLabel, { color: colors.text.tertiary }]}>{event.contextLabel}</Text>
+            </View>
+          </View>
+        ))}
       </View>
     </View>
   );
@@ -131,6 +94,5 @@ const styles = StyleSheet.create({
   },
   body: { flex: 1, minWidth: 0 },
   eventText: { fontSize: 13, lineHeight: 18, fontFamily: 'Inter-Regular', letterSpacing: 0 },
-  eventBold: { fontFamily: 'Inter-SemiBold' },
   contextLabel: { fontSize: 11, fontFamily: 'Inter-Regular', letterSpacing: 0, marginTop: 3 },
 });

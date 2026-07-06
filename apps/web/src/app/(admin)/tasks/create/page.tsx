@@ -4,7 +4,6 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { toast } from 'sonner';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
@@ -32,13 +31,8 @@ export default function CreateTaskPage() {
   });
 
   const onSubmit = (data: CreateTaskDto) => {
-    createTask(data, {
-      onSuccess: () => {
-        toast.success('Task created');
-        router.push('/tasks');
-      },
-      onError: () => toast.error('Failed to create task'),
-    });
+    // Success/error toasts already shown by useCreateTask (useApiMutation).
+    createTask(data, { onSuccess: () => router.push('/tasks') });
   };
 
   return (

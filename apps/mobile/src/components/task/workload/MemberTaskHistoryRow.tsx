@@ -2,8 +2,11 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import dayjs from 'dayjs';
 
-import { isTaskOverdue, type MockTask } from '../../../data/tasks.mock';
+import type { RichTask } from '@godigitify/types';
 import { useColors } from '../../../constants/colors';
+
+const isTaskOverdue = (t: RichTask) =>
+  !['COMPLETED', 'CANCELLED'].includes(t.status) && dayjs(t.dueDate).isBefore(dayjs());
 
 type StatusMeta = { label: string; bg: string; color: string; stripe: string };
 
@@ -18,7 +21,7 @@ const STATUS_META: Record<string, StatusMeta> = {
 
 const OVERDUE_META: StatusMeta = { label: 'OVERDUE', bg: '#FEF2F2', color: '#B91C1C', stripe: '#EF4444' };
 
-type Props = { task: MockTask; onPress: (task: MockTask) => void };
+type Props = { task: RichTask; onPress: (task: RichTask) => void };
 
 // Task history row (HTML screen 74) — left status-coloured stripe, title,
 // context subtitle, compact status badge. Mirrors StaffTaskRow's shape

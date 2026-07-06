@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { toast } from 'sonner';
 import { ChevronLeft } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
@@ -54,15 +53,10 @@ export default function CreateDepartmentPage() {
     };
     if (data.description) payload.description = data.description;
     if (data.headId) payload.headId = data.headId;
+    // Success/error toasts already shown by useCreateDepartment (useApiMutation).
     createDept(
       payload,
-      {
-        onSuccess: () => {
-          toast.success('Department created');
-          router.push('/departments');
-        },
-        onError: () => toast.error('Failed to create department'),
-      }
+      { onSuccess: () => router.push('/departments') }
     );
   };
 

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -oE 'data-screen-label=\"[^\"]{0,80}\"' \"d:\\\\Programming\\\\GoDigitify\\\\godigitify-rn-monorepo\\\\apps\\\\mobile\\\\TaskFlow SVGOI Mobile - Standalone.html\")",
+      "Bash(grep -o 'data-screen-label.\\\\{0,60\\\\}' \"d:\\\\Programming\\\\GoDigitify\\\\godigitify-rn-monorepo\\\\apps\\\\mobile\\\\TaskFlow SVGOI Mobile - Standalone.html\")"
+    ]
+  }
+}

@@ -1,9 +1,10 @@
 'use client';
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/constants/queryKeys';
 import { tasksService } from '@/services/tasks.service';
 import type { TaskStatus, TaskPriority } from '@godigitify/types';
+import { useApiMutation } from './useApiMutation';
 
 export type TaskListFilters = {
   status?: TaskStatus;
@@ -46,7 +47,7 @@ export const useTaskComments = (id: string) =>
 
 export const useCreateTask = () => {
   const qc = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: (dto: {
       title: string;
       description?: string;
@@ -55,6 +56,7 @@ export const useCreateTask = () => {
       assigneeId: string;
       departmentId?: string;
     }) => tasksService.create(dto),
+    successMessage: 'Task created',
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.tasks.all() });
       void qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats('week') });
@@ -64,9 +66,10 @@ export const useCreateTask = () => {
 
 export const useUpdateTaskStatus = () => {
   const qc = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: ({ id, dto }: { id: string; dto: { status: TaskStatus; note?: string } }) =>
       tasksService.updateStatus(id, dto.status),
+    successMessage: 'Status updated',
     onSuccess: (_, { id }) => {
       void qc.invalidateQueries({ queryKey: queryKeys.tasks.all() });
       void qc.invalidateQueries({ queryKey: queryKeys.tasks.detail(id) });
@@ -77,9 +80,10 @@ export const useUpdateTaskStatus = () => {
 
 export const useBulkUpdateStatus = () => {
   const qc = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: (dto: { taskIds: string[]; status: TaskStatus }) =>
       tasksService.bulkUpdateStatus(dto.taskIds, dto.status),
+    successMessage: 'Tasks updated',
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.tasks.all() });
     },
@@ -88,8 +92,9 @@ export const useBulkUpdateStatus = () => {
 
 export const useDeleteTask = () => {
   const qc = useQueryClient();
-  return useMutation({
+  return useApiMutation({
     mutationFn: (id: string) => tasksService.delete(id),
+    successMessage: 'Task deleted',
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.tasks.all() });
     },

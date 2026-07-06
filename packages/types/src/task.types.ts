@@ -144,6 +144,35 @@ export type TaskAttachment = {
   uploadedBy: string;
 };
 
+/** Full Prisma FileAttachment shape — includes fields TaskAttachment's read-projection omits. */
+export type FileAttachment = TaskAttachment & {
+  taskId: string;
+  storageKey: string;
+  downloadCount: number;
+};
+
+export type PresignFileDto = {
+  taskId: string;
+  fileName: string;
+  mimeType: string;
+  isProof?: boolean;
+};
+
+export type PresignFileResponse = {
+  uploadUrl: string;
+  storageKey: string;
+  fileKey: string;
+};
+
+export type ConfirmFileDto = {
+  taskId: string;
+  storageKey: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  isProof: boolean;
+};
+
 // ─── Batch (task duplication) ────────────────────────────────────────────────
 
 export type TaskBatch = {

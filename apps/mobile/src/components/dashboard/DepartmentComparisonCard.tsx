@@ -3,7 +3,7 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 
 import { useColors } from '../../constants/colors';
 import { Spacing } from '../../constants/spacing';
-import type { DepartmentComparisonEntry } from '../../data/superAdminDashboard.mock';
+import type { DepartmentComparisonEntry } from '../../hooks/useSuperAdminDashboard';
 
 type Props = {
   entries: DepartmentComparisonEntry[];

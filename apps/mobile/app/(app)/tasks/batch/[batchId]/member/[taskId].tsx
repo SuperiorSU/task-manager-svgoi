@@ -31,6 +31,7 @@ import { ProgressNote } from '../../../../../../src/components/progress/Progress
 import { SubmissionNoteCard } from '../../../../../../src/components/progress/SubmissionNoteCard';
 import { RevisionReasonSheet } from '../../../../../../src/components/progress/RevisionReasonSheet';
 import { ApprovedConfirmationModal } from '../../../../../../src/components/progress/ApprovedConfirmationModal';
+import { ConfirmActionModal } from '../../../../../../src/components/ui/ConfirmActionModal';
 
 import type { TaskStatus } from '@godigitify/types';
 
@@ -159,8 +160,9 @@ export default function BatchMemberCopyScreen() {
         <TaskActionBar
           task={task}
           isAdminCreator
+          loading={review.loading}
           onStatusChange={() => {}}
-          onApprove={review.approve}
+          onApprove={review.requestApprove}
           onRevise={review.openRevision}
           onUploadProof={() => {}}
           onAddComment={() => {}}
@@ -179,6 +181,19 @@ export default function BatchMemberCopyScreen() {
         loading={review.loading}
         onClose={review.closeRevision}
         onSubmit={review.submitRevision}
+      />
+
+      <ConfirmActionModal
+        visible={review.confirmApproveVisible}
+        icon="check-circle"
+        iconBg="#F0FDF4"
+        iconColor="#16A34A"
+        title="Approve & complete this task?"
+        body={`This marks "${task.title}" as complete and notifies ${task.assignee.name}. This can't be undone.`}
+        confirmLabel="Approve & Complete"
+        confirmColor="#16A34A"
+        onConfirm={review.approve}
+        onDismiss={review.cancelApprove}
       />
 
       <ApprovedConfirmationModal

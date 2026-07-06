@@ -12,12 +12,18 @@ import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 
 import { useColors } from '../../../src/constants/colors';
-import { useNotificationPrefs, useUpdateNotificationPrefs } from '../../../src/hooks/useProfile';
-import type {
-  NotificationPreferences,
-  DeliveryMethod,
-} from '../../../src/data/profile.mock';
+import {
+  useNotificationPrefs,
+  useUpdateNotificationPrefs,
+  toNotificationPreferencesView,
+  buildDeliveryTogglePatch,
+  buildTypeGroupTogglePatch,
+} from '../../../src/hooks/useProfile';
+import type { DeliveryMethod } from '../../../src/types/notificationPreferences';
 import { SettingsToggleRow } from '../../../src/components/profile/SettingsToggleRow';
+import { ProfileSettingsItem } from '../../../src/components/profile/ProfileSettingsItem';
+import { TimePickerModal } from '../../../src/components/ui/TimePickerModal';
+import { parseTimeString, formatTimeString } from '../../../src/utils/time';
 
 const DELIVERY_ICONS: Record<DeliveryMethod['key'], keyof typeof Feather.glyphMap> = {
   inApp: 'bell',
@@ -25,36 +31,48 @@ const DELIVERY_ICONS: Record<DeliveryMethod['key'], keyof typeof Feather.glyphMa
   push: 'smartphone',
 };
 
+const formatDisplayTime = (time: string): string => {
+  const { hour, minute, isAfternoon } = parseTimeString(time);
+  return `${hour}:${String(minute).padStart(2, '0')} ${isAfternoon ? 'PM' : 'AM'}`;
+};
+
 export default function NotificationPreferencesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colors = useColors();
 
-  const { data: prefs, isLoading } = useNotificationPrefs();
+  const { data: serverPrefs, isLoading } = useNotificationPrefs();
   const { mutate: updatePrefs } = useUpdateNotificationPrefs();
 
-  const [localPrefs, setLocalPrefs] = useState<NotificationPreferences | null>(null);
-  const current = localPrefs ?? prefs;
+  const [editingBoundary, setEditingBoundary] = useState<'start' | 'end' | null>(null);
 
-  const patch = (updated: NotificationPreferences) => {
-    setLocalPrefs(updated);
-    updatePrefs(updated);
-  };
+  const current = serverPrefs ? toNotificationPreferencesView(serverPrefs) : null;
 
   const toggleDelivery = (key: DeliveryMethod['key']) => {
-    if (!current) return;
-    patch({ ...current, delivery: current.delivery.map((d) => d.key === key ? { ...d, enabled: !d.enabled } : d) });
+    if (!serverPrefs) return;
+    updatePrefs(buildDeliveryTogglePatch(serverPrefs, key));
   };
 
-  const toggleType = (id: string) => {
-    if (!current) return;
-    patch({ ...current, types: current.types.map((t) => t.id === id ? { ...t, enabled: !t.enabled } : t) });
+  const toggleType = (groupKey: string) => {
+    if (!serverPrefs) return;
+    updatePrefs(buildTypeGroupTogglePatch(serverPrefs, groupKey));
   };
 
   const toggleQuietHours = () => {
-    if (!current) return;
-    patch({ ...current, quietHoursEnabled: !current.quietHoursEnabled });
+    if (!serverPrefs) return;
+    updatePrefs({ quietHoursEnabled: !serverPrefs.quietHoursEnabled });
   };
+
+  const confirmBoundaryTime = (hour: number, minute: number, isAfternoon: boolean) => {
+    if (!serverPrefs || !editingBoundary) return;
+    const time = formatTimeString(hour, minute, isAfternoon);
+    updatePrefs(editingBoundary === 'start' ? { quietHoursStart: time } : { quietHoursEnd: time });
+    setEditingBoundary(null);
+  };
+
+  const boundaryPickerValue = editingBoundary && serverPrefs
+    ? parseTimeString(editingBoundary === 'start' ? serverPrefs.quietHoursStart : serverPrefs.quietHoursEnd)
+    : null;
 
   return (
     <View style={[s.screen, { paddingTop: insets.top, backgroundColor: colors.surface.background }]}>
@@ -93,24 +111,56 @@ export default function NotificationPreferencesScreen() {
                 key={t.id}
                 label={t.label}
                 enabled={t.enabled}
-                onToggle={() => toggleType(t.id)}
+                onToggle={() => toggleType(t.key)}
                 showDivider={i < current.types.length - 1}
               />
             ))}
           </View>
 
+          <Text style={[s.sectionLabel, { color: colors.text.tertiary }]}>Quiet hours</Text>
           <View style={[s.card, { backgroundColor: colors.surface.card }]}>
             <SettingsToggleRow
               icon="moon"
               label="Quiet hours"
-              subtitle={`${current.quietHoursStart} – ${current.quietHoursEnd}`}
+              subtitle={`${formatDisplayTime(current.quietHoursStart)} – ${formatDisplayTime(current.quietHoursEnd)}`}
               enabled={current.quietHoursEnabled}
               onToggle={toggleQuietHours}
+              showDivider={current.quietHoursEnabled}
             />
+            {current.quietHoursEnabled && (
+              <>
+                <ProfileSettingsItem
+                  icon="clock"
+                  label="Starts at"
+                  valueLabel={formatDisplayTime(current.quietHoursStart)}
+                  onPress={() => setEditingBoundary('start')}
+                  showDivider
+                />
+                <ProfileSettingsItem
+                  icon="clock"
+                  label="Ends at"
+                  valueLabel={formatDisplayTime(current.quietHoursEnd)}
+                  onPress={() => setEditingBoundary('end')}
+                />
+              </>
+            )}
           </View>
 
           <View style={{ height: 40 }} />
         </ScrollView>
+      )}
+
+      {boundaryPickerValue && (
+        <TimePickerModal
+          visible
+          hour={boundaryPickerValue.hour}
+          minute={boundaryPickerValue.minute}
+          isAfternoon={boundaryPickerValue.isAfternoon}
+          onConfirm={confirmBoundaryTime}
+          onClose={() => setEditingBoundary(null)}
+          colors={colors}
+          title={editingBoundary === 'start' ? 'Quiet hours start' : 'Quiet hours end'}
+        />
       )}
     </View>
   );
