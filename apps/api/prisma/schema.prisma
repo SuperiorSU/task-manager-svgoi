@@ -207,6 +207,10 @@ model Task {
   recurringConfig Json?
   parentTaskId    String?
   isDeleted       Boolean      @default(false)
+  /// Optimistic-concurrency token. Every state mutation must guard on this
+  /// (updateMany where:{id, version}) so two Admins acting on the same task
+  /// can't silently clobber each other — see 9_overall_fix.md Risk #3.
+  version         Int          @default(0)
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
   acceptedAt      DateTime?

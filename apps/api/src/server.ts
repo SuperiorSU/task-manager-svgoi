@@ -12,6 +12,7 @@ import { startOverdueCheck } from './jobs/workers/overdueCheck.worker.js';
 import { startDueSoonCheck } from './jobs/workers/dueSoonCheck.worker.js';
 import { startDigestJobs } from './jobs/workers/digest.worker.js';
 import { startNotificationRetention } from './jobs/workers/notificationRetention.worker.js';
+import { verifyEmailTransport } from './utils/email.utils.js';
 
 async function main() {
   const app = Fastify({
@@ -27,6 +28,11 @@ async function main() {
   });
 
   await buildApp(app);
+
+  // Non-blocking: confirm SMTP is usable so a bad app-password shows up now.
+  void verifyEmailTransport().then((ok) =>
+    ok ? app.log.info('[email] SMTP transport ready') : app.log.warn('[email] SMTP transport NOT ready — invites/resets will not be delivered')
+  );
 
   const keepalive = startDbKeepalive(app.log);
   const pushReceiptCheck = startPushReceiptCheck(app.log);

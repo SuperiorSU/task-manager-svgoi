@@ -25,6 +25,7 @@ export default function AuthLayout() {
       }}
     >
       <Stack.Screen name="login" />
+      <Stack.Screen name="setup" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen
         name="forgot-password"
         options={{ animation: 'slide_from_right' }}

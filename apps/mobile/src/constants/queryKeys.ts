@@ -33,6 +33,7 @@ export const queryKeys = {
   },
   dashboard: {
     stats: (period: string) => ['dashboard', 'stats', period] as const,
+    adminSummary: () => ['dashboard', 'admin-summary'] as const,
     activity: () => ['dashboard', 'activity'] as const,
     deptStats: () => ['dashboard', 'dept-stats'] as const,
     workload: () => ['dashboard', 'workload'] as const,

@@ -5,14 +5,21 @@ import { AlertTriangle } from 'lucide-react';
 export const OverdueAlert = ({ count }: { count: number }) => {
   if (count === 0) return null;
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-5 py-4">
-      <AlertTriangle className="h-5 w-5 shrink-0 text-red-600" />
-      <p className="text-sm font-medium text-red-900">
-        {count} task{count > 1 ? 's are' : ' is'} overdue and require attention.{' '}
-        <Link href="/tasks?status=PENDING" className="underline hover:no-underline">
-          View now →
-        </Link>
+    <div className="relative flex items-center gap-4 overflow-hidden rounded-lg border border-status-overdue/30 bg-status-overdue-bg py-4 pl-6 pr-5 shadow-card">
+      <span className="absolute inset-y-0 left-0 w-1 bg-status-overdue" />
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-status-overdue/10">
+        <AlertTriangle className="h-5 w-5 text-status-overdue" />
+      </div>
+      <p className="text-sm text-slate-700">
+        <span className="font-bold text-status-overdue">{count} task{count > 1 ? 's' : ''}</span>{' '}
+        {count > 1 ? 'are' : 'is'} overdue and need attention.
       </p>
+      <Link
+        href="/tasks?status=PENDING"
+        className="ml-auto shrink-0 text-sm font-semibold text-status-overdue hover:underline"
+      >
+        Review now →
+      </Link>
     </div>
   );
 };

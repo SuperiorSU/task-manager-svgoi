@@ -352,9 +352,14 @@ export const useOrgDepartmentMembers = (id: string, filter: OrgDepartmentMemberF
         departmentsApi.getMembers(id),
         departmentsApi.getById(id),
       ]);
-      const all = members.map((m) => toOrgDepartmentMember(m, dept.headId));
-
-      const filtered = all.filter((m) => {
+      return members.map((m) => toOrgDepartmentMember(m, dept.headId));
+    },
+    // Filtering lives in `select`, NOT the queryFn: the filter is not part of the
+    // queryKey, so a filter-only change reuses the cached fetch and re-runs this
+    // instantly client-side. (Previously the filter was applied inside queryFn,
+    // so changing the chip returned stale cached data and the filter did nothing.)
+    select: (all) => ({
+      members: all.filter((m) => {
         switch (filter) {
           case 'ADMINS': return m.role === 'ADMIN' && m.status === 'ACTIVE';
           case 'EMPLOYEES': return m.role === 'EMPLOYEE' && m.status === 'ACTIVE';
@@ -362,18 +367,14 @@ export const useOrgDepartmentMembers = (id: string, filter: OrgDepartmentMemberF
           case 'ALL':
           default: return true;
         }
-      });
-
-      return {
-        members: filtered,
-        total: all.length,
-        composition: {
-          admins: all.filter((m) => m.role === 'ADMIN' && m.status === 'ACTIVE').length,
-          employees: all.filter((m) => m.role === 'EMPLOYEE' && m.status === 'ACTIVE').length,
-          suspended: all.filter((m) => m.status === 'SUSPENDED').length,
-        },
-      };
-    },
+      }),
+      total: all.length,
+      composition: {
+        admins: all.filter((m) => m.role === 'ADMIN' && m.status === 'ACTIVE').length,
+        employees: all.filter((m) => m.role === 'EMPLOYEE' && m.status === 'ACTIVE').length,
+        suspended: all.filter((m) => m.status === 'SUSPENDED').length,
+      },
+    }),
     enabled: !!id,
     staleTime: 60 * 1000,
   });

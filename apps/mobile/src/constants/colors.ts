@@ -61,7 +61,10 @@ export const DarkColors = {
     primary: '#3B82F6',
     primaryDark: '#1238A8',
     primaryLight: '#1E3A6E',
-    secondary: '#0D2270',
+    // Lighter indigo than the light palette's near-black navy so navy accents
+    // (filter chips, governance stripe/avatar, "YOURS" label) stay visible on
+    // dark cards while remaining distinct from the brighter primary blue.
+    secondary: '#4A5D9F',
   },
   surface: {
     background: '#0F172A',

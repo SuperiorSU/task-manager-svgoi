@@ -10,10 +10,11 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import dayjs from 'dayjs';
 
-import type { RichTask } from '@godigitify/types';
-import { useTasks } from '../../../src/hooks/useTasks';
+import type { RichTask, TaskStatus } from '@godigitify/types';
+import { useTasks, useUpdateTaskStatus } from '../../../src/hooks/useTasks';
 import { useTaskFilterState } from '../../../src/hooks/useTasksMock';
 import { useDebounce } from '../../../src/hooks/useDebounce';
 import type { TaskCardItem } from '../../../src/components/task/TaskCard';
@@ -44,6 +45,7 @@ export default function TasksScreen() {
   const [filterSheetVisible, setFilterSheetVisible] = useState(false);
   const [overflowTask, setOverflowTask] = useState<TaskOverflowItem | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const updateStatus = useUpdateTaskStatus();
 
   // Debounced so keystrokes don't each fire a network request (8_overview.md
   // §4.5: "Search bar (sticky): debounced 300ms") — the input itself stays
@@ -85,6 +87,12 @@ export default function TasksScreen() {
     if (filters.priorities.length > 1) {
       result = result.filter((t) => filters.priorities.includes(t.priority));
     }
+    // Department is applied client-side: GET /tasks only honors departmentId for
+    // SUPER_ADMIN, but an employee can hold cross-department tasks, so the filter
+    // sheet's Department option would otherwise be a dead control.
+    if (filters.departmentId) {
+      result = result.filter((t) => t.department?.id === filters.departmentId);
+    }
     return result;
   }, [allTasks, filters]);
 
@@ -122,8 +130,21 @@ export default function TasksScreen() {
   const handleOverflowAction = useCallback((action: OverflowAction, task: TaskOverflowItem) => {
     if (action === 'view') {
       router.push(`/(app)/tasks/${task.id}` as Parameters<typeof router.push>[0]);
+      return;
     }
-  }, [router]);
+    // Forward status quick-actions for the assignee — non-destructive and
+    // reversible, so they fire directly (the mutation shows its own toast).
+    const NEXT: Partial<Record<OverflowAction, TaskStatus>> = {
+      accept: 'ACCEPTED',
+      mark_progress: 'IN_PROGRESS',
+      submit_review: 'UNDER_REVIEW',
+    };
+    const nextStatus = NEXT[action];
+    if (nextStatus) {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      updateStatus.mutate({ id: task.id, dto: { status: nextStatus } });
+    }
+  }, [router, updateStatus]);
 
   const showSections = filters.status === 'ALL' && !filters.search;
 
@@ -138,6 +159,10 @@ export default function TasksScreen() {
     ),
     [handleTaskPress, handleMorePress]
   );
+
+  // Stable separator — an inline `() => <View/>` is a NEW component type every
+  // render, so the list tears down and remounts every separator on each update.
+  const renderSeparator = useCallback(() => <View style={styles.separator} />, []);
 
   const renderLoading = useCallback(() => (
     <View style={styles.loadingList}>
@@ -223,7 +248,12 @@ export default function TasksScreen() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + Spacing[8] }]}
         showsVerticalScrollIndicator={false}
-        ItemSeparatorComponent={() => <View style={{ height: Spacing[3] }} />}
+        ItemSeparatorComponent={renderSeparator}
+        removeClippedSubviews
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={11}
+        updateCellsBatchingPeriod={50}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -273,7 +303,14 @@ export default function TasksScreen() {
       <TaskOverflowSheet
         visible={overflowTask !== null}
         task={overflowTask}
-        permissions={{ canMarkComplete: false, canCancel: false, canReassign: false, canDelete: false }}
+        permissions={{
+          canMarkComplete: false,
+          canCancel: false,
+          canReassign: false,
+          canDuplicate: false,
+          canDelete: false,
+        }}
+        actions={['view', 'accept', 'mark_progress', 'submit_review']}
         onAction={handleOverflowAction}
         onClose={() => setOverflowTask(null)}
       />
@@ -327,6 +364,9 @@ const styles = StyleSheet.create({
   },
   list: {
     paddingTop: Spacing[3],
+  },
+  separator: {
+    height: Spacing[3],
   },
   loadingList: {
     gap: Spacing[3],

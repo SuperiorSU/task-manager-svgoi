@@ -26,29 +26,22 @@ dayjs.extend(relativeTime);
 const isTaskOverdue = (t: RichTask) =>
   !['COMPLETED', 'CANCELLED'].includes(t.status) && dayjs(t.dueDate).isBefore(dayjs());
 
-// ─── Priority stripe colours (design token) ───────────────────────────────────
-
-const PRIORITY_STRIPE: Record<string, string> = {
-  CRITICAL: '#7C3AED',
-  HIGH: '#EF4444',
-  MEDIUM: '#F59E0B',
-  LOW: '#22C55E',
-};
-
-// ─── Status chip config ────────────────────────────────────────────────────────
+// ─── Status chip config (theme-aware) ─────────────────────────────────────────
 
 type ChipConfig = { bg: string; text: string; label: string };
+type Palette = ReturnType<typeof useColors>;
 
-function getStatusChip(status: string, overdue: boolean): ChipConfig {
-  if (overdue) return { bg: '#FEF2F2', text: '#B91C1C', label: 'OVERDUE' };
+function getStatusChip(status: string, overdue: boolean, c: Palette): ChipConfig {
+  const st = c.status;
+  if (overdue) return { bg: st.overdue.bg, text: st.overdue.text, label: 'OVERDUE' };
   switch (status) {
-    case 'UNDER_REVIEW': return { bg: '#F5F3FF', text: '#6D28D9', label: 'REVIEW' };
-    case 'IN_PROGRESS':  return { bg: '#FFFBEB', text: '#B45309', label: 'ACTIVE' };
-    case 'PENDING':      return { bg: '#F1F5F9', text: '#475569', label: 'PENDING' };
-    case 'ACCEPTED':     return { bg: '#EFF6FF', text: '#1D4ED8', label: 'ACCEPTED' };
-    case 'COMPLETED':    return { bg: '#F0FDF4', text: '#15803D', label: 'DONE' };
-    case 'CANCELLED':    return { bg: '#F8FAFC', text: '#94A3B8', label: 'CANCELLED' };
-    default:             return { bg: '#F1F5F9', text: '#475569', label: status };
+    case 'UNDER_REVIEW': return { bg: st.underReview.bg, text: st.underReview.text, label: 'REVIEW' };
+    case 'IN_PROGRESS':  return { bg: st.inProgress.bg, text: st.inProgress.text, label: 'ACTIVE' };
+    case 'PENDING':      return { bg: st.pending.bg, text: st.pending.text, label: 'PENDING' };
+    case 'ACCEPTED':     return { bg: st.accepted.bg, text: st.accepted.text, label: 'ACCEPTED' };
+    case 'COMPLETED':    return { bg: st.completed.bg, text: st.completed.text, label: 'DONE' };
+    case 'CANCELLED':    return { bg: st.cancelled.bg, text: st.cancelled.text, label: 'CANCELLED' };
+    default:             return { bg: st.pending.bg, text: st.pending.text, label: status };
   }
 }
 
@@ -93,8 +86,10 @@ export const AdminTaskCard = React.memo(
   const overdue = isTaskOverdue(task);
 
   const assigneeInitials = getInitials(task.assignee.name);
-  const stripeColor = PRIORITY_STRIPE[task.priority] ?? '#94A3B8';
-  const chip = getStatusChip(task.status, overdue);
+  const stripeColor =
+    colors.priority[task.priority.toLowerCase() as keyof typeof colors.priority]?.solid ??
+    colors.text.tertiary;
+  const chip = getStatusChip(task.status, overdue, colors);
   const pal = avatarPalette(assigneeInitials);
   const meta = getMetaLabel(task);
 
@@ -122,7 +117,7 @@ export const AdminTaskCard = React.memo(
           backgroundColor: colors.surface.card,
           shadowColor: '#000',
         },
-        overdue && { backgroundColor: '#FFF5F5' },
+        overdue && { backgroundColor: colors.status.overdue.bg },
         selected && { backgroundColor: colors.brand.primaryLight },
         pressed && s.pressed,
       ]}
@@ -158,14 +153,14 @@ export const AdminTaskCard = React.memo(
           </View>
 
           {/* Assignee name + meta label */}
-          <Text style={[s.metaText, { color: '#64748B' }]} numberOfLines={1}>
+          <Text style={[s.metaText, { color: colors.text.secondary }]} numberOfLines={1}>
             {task.assignee.name.split(' ')[0]} · {meta}
           </Text>
 
           {/* Cross-dept indicator */}
           {isCrossDept && (
-            <View style={s.crossDeptDot}>
-              <Text style={s.crossDeptLabel}>↗</Text>
+            <View style={[s.crossDeptDot, { backgroundColor: colors.brand.primaryLight }]}>
+              <Text style={[s.crossDeptLabel, { color: colors.brand.primary }]}>↗</Text>
             </View>
           )}
 
@@ -243,14 +238,12 @@ const s = StyleSheet.create({
     width: 16,
     height: 16,
     borderRadius: 8,
-    backgroundColor: '#EEF2FF',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
   crossDeptLabel: {
     fontSize: 9,
-    color: '#4338CA',
     fontFamily: 'Inter-Bold',
   },
   batchPill: {

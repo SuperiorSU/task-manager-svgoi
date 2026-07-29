@@ -8,6 +8,10 @@ import {
   forgotPasswordBodySchema,
   resetPasswordBodySchema,
   changePasswordBodySchema,
+  inviteQuerySchema,
+  acceptInviteBodySchema,
+  verifyLoginBodySchema,
+  resendLoginBodySchema,
 } from './auth.schema.js';
 
 export const authRoutes = async (app: FastifyInstance): Promise<void> => {
@@ -15,6 +19,19 @@ export const authRoutes = async (app: FastifyInstance): Promise<void> => {
     config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
     schema: { body: loginBodySchema },
     handler: authController.login,
+  });
+
+  // ─── 2FA: verify the emailed login OTP, then issue the session ──────
+  app.post('/login/verify', {
+    config: { rateLimit: { max: 10, timeWindow: '5 minutes' } },
+    schema: { body: verifyLoginBodySchema },
+    handler: authController.verifyLoginOtp,
+  });
+
+  app.post('/login/resend', {
+    config: { rateLimit: { max: 3, timeWindow: '15 minutes' } },
+    schema: { body: resendLoginBodySchema },
+    handler: authController.resendLoginOtp,
   });
 
   app.post('/refresh', {
@@ -36,6 +53,19 @@ export const authRoutes = async (app: FastifyInstance): Promise<void> => {
   app.post('/reset-password', {
     schema: { body: resetPasswordBodySchema },
     handler: authController.resetPassword,
+  });
+
+  // ─── Setup-invite (public — the new member has no session yet) ──────
+  app.get('/invite', {
+    config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
+    schema: { querystring: inviteQuerySchema },
+    handler: authController.getInvite,
+  });
+
+  app.post('/accept-invite', {
+    config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+    schema: { body: acceptInviteBodySchema },
+    handler: authController.acceptInvite,
   });
 
   app.post('/change-password', {

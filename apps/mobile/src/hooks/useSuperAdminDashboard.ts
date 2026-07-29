@@ -58,6 +58,9 @@ export const useSystemHealth = () => {
   return {
     data,
     isLoading: statsQuery.isLoading || adminsQuery.isLoading,
+    // Stale if either underlying query is — lets useRefetchOnFocus skip a
+    // focus refetch when both are still fresh.
+    isStale: statsQuery.isStale || adminsQuery.isStale,
     refetch: () => Promise.all([statsQuery.refetch(), adminsQuery.refetch()]),
   };
 };

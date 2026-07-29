@@ -1,4 +1,5 @@
 import jwt from '@fastify/jwt';
+import cookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
 import type { FastifyInstance } from 'fastify';
 
@@ -36,10 +37,17 @@ export const buildApp = async (app: FastifyInstance): Promise<void> => {
     await registerSwagger(app);
   }
 
-  // JWT
+  // Cookie parsing — must be registered BEFORE @fastify/jwt so the JWT plugin
+  // can read the access token from the `access_token` cookie (web/browser
+  // sessions). Mobile keeps sending the Authorization: Bearer header.
+  await app.register(cookie);
+
+  // JWT — verifies from the Authorization header OR, when absent, the
+  // `access_token` cookie. requireAuth works unchanged for both surfaces.
   await app.register(jwt, {
     secret: env.JWT_ACCESS_SECRET,
     sign: { expiresIn: env.JWT_ACCESS_EXPIRES_IN },
+    cookie: { cookieName: 'access_token', signed: false },
   });
 
   // WebSocket

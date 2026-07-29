@@ -39,9 +39,9 @@ export const ProfileHeaderCard = ({ profile, stats, onEditPress }: ProfileHeader
         {profile?.designation} · {profile?.department}
       </Text>
 
-      <View style={[styles.roleBadge, { backgroundColor: colors.brand.primaryLight, borderColor: '#DBEAFE' }]}>
+      <View style={[styles.roleBadge, { backgroundColor: colors.brand.primaryLight, borderColor: colors.brand.primaryLight }]}>
         <View style={[styles.roleDot, { backgroundColor: colors.brand.primary }]} />
-        <Text style={[styles.roleLabel, { color: colors.brand.primaryDark }]}>{profile?.role}</Text>
+        <Text style={[styles.roleLabel, { color: colors.brand.primary }]}>{profile?.role}</Text>
       </View>
 
       {stats && <ProfileStatsBar stats={stats} />}

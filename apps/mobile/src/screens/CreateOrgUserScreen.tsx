@@ -23,6 +23,7 @@ import {
   View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as Linking from 'expo-linking';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -34,6 +35,7 @@ import { Layout, Spacing } from '../constants/spacing';
 
 import { DepartmentChipPicker } from '../components/people/DepartmentChipPicker';
 import { SettingsPickerSheet } from '../components/profile/SettingsPickerSheet';
+import { InviteCreatedModal } from '../components/people/InviteCreatedModal';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -155,6 +157,7 @@ export function CreateOrgUserScreen() {
   const [focused, setFocused] = useState<string | null>('name');
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitting, setSubmitting] = useState(false);
+  const [invite, setInvite] = useState<{ name: string; link: string } | null>(null);
 
   const staffIdRef = useRef<TextInput>(null);
   const phoneRef = useRef<TextInput>(null);
@@ -196,7 +199,7 @@ export function CreateOrgUserScreen() {
       // Prisma `departmentId` is a singular FK — an Admin's multi-select
       // "Departments managed" chips are captured here as the primary
       // department only, until the backend supports multi-dept admins.
-      await createUser.mutateAsync({
+      const res = await createUser.mutateAsync({
         name: name.trim(),
         employeeId: staffId.trim().toUpperCase(),
         email: email.trim().toLowerCase(),
@@ -206,13 +209,18 @@ export function CreateOrgUserScreen() {
       });
 
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.back();
+      // The account has no password until the member opens their setup link —
+      // surface it so the SA can deliver it (there is no email transport wired).
+      setInvite({
+        name: res.data.user.name,
+        link: Linking.createURL('/setup', { queryParams: { token: res.data.invite.token } }),
+      });
     } catch {
       // Error toast already shown by useCreateOrgUser (useApiMutation).
     } finally {
       setSubmitting(false);
     }
-  }, [validate, createUser, name, staffId, email, phone, role, departmentIds, router]);
+  }, [validate, createUser, name, staffId, email, phone, role, departmentIds]);
 
   const selectedDeptName = allDepartments.find((d) => d.id === departmentIds[0])?.name;
 
@@ -414,6 +422,16 @@ export function CreateOrgUserScreen() {
           </Pressable>
         </View>
       </View>
+
+      <InviteCreatedModal
+        visible={invite !== null}
+        memberName={invite?.name ?? ''}
+        inviteLink={invite?.link ?? ''}
+        onClose={() => {
+          setInvite(null);
+          router.back();
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }

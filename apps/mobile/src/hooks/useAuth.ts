@@ -20,6 +20,9 @@ export const useLogin = () => {
     mutationFn: ({ employeeId, password }: { employeeId: string; password: string }) =>
       authApi.login(employeeId, password),
     onSuccess: async (res) => {
+      // 2FA is web-only, so mobile always gets a session — this guard just
+      // narrows the union (a mobile client never receives an mfa challenge).
+      if ('mfaRequired' in res.data) return;
       const { tokens, user } = res.data;
       await login(tokens.accessToken, tokens.refreshToken, user);
       qc.clear();

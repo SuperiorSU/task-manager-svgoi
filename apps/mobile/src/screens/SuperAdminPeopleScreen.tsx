@@ -85,7 +85,7 @@ export function SuperAdminPeopleScreen() {
         icon="users"
         title={debouncedUserSearch ? `No results for "${debouncedUserSearch}"` : 'No users found'}
         {...(!debouncedUserSearch && userFilter === 'ALL'
-          ? { subtitle: 'Add your first user using the button below.' }
+          ? { subtitle: 'Add your first user to get started.' }
           : {})}
       />
     );
@@ -96,7 +96,7 @@ export function SuperAdminPeopleScreen() {
       <EmptyState
         icon="briefcase"
         title={debouncedDeptSearch ? `No departments matching "${debouncedDeptSearch}"` : 'No departments yet'}
-        {...(!debouncedDeptSearch ? { subtitle: 'Add your first department using the button below.' } : {})}
+        {...(!debouncedDeptSearch ? { subtitle: 'Create your first department to get started.' } : {})}
       />
     );
 

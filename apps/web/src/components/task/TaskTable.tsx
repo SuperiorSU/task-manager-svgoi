@@ -172,7 +172,7 @@ export const TaskTable = ({ data, isLoading, total = 0, page = 1 }: Props) => {
 
   return (
     <>
-      <div className="rounded-xl border border-surface-border bg-white shadow-card overflow-hidden">
+      <div className="rounded-lg border border-surface-border bg-white shadow-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-sm">
             <thead>

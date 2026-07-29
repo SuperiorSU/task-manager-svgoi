@@ -38,8 +38,12 @@ export const usersRoutes = async (app: FastifyInstance): Promise<void> => {
         where['role'] = query.role;
       }
 
-      // Default: show active users only; pass isActive=false to include suspended
-      if (query.isActive !== 'false') where['isActive'] = true;
+      // Three-state status filter:
+      //   isActive absent  → active only (default — pickers/counts rely on this)
+      //   isActive='true'  → active only
+      //   isActive='false' → SUSPENDED only (not "everyone" — the Suspended
+      //                      filter/count expects just the deactivated users)
+      where['isActive'] = query.isActive !== 'false';
 
       if (query.search) {
         where['OR'] = [
@@ -83,6 +87,30 @@ export const usersRoutes = async (app: FastifyInstance): Promise<void> => {
     },
   });
 
+  // ─── Assignable candidates (task assign/reassign pickers) ─────────
+  // Declared BEFORE '/:id' so it isn't swallowed as an id param.
+  // Gated on TASK_ASSIGN (not USER_READ): picking an assignee is a task
+  // capability, and USER_READ is department-locked by design — see
+  // usersService.getAssignableUsers for the scoping rationale.
+  app.get('/assignable', {
+    preHandler: [requireAuth, requirePermission(PERMISSIONS.TASK_ASSIGN)],
+    handler: async (req, reply) => {
+      const query = req.query as { departmentId?: string; search?: string; limit?: string };
+      const items = await usersService.getAssignableUsers(
+        {
+          role: req.user.role,
+          ...(req.user.departmentId ? { departmentId: req.user.departmentId } : {}),
+        },
+        {
+          ...(query.departmentId ? { departmentId: query.departmentId } : {}),
+          ...(query.search ? { search: query.search } : {}),
+          ...(query.limit ? { limit: parseInt(query.limit, 10) } : {}),
+        }
+      );
+      return sendSuccess(reply, items);
+    },
+  });
+
   // ─── Get by ID ────────────────────────────────────────────────────
   app.get('/:id', {
     preHandler: [requireAuth, requirePermission(PERMISSIONS.USER_READ)],
@@ -97,11 +125,11 @@ export const usersRoutes = async (app: FastifyInstance): Promise<void> => {
   app.post('/', {
     preHandler: [requireAuth, requirePermission(PERMISSIONS.USER_CREATE)],
     handler: async (req, reply) => {
-      const user = await usersService.create({
+      const result = await usersService.create({
         ...(req.body as object),
         creatorId: req.user.id,
       } as never);
-      return sendSuccess(reply, user, 201);
+      return sendSuccess(reply, result, 201);
     },
   });
 

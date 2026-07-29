@@ -64,7 +64,7 @@ export default function TaskDetailPage() {
   return (
     <div className="max-w-4xl space-y-6">
       {/* Priority stripe — 4px at top of detail card */}
-      <div className="rounded-xl border border-surface-border bg-white shadow-card overflow-hidden">
+      <div className="rounded-lg border border-surface-border bg-white shadow-card overflow-hidden">
         <div
           className={`h-1 w-full ${
             t.priority === 'CRITICAL' ? 'bg-priority-critical' :
@@ -165,7 +165,7 @@ export default function TaskDetailPage() {
 
       {/* Activity timeline */}
       {activities.length > 0 && (
-        <div className="rounded-xl border border-surface-border bg-white p-6 shadow-card">
+        <div className="rounded-lg border border-surface-border bg-white p-6 shadow-card">
           <h2 className="mb-4 text-base font-semibold text-slate-900">Activity</h2>
           <ActivityTimeline items={activities} />
         </div>

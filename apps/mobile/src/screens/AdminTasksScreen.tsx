@@ -339,6 +339,11 @@ export function AdminTasksScreen() {
 
   const keyExtractor = useCallback((item: SectionItem) => item.id, []);
 
+  // Stable separators — inline arrows are a new component type each render and
+  // force every separator to remount whenever the list updates.
+  const renderItemSeparator = useCallback(() => <View style={s.itemSeparator} />, []);
+  const renderSectionSeparator = useCallback(() => <View style={s.sectionSeparator} />, []);
+
   const ListEmptyComponent = useMemo(
     () =>
       loading ? null : (
@@ -432,7 +437,7 @@ export function AdminTasksScreen() {
 
         {/* Scope segment */}
         <View
-          style={[s.segment, { backgroundColor: colors.surface.background }]}
+          style={[s.segment, { backgroundColor: colors.surface.border }]}
         >
           <ScopeButton
             label="I manage"
@@ -529,8 +534,13 @@ export function AdminTasksScreen() {
         renderItem={renderItem}
         renderSectionHeader={renderSectionHeader}
         stickySectionHeadersEnabled={false}
-        ItemSeparatorComponent={() => <View style={{ height: Spacing[2] }} />}
-        SectionSeparatorComponent={() => <View style={{ height: Spacing[4] }} />}
+        ItemSeparatorComponent={renderItemSeparator}
+        SectionSeparatorComponent={renderSectionSeparator}
+        removeClippedSubviews
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={11}
+        updateCellsBatchingPeriod={50}
         contentContainerStyle={[
           s.listContent,
           { paddingBottom: insets.bottom + 100 },
@@ -781,6 +791,8 @@ const s = StyleSheet.create({
     paddingTop: Spacing[4],
     gap: 0,
   },
+  itemSeparator: { height: Spacing[2] },
+  sectionSeparator: { height: Spacing[4] },
   groupHeader: {
     flexDirection: 'row',
     alignItems: 'center',

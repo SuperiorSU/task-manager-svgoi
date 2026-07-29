@@ -1,23 +1,15 @@
-import { MOCK_AUDIT_LOGS, type AuditLogRecord } from '@/data/audit.mock';
+import { api } from '@/lib/api';
+import type { AuditLogRecord } from '@/data/audit.mock';
 
-const DELAY_MS = 400;
-const delay = () => new Promise((res) => setTimeout(res, DELAY_MS));
+type Envelope<T> = { data: T };
 
 export const auditService = {
   async list(filters: { page?: number; limit?: number; entityType?: string; action?: string } = {}) {
-    await delay();
-    const { page = 1, limit = 20, entityType, action } = filters;
-
-    let items = [...MOCK_AUDIT_LOGS];
-
-    if (entityType) items = items.filter((l) => l.entityType === entityType);
-    if (action) items = items.filter((l) => l.action === action);
-
-    items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-    const total = items.length;
-    const paged = items.slice((page - 1) * limit, page * limit);
-    return { items: paged, total };
+    const res = await api.get<Envelope<{ items: AuditLogRecord[]; total: number; page: number; limit: number }>>(
+      '/audit',
+      { params: filters as Record<string, string | number | undefined> }
+    );
+    return { items: res.data.data.items, total: res.data.data.total };
   },
 };
 

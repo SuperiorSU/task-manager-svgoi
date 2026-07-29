@@ -40,13 +40,18 @@ export const WeekStrip = React.memo(
           const { date, isToday, isSelected, isWeekend, dots } = meta;
 
           const circleColor = isSelected
-            ? colors.brand.secondary
-            : isToday
             ? colors.brand.primary
+            : isToday
+            ? colors.brand.primaryLight
             : null;
 
-          const numColor = isSelected || isToday
-            ? colors.text.inverse
+          // On the filled selected circle the number is always white (readable
+          // in both themes); "today" uses the soft primaryLight fill with primary
+          // text. text.inverse is theme-dependent and went invisible in dark mode.
+          const numColor = isSelected
+            ? '#FFFFFF'
+            : isToday
+            ? colors.brand.primary
             : isWeekend
             ? colors.text.disabled
             : colors.text.primary;

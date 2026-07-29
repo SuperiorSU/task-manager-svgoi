@@ -34,6 +34,8 @@ const TYPE_META: Record<
   TASK_DUE_SOON: { icon: Clock, color: 'text-amber-500', bg: 'bg-amber-50' },
   TASK_REASSIGNED: { icon: UserCheck, color: 'text-purple-600', bg: 'bg-purple-50' },
   COMMENT_ADDED: { icon: MessageSquare, color: 'text-slate-600', bg: 'bg-slate-100' },
+  CLARIFICATION_REQUESTED: { icon: MessageSquare, color: 'text-amber-600', bg: 'bg-amber-50' },
+  CLARIFICATION_RESPONDED: { icon: MessageSquare, color: 'text-brand-500', bg: 'bg-brand-50' },
 };
 
 const DEFAULT_META = { icon: Bell, color: 'text-slate-500', bg: 'bg-surface-muted' };
@@ -67,13 +69,13 @@ export default function NotificationsPage() {
       {isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-16 animate-pulse rounded-xl bg-slate-200" />
+            <div key={i} className="h-16 animate-pulse rounded-lg bg-slate-200" />
           ))}
         </div>
       ) : items.length === 0 ? (
         <EmptyState icon={Bell} title="All caught up" description="No notifications to show." />
       ) : (
-        <div className="rounded-xl border border-surface-border bg-white shadow-card overflow-hidden divide-y divide-surface-border">
+        <div className="rounded-lg border border-surface-border bg-white shadow-card overflow-hidden divide-y divide-surface-border">
           {items.map((n) => {
             const meta = TYPE_META[n.type as NotificationType] ?? DEFAULT_META;
             const Icon = meta.icon;

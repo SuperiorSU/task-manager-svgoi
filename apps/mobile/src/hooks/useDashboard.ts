@@ -50,6 +50,18 @@ export const useWorkload = () =>
     staleTime: 5 * 60 * 1_000,
   });
 
+/**
+ * Admin dashboard summary — replaces the old `useTasks({ limit: 100 })`
+ * over-fetch. The server returns accurate section counts plus only the 3–5
+ * preview rows each section renders.
+ */
+export const useAdminSummary = () =>
+  useQuery({
+    queryKey: queryKeys.dashboard.adminSummary(),
+    queryFn: () => dashboardApi.getAdminSummary().then((r) => r.data),
+    staleTime: 2 * 60 * 1_000,
+  });
+
 // ─── Aggregate refresh ────────────────────────────────────────────────────────
 
 export const useDashboardRefresh = (

@@ -33,7 +33,7 @@ export const BulkActionBar = ({ selectedIds, onClear }: Props) => {
         selectedIds.length > 0 ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0 pointer-events-none'
       )}
     >
-      <div className="flex items-center gap-3 rounded-xl bg-slate-900 px-5 py-3 shadow-xl">
+      <div className="flex items-center gap-3 rounded-lg bg-slate-900 px-5 py-3 shadow-xl">
         <span className="text-sm font-medium text-white">
           {selectedIds.length} selected
         </span>

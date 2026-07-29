@@ -1,34 +1,25 @@
-import { MOCK_NOTIFICATIONS, type NotificationRecord } from '@/data/notifications.mock';
+import { api } from '@/lib/api';
+import type { NotificationRecord } from '@/data/notifications.mock';
 
-const DELAY_MS = 300;
-const delay = () => new Promise((res) => setTimeout(res, DELAY_MS));
+type Envelope<T> = { data: T };
 
 export const notificationsService = {
   async list(): Promise<NotificationRecord[]> {
-    await delay();
-    return [...MOCK_NOTIFICATIONS].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
+    // API returns newest-first already; the shape is a superset of NotificationRecord.
+    const res = await api.get<Envelope<NotificationRecord[]>>('/notifications');
+    return res.data.data;
   },
 
   async getUnreadCount(): Promise<number> {
-    await delay();
-    return MOCK_NOTIFICATIONS.filter((n) => !n.isRead).length;
+    const res = await api.get<Envelope<{ count: number }>>('/notifications/unread-count');
+    return res.data.data.count;
   },
 
   async markRead(id: string): Promise<void> {
-    await delay();
-    const n = MOCK_NOTIFICATIONS.find((n) => n.id === id);
-    if (n) {
-      n.isRead = true;
-      n.createdAt = n.createdAt; // unchanged
-    }
+    await api.patch(`/notifications/${id}/read`);
   },
 
   async markAllRead(): Promise<void> {
-    await delay();
-    MOCK_NOTIFICATIONS.forEach((n) => {
-      n.isRead = true;
-    });
+    await api.patch('/notifications/read-all');
   },
 };

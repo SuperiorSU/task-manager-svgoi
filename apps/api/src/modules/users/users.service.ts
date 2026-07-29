@@ -1,8 +1,34 @@
+import crypto from 'crypto';
+
 import { prisma } from '../../config/database.js';
+import { redis } from '../../config/redis.js';
+import { env } from '../../config/env.js';
 import { hashPassword } from '../../utils/bcrypt.utils.js';
+import { generateResetToken } from '../../utils/jwt.utils.js';
+import { sendInviteEmail } from '../../utils/email.utils.js';
 import { writeAuditLog } from '../../utils/audit.utils.js';
 import { ROLE_PERMISSIONS } from '../../shared/guards/permissions.js';
 import { authService } from '../auth/auth.service.js';
+
+/** The link a new member opens to set their first password. */
+export const buildInviteLink = (token: string): string => `${env.FRONTEND_URL}/setup?token=${token}`;
+
+// A newly-invited user has 7 days to open their setup link and choose a
+// password. Stored as `invite:{hash} -> userId` in Redis (single-use: deleted
+// once accepted). Distinct from the 15-min password-RESET token, which is far
+// too short for onboarding.
+export const INVITE_TTL_SECONDS = 7 * 24 * 60 * 60;
+
+/**
+ * Mints a fresh setup-invite for a user and returns the raw token (shown once
+ * to the creating admin so they can relay the setup link). Reused by create and
+ * by any future "resend invite".
+ */
+export const createInviteToken = async (userId: string): Promise<{ token: string; expiresAt: string }> => {
+  const { raw, hash } = generateResetToken();
+  await redis.setex(`invite:${hash}`, INVITE_TTL_SECONDS, userId);
+  return { token: raw, expiresAt: new Date(Date.now() + INVITE_TTL_SECONDS * 1000).toISOString() };
+};
 
 const safeUserSelect = {
   id: true,
@@ -52,6 +78,77 @@ export const usersService = {
     });
   },
 
+  /**
+   * Candidates a task may be assigned/reassigned to.
+   *
+   * Distinct from getList (user *management*, always department-locked for an
+   * ADMIN). Assignment legitimately needs to read across departments, so this
+   * returns a narrow projection — no email/phone — per 8_overview.md §13.
+   *
+   * Scope (§2 assignment matrix):
+   *   SUPER_ADMIN → any ADMIN/EMPLOYEE, any department.
+   *   ADMIN       → anyone in their own department,
+   *                 + any ADMIN in any department (cross-dept admin assignment
+   *                   is always allowed),
+   *                 + EMPLOYEEs in other departments only when the org's
+   *                   `allowCrossDeptEmployeeAssignment` flag is on.
+   * SUPER_ADMIN is never a candidate — tasksService.assign rejects it anyway.
+   */
+  async getAssignableUsers(
+    viewer: { role: string; departmentId?: string },
+    filters: { departmentId?: string; search?: string; limit?: number } = {}
+  ) {
+    const limit = Math.min(50, Math.max(1, filters.limit ?? 20));
+
+    const and: Record<string, unknown>[] = [];
+
+    if (viewer.role === 'ADMIN') {
+      // Cross-dept ADMIN assignment is unconditional; cross-dept EMPLOYEE
+      // assignment is gated by the org flag (defaults ON per the schema).
+      const config = await prisma.organizationConfig.findUnique({
+        where: { singleton: 1 },
+        select: { allowCrossDeptEmployeeAssignment: true },
+      });
+      const allowCrossDeptEmployees = config?.allowCrossDeptEmployeeAssignment ?? true;
+
+      const scope: Record<string, unknown>[] = [{ role: 'ADMIN' }];
+      if (viewer.departmentId) scope.push({ departmentId: viewer.departmentId });
+      if (allowCrossDeptEmployees) scope.push({ role: 'EMPLOYEE' });
+      and.push({ OR: scope });
+    }
+
+    if (filters.search) {
+      // Name/employeeId only — searching by email would let an ADMIN probe the
+      // contact details of users outside their department.
+      and.push({
+        OR: [
+          { name: { contains: filters.search, mode: 'insensitive' } },
+          { employeeId: { contains: filters.search, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    return prisma.user.findMany({
+      where: {
+        isActive: true,
+        role: { in: ['ADMIN', 'EMPLOYEE'] },
+        ...(filters.departmentId ? { departmentId: filters.departmentId } : {}),
+        ...(and.length > 0 ? { AND: and } : {}),
+      } as never,
+      select: {
+        id: true,
+        name: true,
+        employeeId: true,
+        role: true,
+        avatarUrl: true,
+        designation: true,
+        department: { select: { id: true, name: true, code: true } },
+      },
+      orderBy: { name: 'asc' },
+      take: limit,
+    });
+  },
+
   async getById(id: string, viewerRole: string, viewerDeptId?: string) {
     const where: Record<string, unknown> = { id };
     if (viewerRole === 'ADMIN') where['departmentId'] = viewerDeptId;
@@ -72,8 +169,10 @@ export const usersService = {
       });
     }
 
-    const tempPassword = `Svgoi@${Math.random().toString(36).slice(2, 8)}`;
-    const passwordHash = await hashPassword(tempPassword);
+    // No temporary password is disclosed to anyone. The account is seeded with
+    // an unguessable random secret that nobody knows, so the ONLY way in is via
+    // the invite link, where the new member sets their own first password.
+    const passwordHash = await hashPassword(crypto.randomBytes(24).toString('hex'));
 
     const user = await prisma.user.create({
       data: {
@@ -107,10 +206,13 @@ export const usersService = {
       actorId: input.creatorId,
     });
 
-    // TODO: send welcome email with temp password
-    console.warn(`[DEV] Temp password for ${user.email}: ${tempPassword}`);
+    // Mint the setup-invite: emailed to the new member AND handed back to the
+    // creating admin (who can also share the link in-app). Email is fire-and-
+    // forget — a slow/failed SMTP must never fail user creation.
+    const invite = await createInviteToken(user.id);
+    void sendInviteEmail(user.email, user.name, buildInviteLink(invite.token));
 
-    return user;
+    return { user, invite };
   },
 
   async update(id: string, data: Partial<CreateUserInput>, actorId: string) {

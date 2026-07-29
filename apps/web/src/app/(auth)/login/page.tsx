@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useLogin } from '@/hooks/useAuth';
+import { LoginOtpStep } from './LoginOtpStep';
 
 const schema = z.object({
   employeeId: z.string().min(1, 'Employee ID is required'),
@@ -18,6 +19,7 @@ type FormData = z.infer<typeof schema>;
 
 export default function LoginPage() {
   const [showPass, setShowPass] = useState(false);
+  const [challengeId, setChallengeId] = useState<string | null>(null);
   const { mutate: login, isPending, error } = useLogin();
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
@@ -26,11 +28,25 @@ export default function LoginPage() {
 
   const errorMsg = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
 
+  const onSubmit = (d: FormData) =>
+    login(d, {
+      onSuccess: (res) => {
+        const result = res.data.data;
+        // Password OK but 2FA required → swap to the code step.
+        if ('mfaRequired' in result) setChallengeId(result.challengeId);
+      },
+    });
+
+  // Second factor step.
+  if (challengeId) {
+    return <LoginOtpStep challengeId={challengeId} onBack={() => setChallengeId(null)} />;
+  }
+
   return (
     <div className="w-full max-w-sm">
       {/* Logo — left-aligned, authoritative */}
       <div className="mb-8 flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-900 text-sm font-bold text-white">
+        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-brand-900 text-sm font-bold text-white">
           S
         </div>
         <div>
@@ -42,7 +58,7 @@ export default function LoginPage() {
       <h1 className="mb-1 text-2xl font-bold text-slate-900">Sign in to your account</h1>
       <p className="mb-8 text-sm text-slate-500">Enter your employee credentials to continue.</p>
 
-      <form onSubmit={handleSubmit((d) => login(d))} className="space-y-5" noValidate>
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
         <Input
           label="Employee ID"
           placeholder="e.g. CS001"

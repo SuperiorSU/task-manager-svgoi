@@ -110,7 +110,7 @@ export default function UserDetailPage() {
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         {/* Profile card */}
-        <div className="rounded-xl border border-surface-border bg-white p-6 shadow-card">
+        <div className="rounded-lg border border-surface-border bg-white p-6 shadow-card">
           <div className="flex flex-col items-center text-center">
             <AvatarWithFallback name={u.name} src={u.avatarUrl} size={72} />
             <h1 className="mt-3 text-base font-bold text-slate-900">{u.name}</h1>
@@ -164,7 +164,7 @@ export default function UserDetailPage() {
         <div className="space-y-5 lg:col-span-2">
           {/* Task stats */}
           {stats && (
-            <div className="rounded-xl border border-surface-border bg-white p-5 shadow-card">
+            <div className="rounded-lg border border-surface-border bg-white p-5 shadow-card">
               <h2 className="mb-4 text-sm font-semibold text-slate-900">Task Summary (Last 30 days)</h2>
               <div className="grid grid-cols-3 gap-4">
                 <div className="text-center">
@@ -209,7 +209,7 @@ export default function UserDetailPage() {
           )}
 
           {/* Recent tasks */}
-          <div className="rounded-xl border border-surface-border bg-white p-5 shadow-card">
+          <div className="rounded-lg border border-surface-border bg-white p-5 shadow-card">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-sm font-semibold text-slate-900">Recent Tasks</h2>
               <Link

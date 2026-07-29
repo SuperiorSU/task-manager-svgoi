@@ -39,12 +39,7 @@ export function SuperAdminDashboardScreen() {
   const deptComparison = useDepartmentComparison();
   const auditFeed = useAuditFeed();
 
-  useRefetchOnFocus(
-    useMemo(
-      () => [orgStats.refetch, systemHealth.refetch, deptComparison.refetch, auditFeed.refetch],
-      [orgStats.refetch, systemHealth.refetch, deptComparison.refetch, auditFeed.refetch]
-    )
-  );
+  useRefetchOnFocus([orgStats, systemHealth, deptComparison, auditFeed]);
 
   const push = (path: string) => router.push(path as Parameters<typeof router.push>[0]);
 

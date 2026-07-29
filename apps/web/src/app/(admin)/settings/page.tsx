@@ -53,7 +53,7 @@ const SectionCard = ({
 }) => (
   <button
     onClick={onClick}
-    className={`w-full flex items-start gap-3 rounded-xl border p-4 text-left transition-all ${
+    className={`w-full flex items-start gap-3 rounded-lg border p-4 text-left transition-all ${
       active
         ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500'
         : 'border-surface-border bg-white hover:bg-surface-muted shadow-card'
@@ -151,7 +151,7 @@ export default function SettingsPage() {
           {activeSection === 'org' && (
             <form
               onSubmit={orgForm.handleSubmit(simulateSave)}
-              className="rounded-xl border border-surface-border bg-white p-6 shadow-card space-y-5"
+              className="rounded-lg border border-surface-border bg-white p-6 shadow-card space-y-5"
             >
               <h2 className="text-sm font-semibold text-slate-900">Organisation Information</h2>
               <Input label="Organisation Name" error={orgForm.formState.errors.orgName?.message} {...orgForm.register('orgName')} />
@@ -188,7 +188,7 @@ export default function SettingsPage() {
           {activeSection === 'tasks' && (
             <form
               onSubmit={taskForm.handleSubmit(simulateSave)}
-              className="rounded-xl border border-surface-border bg-white p-6 shadow-card space-y-5"
+              className="rounded-lg border border-surface-border bg-white p-6 shadow-card space-y-5"
             >
               <h2 className="text-sm font-semibold text-slate-900">Task Configuration</h2>
               <p className="text-xs text-slate-500">Defaults applied when creating new tasks. Existing tasks are not affected.</p>
@@ -206,7 +206,7 @@ export default function SettingsPage() {
           )}
 
           {activeSection === 'notifications' && (
-            <div className="rounded-xl border border-surface-border bg-white p-6 shadow-card">
+            <div className="rounded-lg border border-surface-border bg-white p-6 shadow-card">
               <h2 className="mb-1 text-sm font-semibold text-slate-900">Notification Preferences</h2>
               <p className="mb-4 text-xs text-slate-500">Controls which automated notifications the system sends to users.</p>
               <div className="divide-y divide-surface-border">
@@ -225,7 +225,7 @@ export default function SettingsPage() {
           {activeSection === 'security' && (
             <form
               onSubmit={securityForm.handleSubmit(simulateSave)}
-              className="rounded-xl border border-surface-border bg-white p-6 shadow-card space-y-5"
+              className="rounded-lg border border-surface-border bg-white p-6 shadow-card space-y-5"
             >
               <h2 className="text-sm font-semibold text-slate-900">Security Settings</h2>
               <div className="grid grid-cols-2 gap-4">

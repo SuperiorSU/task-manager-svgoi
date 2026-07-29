@@ -24,13 +24,17 @@ const DayCell = React.memo(({ meta, onPress }: DayCellProps) => {
   const dotsOnSelected = isSelected || isToday;
 
   const circleColor = isSelected
-    ? colors.brand.secondary
-    : isToday
     ? colors.brand.primary
+    : isToday
+    ? colors.brand.primaryLight
     : null;
 
-  const dateColor = dotsOnSelected
-    ? colors.text.inverse
+  // White on the filled selected circle; "today" uses primaryLight + primary
+  // text. text.inverse went dark in dark mode (invisible selected date).
+  const dateColor = isSelected
+    ? '#FFFFFF'
+    : isToday
+    ? colors.brand.primary
     : isWeekend
     ? colors.text.tertiary
     : !isCurrentMonth

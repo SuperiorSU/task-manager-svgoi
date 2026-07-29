@@ -8,6 +8,7 @@ import { notifyUsers } from '../notifications/notifications.service.js';
 const invalidateDashboardCaches = async (): Promise<void> => {
   await Promise.all([
     cache.delPattern('dashboard:stats:*'),
+    cache.delPattern('dashboard:admin-summary:*'),
     cache.delPattern('dashboard:dept-health:*'),
     cache.delPattern('dashboard:staff-load:*'),
     cache.delPattern('dashboard:escalations:*'),
@@ -185,17 +186,36 @@ export const tasksService = {
     };
   },
 
+  /**
+   * The single source of truth for "may this viewer see this task".
+   *
+   * Exported so the Socket.IO `join:task` handler authorizes room membership
+   * with the exact same rule as the REST read path — if these two ever drift,
+   * a user could subscribe to live events for a task they can't fetch.
+   */
+  taskVisibilityWhere(viewerId: string, viewerRole: string, viewerDeptId?: string) {
+    return {
+      isDeleted: false,
+      ...(viewerRole === 'EMPLOYEE'
+        ? { assigneeId: viewerId }
+        : viewerRole === 'ADMIN' && viewerDeptId
+        ? { OR: [{ departmentId: viewerDeptId }, { creatorId: viewerId }, { assigneeId: viewerId }] }
+        : {}),
+    };
+  },
+
+  /** Cheap existence check for the same visibility rule — no joins. */
+  async canViewTask(taskId: string, viewerId: string, viewerRole: string, viewerDeptId?: string) {
+    const found = await prisma.task.findFirst({
+      where: { id: taskId, ...tasksService.taskVisibilityWhere(viewerId, viewerRole, viewerDeptId) } as never,
+      select: { id: true },
+    });
+    return found !== null;
+  },
+
   async getById(id: string, viewerId: string, viewerRole: string, viewerDeptId?: string) {
     const task = await prisma.task.findFirst({
-      where: {
-        id,
-        isDeleted: false,
-        ...(viewerRole === 'EMPLOYEE'
-          ? { assigneeId: viewerId }
-          : viewerRole === 'ADMIN' && viewerDeptId
-          ? { OR: [{ departmentId: viewerDeptId }, { creatorId: viewerId }, { assigneeId: viewerId }] }
-          : {}),
-      },
+      where: { id, ...tasksService.taskVisibilityWhere(viewerId, viewerRole, viewerDeptId) } as never,
       select: taskSelect,
     });
     if (!task) throw Object.assign(new Error('Task not found'), { statusCode: 404, code: 'NOT_FOUND' });
@@ -318,7 +338,7 @@ export const tasksService = {
   ) {
     const task = await prisma.task.findUnique({
       where: { id, isDeleted: false },
-      select: { id: true, status: true, assigneeId: true, creatorId: true, title: true },
+      select: { id: true, status: true, assigneeId: true, creatorId: true, title: true, version: true },
     });
     if (!task) throw Object.assign(new Error('Task not found'), { statusCode: 404, code: 'NOT_FOUND' });
 
@@ -345,15 +365,26 @@ export const tasksService = {
       );
     }
 
-    const updateData: Record<string, unknown> = { status: newStatus };
+    const updateData: Record<string, unknown> = { status: newStatus, version: { increment: 1 } };
     if (newStatus === 'ACCEPTED') updateData['acceptedAt'] = new Date();
     if (newStatus === 'COMPLETED') updateData['completedAt'] = new Date();
 
-    const updated = await prisma.task.update({
-      where: { id },
+    // Optimistic-lock guard (Risk #3): the transition above was validated
+    // against `task.status` as read a moment ago. Without this, two actors
+    // racing (e.g. one approving while another sends it back for revision)
+    // would both pass VALID_TRANSITIONS and the last write would silently win.
+    const written = await prisma.task.updateMany({
+      where: { id, version: task.version },
       data: updateData as never,
-      select: taskSelect,
     });
+    if (written.count === 0) {
+      throw Object.assign(
+        new Error('This task was just changed by someone else. Reload and try again.'),
+        { statusCode: 409, code: 'CONFLICT' }
+      );
+    }
+
+    const updated = await prisma.task.findUniqueOrThrow({ where: { id }, select: taskSelect });
 
     await prisma.taskActivity.create({
       data: {
@@ -410,7 +441,14 @@ export const tasksService = {
           ? { OR: [{ departmentId: actorDeptId }, { creatorId: actorId }] }
           : {}),
       },
-      select: { id: true, status: true, assigneeId: true, title: true },
+      select: {
+        id: true,
+        status: true,
+        assigneeId: true,
+        title: true,
+        departmentId: true,
+        version: true,
+      },
     });
     if (!task) throw Object.assign(new Error('Task not found'), { statusCode: 404, code: 'NOT_FOUND' });
 
@@ -421,9 +459,16 @@ export const tasksService = {
       );
     }
 
+    if (newAssigneeId === task.assigneeId) {
+      throw Object.assign(new Error('This task is already assigned to that person'), {
+        statusCode: 400,
+        code: 'ALREADY_ASSIGNED',
+      });
+    }
+
     const newAssignee = await prisma.user.findUnique({
       where: { id: newAssigneeId },
-      select: { id: true, name: true, isActive: true, role: true },
+      select: { id: true, name: true, isActive: true, role: true, departmentId: true },
     });
     if (!newAssignee || !newAssignee.isActive) {
       throw Object.assign(new Error('Assignee not found'), { statusCode: 404, code: 'NOT_FOUND' });
@@ -435,23 +480,68 @@ export const tasksService = {
       );
     }
 
-    const updated = await prisma.task.update({
-      where: { id },
-      data: { assigneeId: newAssigneeId },
-      select: taskSelect,
+    // Reassigning hands the work to someone who has NOT accepted it, so the
+    // workflow resets to PENDING and acceptedAt is cleared — FR-17 ("never skip
+    // the acceptance step") and so on-time metrics don't credit the new
+    // assignee with the previous one's timing. Any proof the previous assignee
+    // uploaded stays on the task; the activity trail below attributes it.
+    const wasInFlight = task.status !== 'PENDING';
+    const deptFollows = !!newAssignee.departmentId && newAssignee.departmentId !== task.departmentId;
+
+    const result = await prisma.$transaction(async (tx) => {
+      // Optimistic-lock guard: fails if another Admin wrote this row since our
+      // read, instead of silently clobbering their decision (Risk #3).
+      const written = await tx.task.updateMany({
+        where: { id, version: task.version },
+        data: {
+          assigneeId: newAssigneeId,
+          status: 'PENDING' as never,
+          acceptedAt: null,
+          // The department follows the assignee: 8_overview.md §4.7 treats
+          // departmentId as "the department this task is assigned INTO", so
+          // letting it desync would hide the task from the receiving Admin.
+          // The originating Admin keeps visibility via creatorId.
+          ...(deptFollows ? { departmentId: newAssignee.departmentId } : {}),
+          version: { increment: 1 },
+        },
+      });
+      if (written.count === 0) {
+        throw Object.assign(
+          new Error('This task was just changed by someone else. Reload and try again.'),
+          { statusCode: 409, code: 'CONFLICT' }
+        );
+      }
+
+      const proofCount = await tx.fileAttachment.count({ where: { taskId: id, isProof: true } });
+      const detail = [
+        reason ? `: ${reason}` : '',
+        wasInFlight ? ' · status reset to Pending for re-acceptance' : '',
+        proofCount > 0 ? ` · ${proofCount} proof file(s) from the previous assignee retained` : '',
+      ].join('');
+
+      await tx.taskActivity.create({
+        data: {
+          taskId: id,
+          actorId,
+          action: 'REASSIGNED',
+          description: `Task reassigned to ${newAssignee.name}${detail}`,
+          metadata: {
+            previousAssigneeId: task.assigneeId,
+            newAssigneeId,
+            previousStatus: task.status,
+            statusReset: wasInFlight,
+            ...(deptFollows ? { departmentMovedTo: newAssignee.departmentId } : {}),
+            ...(reason ? { reason } : {}),
+          },
+        },
+      });
+
+      return tx.task.findUniqueOrThrow({ where: { id }, select: taskSelect });
     });
 
-    await prisma.taskActivity.create({
-      data: {
-        taskId: id,
-        actorId,
-        action: 'REASSIGNED',
-        description: reason
-          ? `Task reassigned to ${updated.assignee.name}: ${reason}`
-          : `Task reassigned to ${updated.assignee.name}`,
-        metadata: { previousAssigneeId: task.assigneeId, newAssigneeId, ...(reason ? { reason } : {}) },
-      },
-    });
+    // Side effects run AFTER the transaction commits — notifyUsers does its own
+    // DB/Redis/socket work and must never be rolled back into a task write.
+    await invalidateDashboardCaches();
 
     const actor = await prisma.user.findUnique({ where: { id: actorId }, select: { name: true } });
     await notifyUsers({
@@ -460,9 +550,11 @@ export const tasksService = {
       actorId,
       actorName: actor?.name,
       taskId: id,
-      taskTitle: updated.title,
+      taskTitle: result.title,
       pushPriority: 'high',
     });
+
+    const updated = result;
 
     return updated;
   },
@@ -488,22 +580,32 @@ export const tasksService = {
   async bulkUpdateStatus(ids: string[], status: TaskStatus, actorId: string, actorRole: string) {
     const candidates = await prisma.task.findMany({
       where: { id: { in: ids }, isDeleted: false, status: { notIn: ['COMPLETED', 'CANCELLED'] } },
-      select: { id: true, status: true, assigneeId: true, creatorId: true, title: true },
+      select: { id: true, status: true, assigneeId: true, creatorId: true, title: true, version: true },
     });
 
-    const tasks =
+    const permitted =
       actorRole === 'SUPER_ADMIN' ? candidates : candidates.filter((t) => t.creatorId === actorId);
     const cancellableIds = new Set(candidates.map((t) => t.id));
-    const skippedIds = ids.filter(
-      (id) => !cancellableIds.has(id) || !tasks.some((t) => t.id === id)
+    const notPermittedIds = ids.filter(
+      (id) => !cancellableIds.has(id) || !permitted.some((t) => t.id === id)
     );
 
-    if (tasks.length > 0) {
-      await prisma.task.updateMany({
-        where: { id: { in: tasks.map((t) => t.id) } },
-        data: { status: status as never },
+    // Guard each row on the version we just read (Risk #3). A row someone else
+    // changed mid-flight is reported as skipped rather than clobbered — which
+    // is exactly what the existing {cancelledIds, skippedIds} contract is for.
+    const tasks: typeof permitted = [];
+    const conflictedIds: string[] = [];
+    for (const task of permitted) {
+      const written = await prisma.task.updateMany({
+        where: { id: task.id, version: task.version },
+        data: { status: status as never, version: { increment: 1 } },
       });
+      if (written.count === 1) tasks.push(task);
+      else conflictedIds.push(task.id);
+    }
+    const skippedIds = [...notPermittedIds, ...conflictedIds];
 
+    if (tasks.length > 0) {
       await prisma.taskActivity.createMany({
         data: tasks.map((task) => ({
           taskId: task.id,

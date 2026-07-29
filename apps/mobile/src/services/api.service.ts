@@ -61,6 +61,7 @@ export const initApi = () => {
 
   initApiClient({
     baseUrl,
+    platform: 'mobile',
     getToken: async () => {
       // Check in-memory token FIRST — a valid token always wins, even if a background
       // refresh is still in flight from a previous navigation or stale session attempt.

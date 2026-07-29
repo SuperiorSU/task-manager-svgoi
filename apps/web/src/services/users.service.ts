@@ -1,8 +1,6 @@
-import { MOCK_USERS, type UserWithDepartment } from '@/data/users.mock';
-import type { Role } from '@godigitify/types';
-
-const DELAY_MS = 350;
-const delay = () => new Promise((res) => setTimeout(res, DELAY_MS));
+import { api } from '@/lib/api';
+import type { Role, CreateUserResult } from '@godigitify/types';
+import type { UserWithDepartment } from '@/data/users.mock';
 
 export type UserListFilters = {
   search?: string;
@@ -13,37 +11,20 @@ export type UserListFilters = {
   limit?: number;
 };
 
+type Envelope<T> = { data: T };
+
 export const usersService = {
   async list(filters: UserListFilters = {}) {
-    await delay();
-    const { search, role, departmentId, isActive, page = 1, limit = 20 } = filters;
-
-    let items = [...MOCK_USERS];
-
-    if (search) {
-      const q = search.toLowerCase();
-      items = items.filter(
-        (u) =>
-          u.name.toLowerCase().includes(q) ||
-          (u.email ?? '').toLowerCase().includes(q) ||
-          (u.employeeId ?? '').toLowerCase().includes(q) ||
-          (u.designation ?? '').toLowerCase().includes(q)
-      );
-    }
-    if (role) items = items.filter((u) => u.role === role);
-    if (departmentId) items = items.filter((u) => u.departmentId === departmentId);
-    if (isActive !== undefined) items = items.filter((u) => u.isActive === isActive);
-
-    const total = items.length;
-    const paged = items.slice((page - 1) * limit, page * limit);
-    return { items: paged, total, page, limit };
+    const res = await api.get<Envelope<{ items: UserWithDepartment[]; total: number; page: number; limit: number }>>(
+      '/users',
+      { params: filters as Record<string, string | number | boolean | undefined> }
+    );
+    return res.data.data;
   },
 
   async get(id: string): Promise<UserWithDepartment> {
-    await delay();
-    const user = MOCK_USERS.find((u) => u.id === id);
-    if (!user) throw new Error(`User ${id} not found`);
-    return user;
+    const res = await api.get<Envelope<UserWithDepartment>>(`/users/${id}`);
+    return res.data.data;
   },
 
   async create(dto: {
@@ -54,50 +35,25 @@ export const usersService = {
     departmentId?: string;
     phone?: string;
     designation?: string;
-  }) {
-    await delay();
-    const id = `user_${Date.now()}`;
-    const newUser: UserWithDepartment = {
-      id,
-      name: dto.name,
-      email: dto.email,
-      employeeId: dto.employeeId,
-      role: dto.role,
-      isActive: true,
-      departmentId: dto.departmentId,
-      phone: dto.phone,
-      designation: dto.designation,
-      permissions: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    MOCK_USERS.push(newUser);
-    return newUser;
+  }): Promise<UserWithDepartment> {
+    // POST /users returns { user, invite } — the invite is also emailed to the
+    // new member, so the admin flow just needs the created user back.
+    const res = await api.post<Envelope<CreateUserResult>>('/users', dto);
+    return res.data.data.user as unknown as UserWithDepartment;
   },
 
-  async update(id: string, dto: Partial<UserWithDepartment>) {
-    await delay();
-    const idx = MOCK_USERS.findIndex((u) => u.id === id);
-    if (idx === -1) throw new Error('User not found');
-    MOCK_USERS[idx] = { ...MOCK_USERS[idx]!, ...dto, updatedAt: new Date().toISOString() };
-    return MOCK_USERS[idx]!;
+  async update(id: string, dto: Partial<UserWithDepartment>): Promise<UserWithDepartment> {
+    // Role changes go through the dedicated /role endpoint; PATCH /:id only
+    // touches profile fields (name/phone/designation/departmentId).
+    const res = await api.patch<Envelope<UserWithDepartment>>(`/users/${id}`, dto);
+    return res.data.data;
   },
 
-  async deactivate(id: string) {
-    await delay();
-    const user = MOCK_USERS.find((u) => u.id === id);
-    if (!user) throw new Error('User not found');
-    user.isActive = false;
-    user.updatedAt = new Date().toISOString();
-    return user;
+  async deactivate(id: string): Promise<void> {
+    await api.patch(`/users/${id}/deactivate`);
   },
 
-  async reactivate(id: string) {
-    await delay();
-    const user = MOCK_USERS.find((u) => u.id === id);
-    if (!user) throw new Error('User not found');
-    user.isActive = true;
-    user.updatedAt = new Date().toISOString();
-    return user;
+  async reactivate(id: string): Promise<void> {
+    await api.patch(`/users/${id}/reactivate`);
   },
 };

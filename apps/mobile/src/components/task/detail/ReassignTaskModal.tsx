@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
 import { usersApi } from '@godigitify/api-client';
-import type { User } from '@godigitify/types';
+import type { AssignableUser } from '@godigitify/types';
 
 import { useColors } from '../../../constants/colors';
 import { Spacing } from '../../../constants/spacing';
@@ -45,21 +45,24 @@ export const ReassignTaskModal = ({
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
   const [allDepartments, setAllDepartments] = useState(!viewerDeptId);
-  const [selected, setSelected] = useState<User | null>(null);
+  const [selected, setSelected] = useState<AssignableUser | null>(null);
   const [reason, setReason] = useState('');
   const debouncedSearch = useDebounce(search, 300);
 
+  // /users/assignable (not /users) — the user-management list is department-locked
+  // for an Admin, so it can never surface a cross-department candidate. This
+  // endpoint applies the §2 assignment matrix instead and already excludes
+  // Super Admins + inactive users server-side.
   const { data: candidates = [], isLoading } = useQuery({
     queryKey: ['reassign-candidates', debouncedSearch, allDepartments ? null : viewerDeptId],
     queryFn: () =>
       usersApi
-        .getList({
-          isActive: true,
+        .getAssignable({
           limit: 20,
           ...(debouncedSearch ? { search: debouncedSearch } : {}),
           ...(!allDepartments && viewerDeptId ? { departmentId: viewerDeptId } : {}),
         })
-        .then((r) => r.data.items.filter((u) => u.role !== 'SUPER_ADMIN' && u.id !== currentAssigneeId)),
+        .then((r) => r.data.filter((u) => u.id !== currentAssigneeId)),
     enabled: visible,
   });
 

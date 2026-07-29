@@ -1,5 +1,7 @@
 import type {
   User,
+  CreateUserResult,
+  AssignableUser,
   Role,
   ChangeUserRoleDto,
   NotificationPreferences,
@@ -26,11 +28,22 @@ export const usersApi = {
   getList: (filters?: UserFilters) =>
     getApiClient().get<UserListResponse>('/users', filters as Record<string, string | number | boolean | undefined>),
 
+  /**
+   * Candidates for task assign/reassign. Unlike `getList` (department-locked
+   * for an Admin), this reads across departments per the §2 assignment matrix,
+   * and returns a narrow projection with no email/phone.
+   */
+  getAssignable: (filters?: { departmentId?: string; search?: string; limit?: number }) =>
+    getApiClient().get<AssignableUser[]>(
+      '/users/assignable',
+      filters as Record<string, string | number | boolean | undefined>
+    ),
+
   getById: (id: string) => getApiClient().get<User>(`/users/${id}`),
 
   getTaskStats: (id: string) => getApiClient().get<UserTaskStats>(`/users/${id}/task-stats`),
 
-  create: (dto: unknown) => getApiClient().post<User>('/users', dto),
+  create: (dto: unknown) => getApiClient().post<CreateUserResult>('/users', dto),
 
   update: (id: string, dto: unknown) => getApiClient().patch<User>(`/users/${id}`, dto),
 

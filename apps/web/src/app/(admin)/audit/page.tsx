@@ -99,7 +99,7 @@ export default function AuditPage() {
         <EmptyState icon={ShieldCheck} title="No audit logs" description="System actions will appear here." />
       ) : (
         <>
-          <div className="rounded-xl border border-surface-border bg-white shadow-card overflow-hidden">
+          <div className="rounded-lg border border-surface-border bg-white shadow-card overflow-hidden">
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-surface-border bg-surface-muted">

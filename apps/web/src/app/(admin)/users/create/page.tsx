@@ -41,7 +41,7 @@ export default function CreateUserPage() {
         )}
         className="space-y-6"
       >
-        <div className="rounded-xl border border-surface-border bg-white p-6 shadow-card space-y-5">
+        <div className="rounded-lg border border-surface-border bg-white p-6 shadow-card space-y-5">
           <Input
             label="Full Name"
             placeholder="e.g. Rahul Sharma"

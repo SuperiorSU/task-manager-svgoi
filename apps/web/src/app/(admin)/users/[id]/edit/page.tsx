@@ -72,14 +72,14 @@ export default function EditUserPage() {
     return (
       <div className="max-w-xl space-y-4">
         <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-64 w-full rounded-xl" />
+        <Skeleton className="h-64 w-full rounded-lg" />
       </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center text-sm text-red-700">
+      <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-center text-sm text-red-700">
         User not found.
       </div>
     );
@@ -108,7 +108,7 @@ export default function EditUserPage() {
         )}
         className="space-y-5"
       >
-        <div className="rounded-xl border border-surface-border bg-white p-6 shadow-card space-y-5">
+        <div className="rounded-lg border border-surface-border bg-white p-6 shadow-card space-y-5">
           <h2 className="text-sm font-semibold text-slate-700">Personal Information</h2>
           <div className="grid grid-cols-2 gap-4">
             <Input
@@ -144,7 +144,7 @@ export default function EditUserPage() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-surface-border bg-white p-6 shadow-card space-y-5">
+        <div className="rounded-lg border border-surface-border bg-white p-6 shadow-card space-y-5">
           <h2 className="text-sm font-semibold text-slate-700">Role & Department</h2>
           <Controller
             control={control}

@@ -13,14 +13,13 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { Feather } from '@expo/vector-icons';
 
-import type { RichTask } from '@godigitify/types';
+import type { TaskStatus } from '@godigitify/types';
 import { useAuthStore } from '../stores/auth.store';
 import { useColors } from '../constants/colors';
 import { Layout, Spacing } from '../constants/spacing';
 import { Typography } from '../constants/typography';
 import { buildGreeting } from '../utils/greeting';
-import { useUnreadCount, useEmployeeStats, useWorkload } from '../hooks/useDashboard';
-import { useTasks } from '../hooks/useTasks';
+import { useUnreadCount, useEmployeeStats, useWorkload, useAdminSummary } from '../hooks/useDashboard';
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus';
 import { getInitials } from '../utils/initial';
 import { DashboardHeader } from '../components/dashboard/DashboardHeader';
@@ -31,7 +30,7 @@ import { ProgressRing } from '../components/ui/ProgressRing';
 
 dayjs.extend(relativeTime);
 
-const isOverdue = (t: RichTask) =>
+const isOverdue = (t: { status: TaskStatus; dueDate: string }) =>
   !['COMPLETED', 'CANCELLED'].includes(t.status) && dayjs(t.dueDate).isBefore(dayjs());
 
 // ─── Priority stripe colours ───────────────────────────────────────────────────
@@ -53,58 +52,34 @@ export function AdminDashboardScreen() {
   const { data: unreadCount = 0 } = useUnreadCount();
 
   const adminDept = { id: user?.departmentId ?? '', name: user?.department?.name ?? 'Department' };
-  const adminId = user?.id ?? '';
 
-  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useEmployeeStats();
-  const { data: workloadData, isLoading: workloadLoading, refetch: refetchWorkload } = useWorkload();
-  const {
-    data: taskListData,
-    isLoading: tasksLoading,
-    refetch: refetchTasks,
-  } = useTasks({ limit: 100, sortBy: 'createdAt', order: 'desc' });
+  const statsQuery = useEmployeeStats();
+  const workloadQuery = useWorkload();
+  const summaryQuery = useAdminSummary();
+  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = statsQuery;
+  const { data: workloadData, refetch: refetchWorkload } = workloadQuery;
+  const { data: summary, refetch: refetchSummary } = summaryQuery;
 
   const [refreshing, setRefreshing] = useState(false);
 
-  useRefetchOnFocus(
-    useMemo(() => [refetchStats, refetchWorkload, refetchTasks], [refetchStats, refetchWorkload, refetchTasks])
-  );
+  useRefetchOnFocus([statsQuery, workloadQuery, summaryQuery]);
 
   const push = (path: string) =>
     router.push(path as Parameters<typeof router.push>[0]);
 
   // ── Derived data ───────────────────────────────────────────────────────────
-  // Server already scopes ADMIN task queries to own-dept + self-created cross-dept tasks.
+  // Counts + the few preview rows each section renders come straight from
+  // /dashboard/admin-summary — no more fetching 100 full tasks and bucketing
+  // them in JS (which also capped every count at 100).
 
-  const allTasks: RichTask[] = taskListData ?? [];
-
-  const assignedOutTasks = useMemo(
-    () => allTasks.filter((t) => t.creatorId === adminId && t.departmentId !== adminDept.id),
-    [allTasks, adminId, adminDept.id],
-  );
-
-  // Tasks the Super Admin or another department handed to this admin directly.
-  const assignedToMeTasks = useMemo(
-    () => allTasks.filter((t) => t.assigneeId === adminId && t.creatorId !== adminId),
-    [allTasks, adminId],
-  );
-
-  const reviewQueue = useMemo(
-    () =>
-      allTasks
-        .filter((t) => t.creatorId === adminId && t.status === 'UNDER_REVIEW')
-        .slice(0, 5),
-    [allTasks, adminId],
-  );
+  const reviewQueue = summary?.reviewQueue.items ?? [];
+  const assignedOutTasks = summary?.assignedOut.items ?? [];
 
   const derivedStats = useMemo(() => {
     const teamPending = (stats?.pending ?? 0) + (stats?.accepted ?? 0);
     const teamDone = stats?.completed ?? 0;
     const teamOverdue = stats?.overdue ?? 0;
     const inFlight = teamPending + (stats?.inProgress ?? 0) + (stats?.underReview ?? 0);
-    const outPending = assignedOutTasks.filter((t) => t.status !== 'COMPLETED').length;
-    const assignedToMeNeedAction = assignedToMeTasks.filter((t) =>
-      ['PENDING', 'ACCEPTED'].includes(t.status),
-    ).length;
 
     return {
       deptTasks: stats?.totalTasks ?? 0,
@@ -112,13 +87,13 @@ export function AdminDashboardScreen() {
       teamDone,
       teamOverdue,
       inFlight,
-      assignedOut: assignedOutTasks.length,
-      outPending,
-      assignedToMe: assignedToMeTasks.length,
-      assignedToMeNeedAction,
+      assignedOut: summary?.assignedOut.count ?? 0,
+      outPending: summary?.assignedOut.pending ?? 0,
+      assignedToMe: summary?.assignedToMe.count ?? 0,
+      assignedToMeNeedAction: summary?.assignedToMe.needAction ?? 0,
       completionRate: stats?.completionRate ?? 0,
     };
-  }, [stats, assignedOutTasks, assignedToMeTasks]);
+  }, [stats, summary]);
 
   const workload = useMemo(
     () =>
@@ -140,7 +115,7 @@ export function AdminDashboardScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([refetchStats(), refetchWorkload(), refetchTasks()]);
+    await Promise.all([refetchStats(), refetchWorkload(), refetchSummary()]);
     setRefreshing(false);
   };
 
@@ -192,8 +167,8 @@ export function AdminDashboardScreen() {
               <Text style={[s.pageSubtitle, { color: colors.text.secondary }]}>
                 {adminDept.name} department
               </Text>
-              <View style={[s.deptChip, { backgroundColor: '#EEF2FF' }]}>
-                <Text style={[s.deptChipText, { color: '#4338CA' }]}>
+              <View style={[s.deptChip, { backgroundColor: colors.brand.primaryLight }]}>
+                <Text style={[s.deptChipText, { color: colors.brand.primary }]}>
                   {adminDept.name} Dept
                 </Text>
               </View>
@@ -219,8 +194,8 @@ export function AdminDashboardScreen() {
               value={derivedStats.deptTasks}
               label="Dept Tasks"
               icon="briefcase"
-              iconBg="#EEF2FF"
-              iconColor="#4338CA"
+              iconBg={colors.brand.primaryLight}
+              iconColor={colors.brand.primary}
               onPress={() => push('/(app)/(admin)/tasks')}
               colors={colors}
             />
@@ -228,8 +203,8 @@ export function AdminDashboardScreen() {
               value={derivedStats.teamPending}
               label="Team Pending"
               icon="clock"
-              iconBg="#FFFBEB"
-              iconColor="#B45309"
+              iconBg={colors.status.inProgress.bg}
+              iconColor={colors.status.inProgress.text}
               onPress={() => push('/(app)/(admin)/tasks')}
               colors={colors}
             />
@@ -239,8 +214,8 @@ export function AdminDashboardScreen() {
               value={derivedStats.teamDone}
               label="Team Done"
               icon="check-circle"
-              iconBg="#F0FDF4"
-              iconColor="#15803D"
+              iconBg={colors.status.completed.bg}
+              iconColor={colors.status.completed.text}
               onPress={() => push('/(app)/(admin)/tasks')}
               colors={colors}
             />
@@ -248,10 +223,10 @@ export function AdminDashboardScreen() {
               value={derivedStats.teamOverdue}
               label="Team Overdue"
               icon="alert-circle"
-              iconBg={derivedStats.teamOverdue > 0 ? '#FEF2F2' : '#F1F5F9'}
-              iconColor={derivedStats.teamOverdue > 0 ? '#B91C1C' : '#64748B'}
-              cardBg={derivedStats.teamOverdue > 0 ? '#FEF2F2' : undefined}
-              cardBorder={derivedStats.teamOverdue > 0 ? '#FECACA' : undefined}
+              iconBg={derivedStats.teamOverdue > 0 ? colors.status.overdue.bg : colors.surface.background}
+              iconColor={derivedStats.teamOverdue > 0 ? colors.status.overdue.text : colors.text.tertiary}
+              cardBg={derivedStats.teamOverdue > 0 ? colors.status.overdue.bg : undefined}
+              cardBorder={derivedStats.teamOverdue > 0 ? colors.status.overdue.solid : undefined}
               onPress={() => push('/(app)/(admin)/tasks')}
               colors={colors}
             />
@@ -272,8 +247,8 @@ export function AdminDashboardScreen() {
               pressed && { opacity: 0.82 },
             ]}
           >
-            <View style={[s.crossDeptIcon, { backgroundColor: '#EFF6FF' }]}>
-              <Feather name="arrow-down-left" size={16} color="#1D4ED8" />
+            <View style={[s.crossDeptIcon, { backgroundColor: colors.brand.primaryLight }]}>
+              <Feather name="arrow-down-left" size={16} color={colors.brand.primary} />
             </View>
             <View style={s.assignedToMeTextCol}>
               <Text style={[s.crossDeptLabel, { color: colors.text.secondary }]} numberOfLines={1}>
@@ -305,8 +280,8 @@ export function AdminDashboardScreen() {
               pressed && { opacity: 0.82 },
             ]}
           >
-            <View style={[s.crossDeptIcon, { backgroundColor: '#EEF2FF' }]}>
-              <Feather name="send" size={16} color="#4338CA" />
+            <View style={[s.crossDeptIcon, { backgroundColor: colors.brand.primaryLight }]}>
+              <Feather name="send" size={16} color={colors.brand.primary} />
             </View>
             <Text
               style={[s.crossDeptLabel, { color: colors.text.secondary }]}
@@ -325,7 +300,7 @@ export function AdminDashboardScreen() {
               </View>
               <View style={[s.crossDeptDivider, { backgroundColor: colors.surface.border }]} />
               <View style={s.crossDeptStat}>
-                <Text style={[s.crossDeptNum, { color: '#F59E0B' }]}>
+                <Text style={[s.crossDeptNum, { color: colors.semantic.warning }]}>
                   {derivedStats.outPending}
                 </Text>
                 <Text style={[s.crossDeptMeta, { color: colors.text.tertiary }]}>
@@ -357,8 +332,8 @@ export function AdminDashboardScreen() {
               percent={Math.min(Math.max(derivedStats.completionRate, 0), 100)}
               size={96}
               thickness={11}
-              color="#1A5CF8"
-              trackColor="#E2E8F0"
+              color={colors.brand.primary}
+              trackColor={colors.surface.border}
               holeColor={colors.surface.card}
             >
               <Text style={{ fontSize: 17, fontFamily: 'Inter-Bold', color: colors.text.primary, lineHeight: 20 }}>
@@ -377,13 +352,13 @@ export function AdminDashboardScreen() {
               </Text>
               <View style={s.completionLegend}>
                 <View style={s.legendRow}>
-                  <View style={[s.legendDot, { backgroundColor: '#1A5CF8' }]} />
+                  <View style={[s.legendDot, { backgroundColor: colors.brand.primary }]} />
                   <Text style={[s.legendText, { color: colors.text.secondary }]}>
                     Completed {derivedStats.teamDone}
                   </Text>
                 </View>
                 <View style={s.legendRow}>
-                  <View style={[s.legendDot, { backgroundColor: '#E2E8F0' }]} />
+                  <View style={[s.legendDot, { backgroundColor: colors.surface.border }]} />
                   <Text style={[s.legendText, { color: colors.text.secondary }]}>
                     In flight {derivedStats.inFlight}
                   </Text>
@@ -398,7 +373,7 @@ export function AdminDashboardScreen() {
           <View style={s.section}>
             <SectionHeader
               title="Awaiting your review"
-              badge={reviewQueue.length}
+              badge={summary?.reviewQueue.count ?? reviewQueue.length}
               actionLabel="See all"
               onAction={() => push('/(app)/(admin)/tasks')}
               colors={colors}
@@ -581,7 +556,7 @@ export function AdminDashboardScreen() {
           <View style={s.section}>
             <SectionHeader
               title="Assigned to other depts"
-              badge={assignedOutTasks.length}
+              badge={derivedStats.assignedOut}
               actionLabel="See all"
               onAction={() => push('/(app)/(admin)/tasks')}
               colors={colors}
@@ -626,11 +601,11 @@ export function AdminDashboardScreen() {
                       <View
                         style={[
                           s.deptBadge,
-                          { backgroundColor: '#EEF2FF' },
+                          { backgroundColor: colors.brand.primaryLight },
                         ]}
                       >
-                        <Feather name="corner-up-right" size={10} color="#4338CA" />
-                        <Text style={[s.deptBadgeText, { color: '#4338CA' }]}>
+                        <Feather name="corner-up-right" size={10} color={colors.brand.primary} />
+                        <Text style={[s.deptBadgeText, { color: colors.brand.primary }]}>
                           {task.department?.name ?? "—"}
                         </Text>
                       </View>
@@ -699,8 +674,8 @@ function SectionHeader({
           {title}
         </Text>
         {badge !== undefined && (
-          <View style={[s.badge, { backgroundColor: '#EEF2FF' }]}>
-            <Text style={[s.badgeText, { color: '#4338CA' }]}>{badge}</Text>
+          <View style={[s.badge, { backgroundColor: colors.brand.primaryLight }]}>
+            <Text style={[s.badgeText, { color: colors.brand.primary }]}>{badge}</Text>
           </View>
         )}
       </View>

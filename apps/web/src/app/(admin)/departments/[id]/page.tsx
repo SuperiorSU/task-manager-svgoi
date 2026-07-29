@@ -43,9 +43,9 @@ export default function DepartmentDetailPage() {
       <div className="max-w-4xl space-y-4">
         <Skeleton className="h-8 w-64" />
         <div className="grid grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}
         </div>
-        <Skeleton className="h-64 rounded-xl" />
+        <Skeleton className="h-64 rounded-lg" />
       </div>
     );
   }
@@ -76,7 +76,7 @@ export default function DepartmentDetailPage() {
       </div>
 
       {/* Dept header */}
-      <div className="rounded-xl border border-surface-border bg-white p-6 shadow-card">
+      <div className="rounded-lg border border-surface-border bg-white p-6 shadow-card">
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-3">
@@ -119,21 +119,21 @@ export default function DepartmentDetailPage() {
 
       {/* Quick stats */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div className="rounded-xl border border-surface-border bg-white p-4 shadow-card text-center">
+        <div className="rounded-lg border border-surface-border bg-white p-4 shadow-card text-center">
           <p className="text-2xl font-bold text-slate-900">{d._count?.users ?? members?.total ?? 0}</p>
           <p className="text-xs text-slate-500 mt-0.5">Members</p>
         </div>
-        <div className="rounded-xl border border-surface-border bg-white p-4 shadow-card text-center">
+        <div className="rounded-lg border border-surface-border bg-white p-4 shadow-card text-center">
           <p className="text-2xl font-bold text-slate-900">{d._count?.tasks ?? 0}</p>
           <p className="text-xs text-slate-500 mt-0.5">Total Tasks</p>
         </div>
-        <div className="rounded-xl border border-surface-border bg-white p-4 shadow-card text-center">
+        <div className="rounded-lg border border-surface-border bg-white p-4 shadow-card text-center">
           <p className={`text-2xl font-bold ${(d.completionRate ?? 0) >= 70 ? 'text-green-600' : (d.completionRate ?? 0) >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
             {d.completionRate ?? 0}%
           </p>
           <p className="text-xs text-slate-500 mt-0.5">Completion Rate</p>
         </div>
-        <div className={`rounded-xl border p-4 shadow-card text-center ${(d.overdueTasks ?? 0) > 0 ? 'border-red-200 bg-red-50' : 'border-surface-border bg-white'}`}>
+        <div className={`rounded-lg border p-4 shadow-card text-center ${(d.overdueTasks ?? 0) > 0 ? 'border-red-200 bg-red-50' : 'border-surface-border bg-white'}`}>
           <p className={`text-2xl font-bold ${(d.overdueTasks ?? 0) > 0 ? 'text-red-600' : 'text-slate-900'}`}>
             {d.overdueTasks ?? 0}
           </p>
@@ -143,7 +143,7 @@ export default function DepartmentDetailPage() {
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         {/* Members list */}
-        <div className="rounded-xl border border-surface-border bg-white p-5 shadow-card">
+        <div className="rounded-lg border border-surface-border bg-white p-5 shadow-card">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4 text-slate-400" />
@@ -191,7 +191,7 @@ export default function DepartmentDetailPage() {
         </div>
 
         {/* Recent tasks */}
-        <div className="rounded-xl border border-surface-border bg-white p-5 shadow-card">
+        <div className="rounded-lg border border-surface-border bg-white p-5 shadow-card">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <CheckSquare className="h-4 w-4 text-slate-400" />

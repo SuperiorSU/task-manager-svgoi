@@ -26,6 +26,7 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as Linking from 'expo-linking';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -33,6 +34,7 @@ import * as Haptics from 'expo-haptics';
 import type { Department } from '@godigitify/types';
 import { departmentsApi, usersApi } from '@godigitify/api-client';
 import { useCreateUser } from '../../../src/hooks/usePeople';
+import { InviteCreatedModal } from '../../../src/components/people/InviteCreatedModal';
 import { useAuthStore } from '../../../src/stores/auth.store';
 import { useColors } from '../../../src/constants/colors';
 import { Layout, Spacing } from '../../../src/constants/spacing';
@@ -210,6 +212,7 @@ export default function CreateMemberScreen() {
   // Form status
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitting, setSubmitting] = useState(false);
+  const [invite, setInvite] = useState<{ name: string; link: string } | null>(null);
 
   // Refs for keyboard navigation
   const empIdRef = useRef<TextInput>(null);
@@ -252,7 +255,7 @@ export default function CreateMemberScreen() {
       const valid = await validate();
       if (!valid) return;
 
-      await createUser.mutateAsync({
+      const res = await createUser.mutateAsync({
         name: name.trim(),
         employeeId: employeeId.trim().toUpperCase(),
         email: email.trim().toLowerCase(),
@@ -263,11 +266,16 @@ export default function CreateMemberScreen() {
       });
 
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.back();
+      // The account has no password until the member opens their setup link, so
+      // surface it for the admin to deliver instead of silently navigating away.
+      setInvite({
+        name: res.data.user.name,
+        link: Linking.createURL('/setup', { queryParams: { token: res.data.invite.token } }),
+      });
     } finally {
       setSubmitting(false);
     }
-  }, [validate, createUser, name, employeeId, email, phone, designation, isSA, role, departmentId, router]);
+  }, [validate, createUser, name, employeeId, email, phone, designation, isSA, role, departmentId]);
 
   // ─── Render ────────────────────────────────────────────────────────────
 
@@ -543,6 +551,16 @@ export default function CreateMemberScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <InviteCreatedModal
+        visible={invite !== null}
+        memberName={invite?.name ?? ''}
+        inviteLink={invite?.link ?? ''}
+        onClose={() => {
+          setInvite(null);
+          router.back();
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }

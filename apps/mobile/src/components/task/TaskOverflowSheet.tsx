@@ -25,6 +25,7 @@ export type OverflowAction =
   | 'upload_proof'
   | 'add_comment'
   | 'reassign'
+  | 'duplicate'
   | 'cancel'
   | 'delete';
 
@@ -48,6 +49,8 @@ export type TaskOverflowPermissions = {
   canCancel: boolean;
   /** Reassign — ADMIN or SUPER_ADMIN (further scoped server-side). */
   canReassign: boolean;
+  /** Duplicate into a new task — anyone who may create tasks (ADMIN / SUPER_ADMIN). */
+  canDuplicate: boolean;
   /** Delete (hard-hide, distinct from Cancel) — SUPER_ADMIN only. */
   canDelete: boolean;
 };
@@ -86,6 +89,9 @@ export const TaskOverflowSheet = ({ visible, task, permissions, actions, onActio
     { id: 'upload_proof',   label: 'Upload Proof',      icon: 'paperclip',      hideFor: ['COMPLETED', 'CANCELLED'] },
     { id: 'add_comment',    label: 'Add Comment',       icon: 'message-circle', hideFor: ['COMPLETED', 'CANCELLED'] },
     { id: 'reassign',       label: 'Reassign',          icon: 'user-plus',      hideFor: ['COMPLETED', 'CANCELLED'], requires: 'canReassign' },
+    // Duplicate stays available on terminal tasks — re-running finished work is
+    // a legitimate reason to copy one (FR-23).
+    { id: 'duplicate',      label: 'Duplicate Task',    icon: 'copy',                                                requires: 'canDuplicate' },
     { id: 'cancel',         label: 'Cancel Task',       icon: 'x-circle',       danger: true, hideFor: ['COMPLETED', 'CANCELLED'], requires: 'canCancel' },
     { id: 'delete',         label: 'Delete Task',       icon: 'trash-2',        danger: true, requires: 'canDelete' },
   ];

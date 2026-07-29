@@ -56,7 +56,7 @@ export default function UsersPage() {
       ) : users.length === 0 ? (
         <EmptyState icon={UsersIcon} title="No users found" description="No users match your search." />
       ) : (
-        <div className="rounded-xl border border-surface-border bg-white shadow-card overflow-hidden">
+        <div className="rounded-lg border border-surface-border bg-white shadow-card overflow-hidden">
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-surface-border bg-surface-muted">

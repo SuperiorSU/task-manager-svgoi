@@ -51,11 +51,17 @@ const config: Config = {
         sans: ['Inter', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
       },
+      // Restrained elevation: borders carry separation, shadows stay near-flat
+      // and cool-tinted (slate 15,23,42). Heavy drop-shadows on every card read
+      // as generic — keep real shadow for floating elements only (modals, menus).
       boxShadow: {
-        card: '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
-        'card-hover': '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+        card: '0 1px 2px 0 rgb(15 23 42 / 0.04)',
+        'card-hover': '0 2px 8px -2px rgb(15 23 42 / 0.08)',
       },
-      width: { sidebar: '240px', 'sidebar-rail': '60px' },
+      // In `spacing` (not just `width`) so both the sidebar's `w-sidebar` and
+      // the content offset's `ml-sidebar`/`ml-sidebar-rail` resolve — otherwise
+      // the fixed sidebar has no matching content margin and overlaps it.
+      spacing: { sidebar: '240px', 'sidebar-rail': '60px' },
     },
   },
   plugins: [],

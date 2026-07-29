@@ -43,7 +43,7 @@ export default function CreateTaskPage() {
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        <div className="rounded-xl border border-surface-border bg-white p-6 shadow-card space-y-5">
+        <div className="rounded-lg border border-surface-border bg-white p-6 shadow-card space-y-5">
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
             <div className="md:col-span-2">
               <Input

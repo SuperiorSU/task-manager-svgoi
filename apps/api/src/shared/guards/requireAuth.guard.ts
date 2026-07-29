@@ -3,6 +3,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { prisma } from '../../config/database.js';
 import { sendError, ErrorCodes } from '../../utils/response.utils.js';
 import { ROLE_PERMISSIONS } from './permissions.js';
+import { isPlatformMismatch, PLATFORM_LOCK_MESSAGE } from './platformLock.js';
 
 export const requireAuth = async (
   request: FastifyRequest,
@@ -37,6 +38,11 @@ export const requireAuth = async (
 
     if (!user) {
       return sendError(reply, 401, ErrorCodes.UNAUTHORIZED, 'User not found or inactive');
+    }
+
+    // Platform lock: reject a role used on the wrong client surface.
+    if (isPlatformMismatch(user.role, request.headers['x-client-platform'] as string | undefined)) {
+      return sendError(reply, 403, ErrorCodes.FORBIDDEN, PLATFORM_LOCK_MESSAGE);
     }
 
     const rolePerms = ROLE_PERMISSIONS[user.role] ?? [];

@@ -48,6 +48,7 @@ import { TaskCommentsSection } from '../../../src/components/task/detail/TaskCom
 import { TaskActionBar } from '../../../src/components/task/detail/TaskActionBar';
 import { TaskOverflowSheet, type OverflowAction } from '../../../src/components/task/TaskOverflowSheet';
 import { ReassignTaskModal } from '../../../src/components/task/detail/ReassignTaskModal';
+import { ReassignChoiceSheet } from '../../../src/components/task/detail/ReassignChoiceSheet';
 import { UploadPreviewModal } from '../../../src/components/task/detail/UploadPreviewModal';
 import { AttachmentViewerModal } from '../../../src/components/task/detail/AttachmentViewerModal';
 import { Avatar } from '../../../src/components/ui/Avatar';
@@ -55,6 +56,15 @@ import { Skeleton } from '../../../src/components/ui/Skeleton';
 
 const isOverdue = (task: RichTask) =>
   !['COMPLETED', 'CANCELLED'].includes(task.status) && dayjs(task.dueDate).isBefore(dayjs());
+
+const STATUS_LABEL: Record<TaskStatus, string> = {
+  PENDING: 'Pending',
+  ACCEPTED: 'Accepted',
+  IN_PROGRESS: 'In Progress',
+  UNDER_REVIEW: 'Under Review',
+  COMPLETED: 'Completed',
+  CANCELLED: 'Cancelled',
+};
 
 // ─── MetaRow ─────────────────────────────────────────────────────────────────
 const MetaRow = ({
@@ -143,6 +153,7 @@ export default function TaskDetailScreen() {
   const [revisionModalVisible, setRevisionModalVisible] = useState(false);
   const [revisionNote, setRevisionNote] = useState('');
   const [reassignVisible, setReassignVisible] = useState(false);
+  const [reassignChoiceVisible, setReassignChoiceVisible] = useState(false);
   const [viewerAttachment, setViewerAttachment] = useState<TaskAttachment | null>(null);
 
   const isAdminCreator = task ? task.creatorId === currentUser?.id : false;
@@ -163,6 +174,7 @@ export default function TaskDetailScreen() {
     canMarkComplete: isAdminCreator,
     canCancel: isAdminCreator || isSuperAdmin,
     canReassign: currentUser?.role === 'ADMIN' || isSuperAdmin,
+    canDuplicate: currentUser?.role === 'ADMIN' || isSuperAdmin,
     canDelete: isSuperAdmin,
   };
 
@@ -308,7 +320,14 @@ export default function TaskDetailScreen() {
       );
     }
     if (action === 'reassign') {
-      setReassignVisible(true);
+      // A PENDING task has no progress to preserve, so skip the Move/Duplicate
+      // question entirely and go straight to the picker. Only ask once work
+      // actually exists (accepted / in progress / under review).
+      if (task.status === 'PENDING') setReassignVisible(true);
+      else setReassignChoiceVisible(true);
+    }
+    if (action === 'duplicate') {
+      router.push(`/(app)/tasks/create?copyFrom=${task.id}` as Parameters<typeof router.push>[0]);
     }
   }, [task, deleteTask, updateStatus, router]);
 
@@ -525,12 +544,33 @@ export default function TaskDetailScreen() {
       />
 
       {/* ── Overflow sheet ── */}
+      {/* Only the creator/admin management actions live here — the assignee's
+          status actions (accept/start/submit) + upload/comment are on the
+          action bar and inline sections below, so they're excluded to avoid
+          duplicate, non-functional overflow entries. */}
       <TaskOverflowSheet
         visible={overflowVisible}
         task={t}
         permissions={overflowPermissions}
+        actions={['reassign', 'duplicate', 'mark_complete', 'cancel', 'delete']}
         onAction={handleOverflowAction}
         onClose={() => setOverflowVisible(false)}
+      />
+
+      {/* ── Reassign: Move vs Duplicate (mid-flight tasks only) ── */}
+      <ReassignChoiceSheet
+        visible={reassignChoiceVisible}
+        assigneeName={t.assignee.name}
+        statusLabel={STATUS_LABEL[t.status] ?? t.status}
+        onMove={() => {
+          setReassignChoiceVisible(false);
+          setReassignVisible(true);
+        }}
+        onDuplicate={() => {
+          setReassignChoiceVisible(false);
+          router.push(`/(app)/tasks/create?copyFrom=${t.id}` as Parameters<typeof router.push>[0]);
+        }}
+        onClose={() => setReassignChoiceVisible(false)}
       />
 
       {/* ── Reassign modal ── */}

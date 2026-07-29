@@ -4,6 +4,10 @@ type ClientConfig = {
   baseUrl: string;
   getToken: () => Promise<string | null>;
   onUnauthorized: () => void;
+  /** Platform lock (directive §5): sent as `x-client-platform`. mobile | web. */
+  platform?: 'mobile' | 'web';
+  /** Web uses httpOnly cookies — set to 'include' so fetch sends them. */
+  credentials?: 'include' | 'omit' | 'same-origin';
 };
 
 type RequestOptions = {
@@ -31,15 +35,21 @@ export class ApiClient {
 
   async request<T>(path: string, options: RequestOptions = {}): Promise<ApiResponse<T>> {
     const token = await this.config.getToken();
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
+    const hasBody = options.body !== undefined && options.body !== null;
+    const headers: Record<string, string> = {};
+    // Only advertise a JSON body when one is actually sent. Fastify rejects a
+    // request that carries `Content-Type: application/json` with an empty body
+    // ("Body cannot be empty…"), which broke every bodyless PATCH/POST such as
+    // marking a notification read.
+    if (hasBody) headers['Content-Type'] = 'application/json';
     if (token) headers['Authorization'] = `Bearer ${token}`;
+    if (this.config.platform) headers['x-client-platform'] = this.config.platform;
 
     const response = await fetch(this.buildUrl(path, options.params), {
       method: options.method ?? 'GET',
       headers,
-      body: options.body ? JSON.stringify(options.body) : undefined,
+      body: hasBody ? JSON.stringify(options.body) : undefined,
+      ...(this.config.credentials ? { credentials: this.config.credentials } : {}),
     });
 
     if (response.status === 401) {

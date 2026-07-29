@@ -38,9 +38,12 @@ export default function EmployeeDashboardScreen() {
   const colors = useColors();
   const user = useAuthStore((s) => s.user);
 
-  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useEmployeeStats();
-  const { data: upcoming, isLoading: upcomingLoading, refetch: refetchUpcoming } = useUpcomingTasks();
-  const { data: activity, isLoading: activityLoading, refetch: refetchActivity } = useRecentActivity();
+  const statsQuery = useEmployeeStats();
+  const upcomingQuery = useUpcomingTasks();
+  const activityQuery = useRecentActivity();
+  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = statsQuery;
+  const { data: upcoming, isLoading: upcomingLoading, refetch: refetchUpcoming } = upcomingQuery;
+  const { data: activity, isLoading: activityLoading, refetch: refetchActivity } = activityQuery;
   const { data: unreadCount = 0 } = useUnreadCount();
 
   const refetchers = useMemo(
@@ -48,7 +51,7 @@ export default function EmployeeDashboardScreen() {
     [refetchStats, refetchUpcoming, refetchActivity]
   );
   const { refreshing, onRefresh } = useDashboardRefresh(refetchers);
-  useRefetchOnFocus(refetchers);
+  useRefetchOnFocus([statsQuery, upcomingQuery, activityQuery]);
 
   const firstName = user?.name?.split(' ')[0] ?? 'there';
   const greeting = buildGreeting();

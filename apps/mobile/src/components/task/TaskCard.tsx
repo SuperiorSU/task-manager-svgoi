@@ -18,7 +18,7 @@ export type TaskCardItem = {
   status: TaskStatus;
   priority: TaskPriority;
   dueDate: string;
-  department?: { name: string } | null;
+  department?: { id?: string; name: string } | null;
   assignee: { name: string };
 };
 

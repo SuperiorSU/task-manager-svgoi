@@ -81,14 +81,14 @@ export default function EditTaskPage() {
     return (
       <div className="max-w-2xl space-y-4">
         <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-96 rounded-xl" />
+        <Skeleton className="h-96 rounded-lg" />
       </div>
     );
   }
 
   if (!task) {
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center text-sm text-red-700">
+      <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-center text-sm text-red-700">
         Task not found.
       </div>
     );
@@ -111,7 +111,7 @@ export default function EditTaskPage() {
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-        <div className="rounded-xl border border-surface-border bg-white p-6 shadow-card space-y-5">
+        <div className="rounded-lg border border-surface-border bg-white p-6 shadow-card space-y-5">
           <h2 className="text-sm font-semibold text-slate-700">Task Details</h2>
           <Input
             label="Title"
@@ -150,7 +150,7 @@ export default function EditTaskPage() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-surface-border bg-white p-6 shadow-card space-y-5">
+        <div className="rounded-lg border border-surface-border bg-white p-6 shadow-card space-y-5">
           <h2 className="text-sm font-semibold text-slate-700">Assignment</h2>
           {userOptions.length > 0 && (
             <Controller

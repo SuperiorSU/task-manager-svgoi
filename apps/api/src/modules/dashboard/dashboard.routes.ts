@@ -131,6 +131,101 @@ export const dashboardRoutes = async (app: FastifyInstance): Promise<void> => {
     },
   });
 
+  // ─── Admin dashboard summary (ADMIN / SUPER_ADMIN) ─────────────────
+  // Replaces the old client pattern of fetching 100 full tasks and bucketing
+  // them in JS. The screen only renders 3–5 preview cards per section but shows
+  // full counts in the badges — so we compute the counts server-side (accurate
+  // even past 100 tasks) and return just the handful of preview rows each
+  // section actually displays.
+  app.get('/admin-summary', {
+    preHandler: [requireAuth],
+    handler: async (req, reply) => {
+      const { user } = req;
+      if (user.role === 'EMPLOYEE') {
+        return sendError(reply, 403, ErrorCodes.FORBIDDEN, 'Not available for employees');
+      }
+
+      const cacheKey = `dashboard:admin-summary:${user.id}`;
+      const cached = await cache.get<unknown>(cacheKey).catch(() => null);
+      if (cached) return sendSuccess(reply, cached);
+
+      const previewSelect = {
+        id: true,
+        title: true,
+        status: true,
+        priority: true,
+        dueDate: true,
+        updatedAt: true,
+        assignee: { select: { id: true, name: true, avatarUrl: true } },
+        department: { select: { id: true, name: true } },
+        _count: { select: { attachments: true } },
+      } as const;
+
+      // "Assigned to other depts": tasks this admin created that live in a
+      // department other than their own (cross-dept assignment). A NULL-dept
+      // task isn't "another department", so `not` (which excludes NULLs) is the
+      // right semantics here.
+      const assignedOutWhere: Record<string, unknown> = {
+        isDeleted: false,
+        creatorId: user.id,
+        departmentId: { not: user.departmentId ?? '' },
+      };
+      // Tasks this admin created that are now back for their review.
+      const reviewWhere: Record<string, unknown> = {
+        isDeleted: false,
+        creatorId: user.id,
+        status: 'UNDER_REVIEW',
+      };
+      // Tasks handed TO this admin by someone else (SA or another admin).
+      const assignedToMeWhere: Record<string, unknown> = {
+        isDeleted: false,
+        assigneeId: user.id,
+        creatorId: { not: user.id },
+      };
+
+      const [
+        assignedOutCount,
+        assignedOutPending,
+        assignedOutItems,
+        reviewCount,
+        reviewItems,
+        assignedToMeCount,
+        assignedToMeNeedAction,
+      ] = await prisma.$transaction([
+        prisma.task.count({ where: assignedOutWhere as never }),
+        prisma.task.count({ where: { ...assignedOutWhere, status: { not: 'COMPLETED' } } as never }),
+        prisma.task.findMany({
+          where: assignedOutWhere as never,
+          orderBy: { createdAt: 'desc' },
+          take: 3,
+          select: previewSelect,
+        }),
+        prisma.task.count({ where: reviewWhere as never }),
+        prisma.task.findMany({
+          where: reviewWhere as never,
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+          select: previewSelect,
+        }),
+        prisma.task.count({ where: assignedToMeWhere as never }),
+        prisma.task.count({
+          where: { ...assignedToMeWhere, status: { in: ['PENDING', 'ACCEPTED'] } } as never,
+        }),
+      ]);
+
+      const summary = {
+        reviewQueue: { count: reviewCount, items: reviewItems },
+        assignedOut: { count: assignedOutCount, pending: assignedOutPending, items: assignedOutItems },
+        assignedToMe: { count: assignedToMeCount, needAction: assignedToMeNeedAction },
+      };
+
+      // Short TTL: task mutations already call invalidateDashboardCaches (which
+      // clears dashboard:admin-summary:*), so this only bridges bursts.
+      void cache.set(cacheKey, summary, 60).catch(() => {});
+      return sendSuccess(reply, summary);
+    },
+  });
+
   // ─── Activity feed ─────────────────────────────────────────────────
   app.get('/activity', {
     preHandler: [requireAuth],

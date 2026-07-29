@@ -31,7 +31,7 @@ export const Modal = ({ open, onClose, title, children, size = 'md' }: Props) =>
       role="dialog"
     >
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className={cn('relative z-10 w-full rounded-xl bg-white shadow-xl', sizes[size])}>
+      <div className={cn('relative z-10 w-full rounded-lg bg-white shadow-xl', sizes[size])}>
         {title && (
           <div className="flex items-center justify-between border-b border-surface-border px-6 py-4">
             <h2 className="text-lg font-semibold text-slate-900">{title}</h2>

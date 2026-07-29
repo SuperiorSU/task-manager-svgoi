@@ -23,16 +23,16 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import dayjs from 'dayjs';
 
-import type { TaskPriority, User, Department, CreateTaskDto } from '@godigitify/types';
+import type { TaskPriority, AssignableUser, Department, CreateTaskDto } from '@godigitify/types';
 import { departmentsApi, usersApi, tasksApi, getApiClient } from '@godigitify/api-client';
 import { TimePickerModal } from '../../../src/components/ui/TimePickerModal';
-import { useCreateTask, useCreateTaskBatch } from '../../../src/hooks/useTasks';
+import { useCreateTask, useCreateTaskBatch, useTask } from '../../../src/hooks/useTasks';
 import { useTaskDraft } from '../../../src/hooks/useTaskDraft';
 import { useDebounce } from '../../../src/hooks/useDebounce';
 import { useAuthStore } from '../../../src/stores/auth.store';
@@ -153,7 +153,7 @@ export default function CreateTaskScreen() {
   const createTaskBatch = useCreateTaskBatch();
 
   const [departments, setDepartments] = useState<Department[]>([]);
-  const [deptUsers, setDeptUsers] = useState<User[]>([]);
+  const [deptUsers, setDeptUsers] = useState<AssignableUser[]>([]);
   const [categories] = useState<TaskCategory[]>(TASK_CATEGORIES);
   const [dataLoading, setDataLoading] = useState(true);
 
@@ -163,7 +163,7 @@ export default function CreateTaskScreen() {
   const [duplicateTitleWarning, setDuplicateTitleWarning] = useState('');
   const [description, setDescription] = useState('');
   const [departmentId, setDepartmentId] = useState(currentUser?.departmentId ?? '');
-  const [assignees, setAssignees] = useState<User[]>([]);
+  const [assignees, setAssignees] = useState<AssignableUser[]>([]);
   const [assigneeError, setAssigneeError] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('MEDIUM');
 
@@ -186,10 +186,46 @@ export default function CreateTaskScreen() {
   // ── Submitting ────────────────────────────────────────────────────────────
   const [submitting, setSubmitting] = useState(false);
 
+  // ── Duplicate-an-existing-task mode ─────────────────────────────────────────
+  // Entered from Task Detail → Reassign → "Keep it and duplicate" (or the
+  // Duplicate overflow action). Copies the task's *definition* only — never its
+  // proof, comments or activity, which belong to the original assignee.
+  const { copyFrom } = useLocalSearchParams<{ copyFrom?: string }>();
+  const isCopyMode = !!copyFrom;
+  const { data: sourceTask } = useTask(copyFrom ?? '');
+  const [copiedFromTitle, setCopiedFromTitle] = useState<string | null>(null);
+  const copyApplied = useRef(false);
+
   // ── Draft crash-resilience ──────────────────────────────────────────────────
   const { hydrated: draftHydrated, draft, saveDraft, clearDraft } = useTaskDraft(currentUser?.id);
   const [draftRestored, setDraftRestored] = useState(false);
   const draftApplied = useRef(false);
+
+  useEffect(() => {
+    if (!isCopyMode || copyApplied.current || !sourceTask) return;
+    copyApplied.current = true;
+    // Explicit copy intent beats a stale saved draft — block the draft restore.
+    draftApplied.current = true;
+
+    setTitle(sourceTask.title);
+    setDescription(sourceTask.description ?? '');
+    setPriority(sourceTask.priority);
+    if (sourceTask.departmentId) setDepartmentId(sourceTask.departmentId);
+
+    // A copy of an overdue task would fail the "due date must be in the future"
+    // check, so fall back to tomorrow rather than handing the user a form that
+    // can't submit.
+    const due = dayjs(sourceTask.dueDate);
+    setPickedDate(due.isAfter(dayjs()) ? due : dayjs().add(1, 'day'));
+    const h = due.hour();
+    setDueHour(h % 12 === 0 ? 12 : h % 12);
+    setDueMinute(Math.round(due.minute() / 5) * 5 % 60);
+    setIsAfternoon(h >= 12);
+
+    // Assignees intentionally start empty — the whole point is picking new people.
+    setAssignees([]);
+    setCopiedFromTitle(sourceTask.title);
+  }, [isCopyMode, sourceTask]);
 
   // Restore a saved draft once, after storage has loaded.
   useEffect(() => {
@@ -275,12 +311,15 @@ export default function CreateTaskScreen() {
     if (!departmentId) return;
     let mounted = true;
     void (async () => {
-      const res = await usersApi.getList({ departmentId, isActive: true, limit: 100 });
+      // /users/assignable applies the §2 assignment matrix (incl. cross-dept),
+      // unlike /users which is department-locked for an Admin and so could
+      // never return another department's staff.
+      const res = await usersApi.getAssignable({ departmentId, limit: 100 });
       if (mounted) {
         // Exclude the current user — the person creating the task never
         // belongs in their own assignee picker (same class of bug fixed
         // earlier for the People list — see useOrgUsers).
-        const assignable = res.data.items.filter((u) => u.id !== currentUser?.id);
+        const assignable = res.data.filter((u) => u.id !== currentUser?.id);
         setDeptUsers(assignable);
         // Remove selected assignees who are no longer in this dept
         setAssignees((prev) =>
@@ -458,7 +497,7 @@ export default function CreateTaskScreen() {
   };
 
   // ─── Assignee helpers ─────────────────────────────────────────────────────
-  const addAssignee = (user: User) => {
+  const addAssignee = (user: AssignableUser) => {
     if (assignees.find((a) => a.id === user.id)) return;
     setAssignees((prev) => [...prev, user]);
     setAssigneeError('');
@@ -532,7 +571,16 @@ export default function CreateTaskScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {draftRestored && step === 1 && (
+          {copiedFromTitle && step === 1 && (
+            <View style={[s.draftBanner, { backgroundColor: C.semantic.successBg, borderColor: C.semantic.success }]}>
+              <Feather name="copy" size={15} color={C.semantic.success} />
+              <Text style={[s.draftBannerText, { color: C.text.secondary }]} numberOfLines={2}>
+                Copy of “{copiedFromTitle}”. The original is unchanged — edit the details and pick new assignees.
+              </Text>
+            </View>
+          )}
+
+          {draftRestored && !copiedFromTitle && step === 1 && (
             <View style={[s.draftBanner, { backgroundColor: C.brand.primaryLight, borderColor: C.brand.primary }]}>
               <Feather name="rotate-ccw" size={15} color={C.brand.primary} />
               <Text style={[s.draftBannerText, { color: C.text.secondary }]}>
@@ -696,7 +744,7 @@ type Step1Props = {
   departmentName: string;
   onDeptPress: () => void;
   isCrossDept: boolean;
-  assignees: User[];
+  assignees: AssignableUser[];
   assigneeError: string;
   onAddAssigneePress: () => void;
   onRemoveAssignee: (id: string) => void;
@@ -1027,7 +1075,7 @@ function Step2({
 
 // ─── Assignee chip ────────────────────────────────────────────────────────────
 
-function AssigneeChip({ user, onRemove, C }: { user: User; onRemove: () => void; C: ColorsShape }) {
+function AssigneeChip({ user, onRemove, C }: { user: AssignableUser; onRemove: () => void; C: ColorsShape }) {
   const initials = user.name
     .split(' ')
     .slice(0, 2)
@@ -1157,9 +1205,9 @@ function DepartmentPickerModal({ visible, departments, selectedId, onSelect, onC
 
 type AssigneePickerProps = {
   visible: boolean;
-  users: User[];
+  users: AssignableUser[];
   selectedIds: string[];
-  onSelect: (user: User) => void;
+  onSelect: (user: AssignableUser) => void;
   onClose: () => void;
   C: ColorsShape;
 };

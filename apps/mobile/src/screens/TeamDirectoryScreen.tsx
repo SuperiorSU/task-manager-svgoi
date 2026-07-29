@@ -239,7 +239,7 @@ export function TeamDirectoryScreen({ role }: Props) {
             : 'No team members yet'
         }
         {...(!debouncedSearch && filter === 'ALL'
-          ? { subtitle: 'Add your first team member using the button below.' }
+          ? { subtitle: 'Add your first team member to get started.' }
           : {})}
       />
     );

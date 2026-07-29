@@ -42,7 +42,7 @@ export default function DepartmentsPage() {
             <Link
               key={dept.id}
               href={`/departments/${dept.id}`}
-              className="rounded-xl border border-surface-border bg-white p-5 shadow-card hover:shadow-card-hover transition-shadow"
+              className="rounded-lg border border-surface-border bg-white p-5 shadow-card hover:shadow-card-hover transition-shadow"
             >
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50">
                 <Building2 className="h-5 w-5 text-brand-500" />

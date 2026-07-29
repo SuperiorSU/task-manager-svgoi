@@ -11,7 +11,7 @@ export const registerCors = async (app: FastifyInstance): Promise<void> => {
         : [env.FRONTEND_URL, /^http:\/\/localhost:\d+$/],
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-client-platform'],
     maxAge: 86400,
   });
 };

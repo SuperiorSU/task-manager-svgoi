@@ -37,6 +37,7 @@ export const leaveTaskRoom = (taskId: string): void => {
   socket?.emit('leave:task', taskId);
 };
 
-export const joinUserRoom = (userId: string): void => {
-  socket?.emit('join:user', userId);
-};
+// NOTE: there is intentionally no `joinUserRoom`. The server derives the
+// personal room from the verified JWT in the handshake (socket.plugin.ts) —
+// letting the client name its own room was an IDOR: anyone could subscribe to
+// another user's private notification stream.

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { TaskPriority, User } from '@godigitify/types';
+import type { TaskPriority, AssignableUser } from '@godigitify/types';
 
 // Crash-resilience for the Create Task form: the in-progress form is auto-saved
 // to AsyncStorage (debounced) so an abrupt exit/kill doesn't lose it. This is
@@ -10,7 +10,7 @@ export type TaskDraftData = {
   title: string;
   description: string;
   departmentId: string;
-  assignees: User[];
+  assignees: AssignableUser[];
   priority: TaskPriority;
   /** ISO string. */
   pickedDate: string;

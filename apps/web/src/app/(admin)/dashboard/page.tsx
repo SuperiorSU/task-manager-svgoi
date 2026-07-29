@@ -11,8 +11,10 @@ import {
   Building2,
   ArrowRight,
   Plus,
+  Activity,
 } from 'lucide-react';
 import { StatCard } from '@/components/dashboard/StatCard';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { OverdueAlert } from '@/components/dashboard/OverdueAlert';
 import { CompletionRingChart } from '@/components/dashboard/CompletionRingChart';
 import { TaskTrendChart } from '@/components/dashboard/TaskTrendChart';
@@ -43,7 +45,7 @@ const ChartCard = ({
   children: React.ReactNode;
   action?: React.ReactNode;
 }) => (
-  <div className="rounded-xl border border-surface-border bg-white p-5 shadow-card">
+  <div className="rounded-lg border border-surface-border bg-white p-5 shadow-card">
     <div className="mb-4 flex items-start justify-between">
       <div>
         <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
@@ -96,12 +98,14 @@ export default function DashboardPage() {
             value={stats?.totalTasks ?? 0}
             label="Total Tasks"
             icon={CheckSquare}
+            accent="brand"
             sublabel={`${stats?.pending ?? 0} pending`}
           />
           <StatCard
             value={stats?.overdue ?? 0}
             label="Overdue"
             icon={AlertCircle}
+            accent="overdue"
             isAlert={(stats?.overdue ?? 0) > 0}
             sublabel="needs attention"
           />
@@ -109,12 +113,14 @@ export default function DashboardPage() {
             value={stats?.inProgress ?? 0}
             label="In Progress"
             icon={Clock}
+            accent="progress"
             sublabel={`${stats?.underReview ?? 0} under review`}
           />
           <StatCard
             value={stats?.completedThisWeek ?? 0}
             label="Done This Week"
             icon={TrendingUp}
+            accent="done"
             sublabel={`${stats?.completionRate ?? 0}% overall rate`}
           />
         </div>
@@ -125,7 +131,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 gap-4">
           <Link
             href="/users"
-            className="flex items-center justify-between rounded-xl border border-surface-border bg-white px-5 py-4 shadow-card hover:shadow-card-hover transition-shadow"
+            className="flex items-center justify-between rounded-lg border border-surface-border bg-white px-5 py-4 shadow-card hover:shadow-card-hover transition-shadow"
           >
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-50">
@@ -140,7 +146,7 @@ export default function DashboardPage() {
           </Link>
           <Link
             href="/departments"
-            className="flex items-center justify-between rounded-xl border border-surface-border bg-white px-5 py-4 shadow-card hover:shadow-card-hover transition-shadow"
+            className="flex items-center justify-between rounded-lg border border-surface-border bg-white px-5 py-4 shadow-card hover:shadow-card-hover transition-shadow"
           >
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-50">
@@ -246,7 +252,11 @@ export default function DashboardPage() {
             }))}
           />
         ) : (
-          <p className="py-4 text-center text-sm text-slate-400">No recent activity</p>
+          <EmptyState
+            icon={Activity}
+            title="No recent activity"
+            description="Task updates across the organisation will show up here as they happen."
+          />
         )}
       </ChartCard>
     </div>
