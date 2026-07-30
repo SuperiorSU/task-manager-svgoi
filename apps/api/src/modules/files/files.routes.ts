@@ -1,25 +1,23 @@
 import crypto from 'crypto';
 
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { FastifyInstance } from 'fastify';
 
 import { prisma } from '../../config/database.js';
-import { env } from '../../config/env.js';
+import {
+  s3,
+  STORAGE_BUCKET as BUCKET,
+  ALLOWED_UPLOAD_MIME as ALLOWED_MIME_TYPES,
+  ALLOWED_IMAGE_MIME,
+  signPutUrl,
+  signGetUrl,
+  buildAvatarKey,
+  isOwnedAvatarKey,
+} from '../../config/storage.js';
+import { authService } from '../auth/auth.service.js';
 import { requireAuth } from '../../shared/guards/requireAuth.guard.js';
 import { sendSuccess, sendError, ErrorCodes } from '../../utils/response.utils.js';
-
-const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'application/pdf']);
-
-const s3 = new S3Client({
-  region: 'auto',
-  ...(env.SUPABASE_URL ? { endpoint: `${env.SUPABASE_URL}/storage/v1/s3` } : {}),
-  ...(env.SUPABASE_SERVICE_KEY
-    ? { credentials: { accessKeyId: 'supabase', secretAccessKey: env.SUPABASE_SERVICE_KEY } }
-    : {}),
-});
-
-const BUCKET = 'svgoi-task-attachments';
 
 export const filesRoutes = async (app: FastifyInstance): Promise<void> => {
   app.post('/presign', {
@@ -109,8 +107,7 @@ export const filesRoutes = async (app: FastifyInstance): Promise<void> => {
       const file = await prisma.fileAttachment.findUnique({ where: { id } });
       if (!file) return sendError(reply, 404, ErrorCodes.NOT_FOUND, 'File not found');
 
-      const command = new GetObjectCommand({ Bucket: BUCKET, Key: file.storageKey });
-      const url = await getSignedUrl(s3, command, { expiresIn: 900 });
+      const url = await signGetUrl(file.storageKey, 900);
 
       await prisma.fileAttachment.update({
         where: { id },
@@ -118,6 +115,62 @@ export const filesRoutes = async (app: FastifyInstance): Promise<void> => {
       });
 
       return sendSuccess(reply, { url, fileName: file.fileName });
+    },
+  });
+
+  // ─── Avatar upload (user-scoped, images only) ──────────────────────
+  // Same two-phase presign→PUT→confirm design as task attachments, but keyed to
+  // the caller's own user folder and images only. `confirm` sets the private
+  // avatarKey and returns the caller's profile with a freshly signed avatarUrl.
+  app.post('/avatar/presign', {
+    preHandler: [requireAuth],
+    schema: {
+      body: {
+        type: 'object',
+        required: ['fileName', 'mimeType'],
+        additionalProperties: false,
+        properties: {
+          fileName: { type: 'string', minLength: 1, maxLength: 255 },
+          mimeType: { type: 'string' },
+        },
+      },
+    },
+    handler: async (req, reply) => {
+      const { fileName, mimeType } = req.body as { fileName: string; mimeType: string };
+      if (!ALLOWED_IMAGE_MIME.has(mimeType)) {
+        return sendError(reply, 400, ErrorCodes.VALIDATION_ERROR, 'Avatar must be a JPG or PNG image');
+      }
+      const storageKey = buildAvatarKey(req.user.id, fileName);
+      const uploadUrl = await signPutUrl(storageKey, 300);
+      return sendSuccess(reply, { uploadUrl, storageKey });
+    },
+  });
+
+  app.post('/avatar/confirm', {
+    preHandler: [requireAuth],
+    schema: {
+      body: {
+        type: 'object',
+        required: ['storageKey'],
+        additionalProperties: false,
+        properties: { storageKey: { type: 'string', minLength: 1, maxLength: 512 } },
+      },
+    },
+    handler: async (req, reply) => {
+      const { storageKey } = req.body as { storageKey: string };
+      // Ownership guard: a client can only attach a key under its own folder,
+      // so it can't point its avatar at someone else's (or an arbitrary) object.
+      if (!isOwnedAvatarKey(storageKey, req.user.id)) {
+        return sendError(reply, 403, ErrorCodes.FORBIDDEN, 'Invalid avatar key');
+      }
+      await prisma.user.update({
+        where: { id: req.user.id },
+        data: { avatarKey: storageKey },
+      });
+      // Return the exact /me shape (permissions included, avatar signed) so the
+      // client can replace its stored user without dropping any fields.
+      const profile = await authService.getProfile(req.user.id);
+      return sendSuccess(reply, profile);
     },
   });
 };

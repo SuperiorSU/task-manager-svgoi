@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "611cdeb2-65f1-4507-8437-8ffea1e665db"
+      }
+    },
+    "android": {
+      "package": "com.taskflow26.godigitifymonorepo"
+    }
+  }
+}

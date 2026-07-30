@@ -13,7 +13,7 @@ const STATUS_MAP: Record<TaskStatus, { label: string; className: string }> = {
 
 type Props = { status: TaskStatus; isOverdue?: boolean };
 
-export const TaskStatusBadge = ({ status, isOverdue }: Props) => {
+export const TaskStatusBadge = React.memo(function TaskStatusBadge({ status, isOverdue }: Props) {
   const config = isOverdue
     ? { label: 'Overdue', className: 'bg-status-overdue-bg text-status-overdue' }
     : STATUS_MAP[status];
@@ -23,4 +23,4 @@ export const TaskStatusBadge = ({ status, isOverdue }: Props) => {
       {config.label}
     </span>
   );
-};
+});

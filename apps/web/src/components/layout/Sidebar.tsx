@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -10,20 +10,24 @@ import { useUIStore } from '@/stores/ui.store';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useLogout } from '@/hooks/useAuth';
 import { AvatarWithFallback } from '@/components/shared/AvatarWithFallback';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useAuthStore } from '@/stores/auth.store';
 
 export const Sidebar = () => {
   const pathname = usePathname();
-  const { sidebarOpen, toggleSidebar } = useUIStore();
+  const sidebarOpen = useUIStore((s) => s.sidebarOpen);
+  const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const { hasPermission } = usePermissions();
   const user = useAuthStore((s) => s.user);
-  const { mutate: logout } = useLogout();
+  const { mutate: logout, isPending: isLoggingOut } = useLogout();
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const visibleItems = NAV_ITEMS.filter(
     (item) => !item.permission || hasPermission(item.permission)
   );
 
   return (
+    <>
     <aside
       className={cn(
         'fixed inset-y-0 left-0 z-40 flex flex-col bg-brand-900 text-white transition-all duration-200',
@@ -82,7 +86,7 @@ export const Sidebar = () => {
           </div>
         )}
         <button
-          onClick={() => logout()}
+          onClick={() => setConfirmOpen(true)}
           className={cn(
             'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-white/70 hover:bg-white/10 hover:text-white transition-colors',
           )}
@@ -102,5 +106,16 @@ export const Sidebar = () => {
         {sidebarOpen ? <ChevronLeft className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
       </button>
     </aside>
+
+    <ConfirmDialog
+      open={confirmOpen}
+      onClose={() => setConfirmOpen(false)}
+      onConfirm={() => logout()}
+      title="Sign out?"
+      message="You'll need your Employee ID, password and a fresh verification code to sign back in."
+      confirmLabel="Sign out"
+      loading={isLoggingOut}
+    />
+    </>
   );
 };

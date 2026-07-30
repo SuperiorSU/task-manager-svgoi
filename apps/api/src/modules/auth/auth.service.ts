@@ -10,6 +10,7 @@ import { hashToken, generateResetToken, generateSessionId } from '../../utils/jw
 import { sendPasswordResetEmail, sendLoginOtpEmail } from '../../utils/email.utils.js';
 import { isPlatformMismatch, PLATFORM_LOCK_MESSAGE } from '../../shared/guards/platformLock.js';
 import { writeAuditLog } from '../../utils/audit.utils.js';
+import { presentUserAvatar } from '../../utils/avatar.utils.js';
 
 const safeUserSelect = {
   id: true,
@@ -18,6 +19,7 @@ const safeUserSelect = {
   employeeId: true,
   phone: true,
   avatarUrl: true,
+  avatarKey: true,
   designation: true,
   role: true,
   isActive: true,
@@ -209,7 +211,7 @@ export const authService = {
     const { passwordHash: _pw, permissions, ...safeUser } = user;
     return {
       tokens: { accessToken, refreshToken: rawRefreshToken },
-      user: { ...safeUser, permissions: permissions.map((p) => p.permission) },
+      user: await presentUserAvatar({ ...safeUser, permissions: permissions.map((p) => p.permission) }),
     };
   },
 
@@ -480,6 +482,6 @@ export const authService = {
       select: safeUserSelect,
     });
     if (!user) throw Object.assign(new Error('User not found'), { statusCode: 404, code: 'NOT_FOUND' });
-    return { ...user, permissions: user.permissions.map((p) => p.permission) };
+    return presentUserAvatar({ ...user, permissions: user.permissions.map((p) => p.permission) });
   },
 };

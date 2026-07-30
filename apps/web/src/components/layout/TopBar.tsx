@@ -10,7 +10,7 @@ import { BreadcrumbNav } from './BreadcrumbNav';
 import { useUnreadCount } from '@/hooks/useNotifications';
 
 export const TopBar = () => {
-  const { toggleSidebar } = useUIStore();
+  const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const user = useAuthStore((s) => s.user);
   const { data: unreadCount } = useUnreadCount();
 

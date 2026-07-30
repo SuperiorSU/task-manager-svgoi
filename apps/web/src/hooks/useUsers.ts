@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { queryKeys } from '@/constants/queryKeys';
 import { usersService } from '@/services/users.service';
 import type { Role } from '@godigitify/types';
@@ -80,6 +81,19 @@ export const useReactivateUser = () => {
     onSuccess: (_, id) => {
       void qc.invalidateQueries({ queryKey: queryKeys.users.all() });
       void qc.invalidateQueries({ queryKey: queryKeys.users.detail(id) });
+    },
+  });
+};
+
+export const useBulkUserAction = () => {
+  const qc = useQueryClient();
+  return useApiMutation({
+    mutationFn: ({ ids, action }: { ids: string[]; action: 'deactivate' | 'reactivate' }) =>
+      usersService.bulkSetActive(ids, action),
+    onSuccess: (res) => {
+      const { count } = res as { count: number };
+      toast.success(`${count} user${count === 1 ? '' : 's'} updated`);
+      void qc.invalidateQueries({ queryKey: queryKeys.users.all() });
     },
   });
 };

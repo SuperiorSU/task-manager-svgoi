@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { UserCheck, Link2 } from 'lucide-react';
@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/Button';
  * (FRONTEND_URL/setup?token=…). The new member verifies the invite and chooses
  * their first password, then signs in. No session required.
  */
-export default function SetupPage() {
+function SetupForm() {
   const params = useSearchParams();
   const router = useRouter();
   const token = params.get('token') ?? '';
@@ -120,5 +120,13 @@ export default function SetupPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function SetupPage() {
+  return (
+    <Suspense fallback={<div className="w-full max-w-sm animate-pulse space-y-4"><div className="h-8 w-48 rounded bg-slate-200" /><div className="h-40 rounded bg-slate-100" /></div>}>
+      <SetupForm />
+    </Suspense>
   );
 }

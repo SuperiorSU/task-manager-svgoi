@@ -60,6 +60,19 @@ export const tasksRoutes = async (app: FastifyInstance): Promise<void> => {
     handler: tasksController.bulkStatus,
   });
 
+  app.post('/bulk/delete', {
+    preHandler: [requireAuth, requirePermission(PERMISSIONS.TASK_DELETE)],
+    schema: {
+      body: {
+        type: 'object',
+        required: ['ids'],
+        additionalProperties: false,
+        properties: { ids: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 100 } },
+      },
+    },
+    handler: tasksController.bulkDelete,
+  });
+
   app.get('/:id/comments', {
     preHandler: [requireAuth],
     handler: tasksController.getComments,

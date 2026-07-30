@@ -16,7 +16,8 @@ import { Feather } from '@expo/vector-icons';
 
 import { useColors } from '../../../src/constants/colors';
 import { useProfileData, useUpdateProfile } from '../../../src/hooks/useProfile';
-import { getInitials } from '../../../src/utils/initial';
+import { useAvatarUpload } from '../../../src/hooks/useAvatarUpload';
+import { Avatar } from '../../../src/components/ui/Avatar';
 
 // ─── Read-only row ────────────────────────────────────────────────────────────
 
@@ -41,6 +42,7 @@ export default function EditProfileScreen() {
 
   const { data: profile } = useProfileData();
   const { mutate: updateProfile, isPending } = useUpdateProfile();
+  const { busy: avatarBusy, progress: avatarProgress, error: avatarError, changeAvatar } = useAvatarUpload();
 
   const isAdmin = profile?.role === 'ADMIN' || profile?.role === 'SUPER_ADMIN';
   const idLabel = isAdmin ? 'Admin ID' : 'Employee ID';
@@ -98,15 +100,31 @@ export default function EditProfileScreen() {
       >
         {/* ── Avatar ── */}
         <View style={s.avatarSection}>
-          <View style={s.avatarWrap}>
-            <View style={[s.avatar, { backgroundColor: colors.brand.secondary }]}>
-              <Text style={s.initials}>{getInitials(name)}</Text>
-            </View>
+          <Pressable
+            style={s.avatarWrap}
+            onPress={avatarBusy ? undefined : changeAvatar}
+            accessibilityRole="button"
+            accessibilityLabel="Change profile photo"
+          >
+            <Avatar name={name} uri={profile?.avatarUrl ?? null} size={84} />
             <View style={[s.cameraBadge, { backgroundColor: colors.brand.primary, borderColor: colors.surface.background }]}>
               <Feather name="camera" size={13} color="#fff" />
             </View>
-          </View>
-          <Text style={[s.changePhotoLink, { color: colors.brand.primary }]}>Change photo</Text>
+            {avatarBusy && (
+              <View style={s.avatarBusyOverlay}>
+                <ActivityIndicator color="#fff" size="small" />
+                {avatarProgress > 0 && <Text style={s.avatarBusyText}>{avatarProgress}%</Text>}
+              </View>
+            )}
+          </Pressable>
+          <Pressable onPress={avatarBusy ? undefined : changeAvatar} disabled={avatarBusy}>
+            <Text style={[s.changePhotoLink, { color: colors.brand.primary }]}>
+              {avatarBusy ? 'Uploading…' : 'Change photo'}
+            </Text>
+          </Pressable>
+          {avatarError && (
+            <Text style={[s.avatarErrorText, { color: colors.semantic.error }]}>{avatarError}</Text>
+          )}
         </View>
 
         {/* ── Editable fields ── */}
@@ -220,18 +238,25 @@ const s = StyleSheet.create({
     marginBottom: 28,
   },
   avatarWrap: { position: 'relative' },
-  avatar: {
-    width: 84,
-    height: 84,
+  avatarBusyOverlay: {
+    ...StyleSheet.absoluteFillObject,
     borderRadius: 42,
+    backgroundColor: 'rgba(15,23,42,0.5)',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 2,
   },
-  initials: {
-    fontSize: 30,
-    fontFamily: 'Inter-Bold',
+  avatarBusyText: {
+    fontSize: 11,
+    fontFamily: 'Inter-SemiBold',
     color: '#fff',
-    letterSpacing: 1,
+  },
+  avatarErrorText: {
+    fontSize: 12,
+    fontFamily: 'Inter-Regular',
+    textAlign: 'center',
+    marginTop: 6,
+    maxWidth: 240,
   },
   cameraBadge: {
     position: 'absolute',

@@ -86,6 +86,12 @@ export const tasksController = {
     return sendSuccess(reply, result);
   },
 
+  async bulkDelete(request: FastifyRequest, reply: FastifyReply) {
+    const { ids } = request.body as { ids: string[] };
+    const result = await tasksService.bulkSoftDelete(ids, request.user.id);
+    return sendSuccess(reply, result);
+  },
+
   async getComments(request: FastifyRequest, reply: FastifyReply) {
     const { id } = request.params as { id: string };
     const comments = await tasksService.getComments(

@@ -22,6 +22,7 @@ import { AvatarWithFallback } from '@/components/shared/AvatarWithFallback';
 import { RoleChip } from '@/components/shared/RoleChip';
 import { PermissionGate } from '@/components/shared/PermissionGate';
 import { useUser, useDeactivateUser, useReactivateUser } from '@/hooks/useUsers';
+import { useAuthStore } from '@/stores/auth.store';
 import { useTasks } from '@/hooks/useTasks';
 import { PERMISSIONS } from '@/constants/permissions';
 import { TaskStatusBadge } from '@/components/task/TaskStatusBadge';
@@ -38,6 +39,8 @@ export default function UserDetailPage() {
   const { data: tasksData } = useTasks({ assigneeId: id, limit: 5 });
   const { mutate: deactivate, isPending: isDeactivating } = useDeactivateUser();
   const { mutate: reactivate, isPending: isReactivating } = useReactivateUser();
+  // No one manages their own account from the user-management screen.
+  const isSelf = id === useAuthStore((s) => s.user?.id);
 
   const recentTasks = (tasksData?.items ?? []).slice(0, 5);
   const stats = (user as typeof user & { _taskStats?: { assigned: number; completed: number; overdue: number; onTimeRate: number } })?._taskStats;
@@ -84,7 +87,9 @@ export default function UserDetailPage() {
               Edit
             </Button>
           </PermissionGate>
-          {u.isActive ? (
+          {isSelf ? (
+            <span className="rounded bg-surface-subtle px-2 py-1 text-xs font-medium text-slate-500">Your account</span>
+          ) : u.isActive ? (
             <PermissionGate permission={PERMISSIONS.USER_DEACTIVATE}>
               <Button
                 variant="danger"

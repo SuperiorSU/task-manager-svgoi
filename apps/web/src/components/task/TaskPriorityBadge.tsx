@@ -11,13 +11,13 @@ const PRIORITY_MAP: Record<TaskPriority, { label: string; className: string; str
 
 type Props = { priority: TaskPriority };
 
-export const TaskPriorityBadge = ({ priority }: Props) => {
+export const TaskPriorityBadge = React.memo(function TaskPriorityBadge({ priority }: Props) {
   const config = PRIORITY_MAP[priority];
   return (
     <span className={cn('inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide', config.className)}>
       {config.label}
     </span>
   );
-};
+});
 
 export const priorityStripeClass = (priority: TaskPriority) => PRIORITY_MAP[priority].stripe;

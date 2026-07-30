@@ -7,6 +7,7 @@ import { hashPassword } from '../../utils/bcrypt.utils.js';
 import { generateResetToken } from '../../utils/jwt.utils.js';
 import { sendInviteEmail } from '../../utils/email.utils.js';
 import { writeAuditLog } from '../../utils/audit.utils.js';
+import { presentUserAvatar } from '../../utils/avatar.utils.js';
 import { ROLE_PERMISSIONS } from '../../shared/guards/permissions.js';
 import { authService } from '../auth/auth.service.js';
 
@@ -225,7 +226,9 @@ export const usersService = {
         ...(data.departmentId !== undefined ? { departmentId: data.departmentId } : {}),
         ...(data.managerId !== undefined ? { managerId: data.managerId } : {}),
       },
-      select: safeUserSelect,
+      // avatarKey is included only so it can be signed → avatarUrl below; it's
+      // stripped from the response by presentUserAvatar (never leaked raw).
+      select: { ...safeUserSelect, avatarKey: true },
     });
 
     await writeAuditLog({
@@ -236,7 +239,48 @@ export const usersService = {
       actorId,
     });
 
-    return user;
+    return presentUserAvatar(user);
+  },
+
+  /**
+   * Bulk activate/deactivate. Mirrors the single-user path: self and
+   * SUPER_ADMINs are excluded, an ADMIN is limited to their own department, and
+   * deactivating revokes refresh tokens. Silently skips ids the actor can't
+   * touch (returns how many actually changed).
+   */
+  async bulkSetActive(ids: string[], isActive: boolean, actorId: string, actorRole: string, actorDeptId?: string) {
+    const where: Record<string, unknown> = {
+      id: { in: ids },
+      NOT: { id: actorId },
+      role: { not: 'SUPER_ADMIN' },
+    };
+    if (actorRole === 'ADMIN') where['departmentId'] = actorDeptId ?? '__none__';
+
+    const targets = await prisma.user.findMany({ where: where as never, select: { id: true } });
+    const targetIds = targets.map((t) => t.id);
+    if (targetIds.length === 0) return { count: 0 };
+
+    if (isActive) {
+      await prisma.user.updateMany({ where: { id: { in: targetIds } }, data: { isActive: true } });
+    } else {
+      await prisma.$transaction([
+        prisma.user.updateMany({ where: { id: { in: targetIds } }, data: { isActive: false } }),
+        prisma.refreshToken.updateMany({
+          where: { userId: { in: targetIds }, revokedAt: null },
+          data: { revokedAt: new Date() },
+        }),
+      ]);
+    }
+
+    await writeAuditLog({
+      action: 'UPDATE',
+      entityType: 'User',
+      entityId: targetIds.join(','),
+      description: `Bulk ${isActive ? 'reactivated' : 'deactivated'} ${targetIds.length} user(s)`,
+      actorId,
+    });
+
+    return { count: targetIds.length };
   },
 
   async deactivate(id: string, actorId: string, actorDeptId?: string) {

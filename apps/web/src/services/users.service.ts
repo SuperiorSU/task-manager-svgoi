@@ -53,6 +53,11 @@ export const usersService = {
     await api.patch(`/users/${id}/deactivate`);
   },
 
+  async bulkSetActive(ids: string[], action: 'deactivate' | 'reactivate'): Promise<{ count: number }> {
+    const res = await api.post<Envelope<{ count: number }>>('/users/bulk', { ids, action });
+    return res.data.data;
+  },
+
   async reactivate(id: string): Promise<void> {
     await api.patch(`/users/${id}/reactivate`);
   },

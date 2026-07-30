@@ -26,7 +26,7 @@ type Props = {
  * (no decorative pastel square). Each tile carries a 3px semantic left stripe —
  * the product's priority-stripe signature — so the row scans by colour.
  */
-export const StatCard = ({ value, label, icon: Icon, isAlert, sublabel, accent = 'brand' }: Props) => {
+export const StatCard = React.memo(function StatCard({ value, label, icon: Icon, isAlert, sublabel, accent = 'brand' }: Props) {
   const alert = !!isAlert && value > 0;
   return (
     <div
@@ -51,4 +51,4 @@ export const StatCard = ({ value, label, icon: Icon, isAlert, sublabel, accent =
       {sublabel && <p className="mt-2 text-xs text-slate-400">{sublabel}</p>}
     </div>
   );
-};
+});

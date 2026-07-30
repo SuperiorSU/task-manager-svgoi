@@ -1,72 +1,81 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { useBulkUpdateStatus } from '@/hooks/useTasks';
-import { cn } from '@/lib/utils';
-import type { TaskStatus } from '@godigitify/types';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { BulkBar } from '@/components/shared/BulkBar';
+import { useBulkUpdateStatus, useBulkDeleteTasks } from '@/hooks/useTasks';
+import { usePermissions } from '@/hooks/usePermissions';
+import { PERMISSIONS } from '@/constants/permissions';
 
 type Props = {
   selectedIds: string[];
   onClear: () => void;
 };
 
-export const BulkActionBar = ({ selectedIds, onClear }: Props) => {
-  const { mutate: bulkUpdate, isPending } = useBulkUpdateStatus();
-  // Tracked separately from `isPending` so clicking Accept doesn't also
-  // spinner/disable the unrelated Cancel button (both share one mutation).
-  const [pendingAction, setPendingAction] = useState<TaskStatus | null>(null);
+type PendingAction = 'cancel' | 'delete' | null;
 
-  const handleBulk = (status: TaskStatus) => {
-    setPendingAction(status);
-    bulkUpdate(
-      { taskIds: selectedIds, status },
-      { onSuccess: onClear, onSettled: () => setPendingAction(null) }
-    );
-  };
+export const BulkActionBar = ({ selectedIds, onClear }: Props) => {
+  const { hasPermission } = usePermissions();
+  const { mutate: bulkUpdate, isPending: isCancelling } = useBulkUpdateStatus();
+  const { mutate: bulkDelete, isPending: isDeleting } = useBulkDeleteTasks();
+  const [pending, setPending] = useState<PendingAction>(null);
+
+  const count = selectedIds.length;
+  const canDelete = hasPermission(PERMISSIONS.TASK_DELETE);
+
+  const done = () => { onClear(); setPending(null); };
+
+  // Cancel is the only safe bulk status change — the server only accepts
+  // CANCELLED here; other transitions are per-task / assignee-driven.
+  const runCancel = () =>
+    bulkUpdate({ taskIds: selectedIds, status: 'CANCELLED' }, { onSuccess: done });
+
+  const runDelete = () =>
+    bulkDelete(selectedIds, { onSuccess: done });
 
   return (
-    <div
-      className={cn(
-        'fixed bottom-6 left-1/2 z-30 -translate-x-1/2 transition-all duration-200',
-        selectedIds.length > 0 ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0 pointer-events-none'
-      )}
-    >
-      <div className="flex items-center gap-3 rounded-lg bg-slate-900 px-5 py-3 shadow-xl">
-        <span className="text-sm font-medium text-white">
-          {selectedIds.length} selected
-        </span>
-        <div className="h-4 w-px bg-white/20" />
+    <>
+      <BulkBar count={count} onClear={onClear}>
         <Button
           size="sm"
           variant="ghost"
           className="text-white hover:bg-white/10"
-          onClick={() => handleBulk('ACCEPTED')}
-          disabled={isPending}
-          loading={pendingAction === 'ACCEPTED'}
+          onClick={() => setPending('cancel')}
         >
-          Accept
+          Cancel tasks
         </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="text-white hover:bg-white/10"
-          onClick={() => handleBulk('CANCELLED')}
-          disabled={isPending}
-          loading={pendingAction === 'CANCELLED'}
-        >
-          Cancel
-        </Button>
-        <button
-          onClick={onClear}
-          disabled={isPending}
-          className="ml-1 rounded p-1 text-white/60 hover:text-white disabled:opacity-40"
-          aria-label="Clear selection"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-    </div>
+        {canDelete && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-red-300 hover:bg-white/10"
+            onClick={() => setPending('delete')}
+          >
+            Delete
+          </Button>
+        )}
+      </BulkBar>
+
+      <ConfirmDialog
+        open={pending === 'cancel'}
+        onClose={() => setPending(null)}
+        onConfirm={runCancel}
+        title={`Cancel ${count} task${count === 1 ? '' : 's'}?`}
+        message="Cancelled tasks are removed from active work and can't be reopened. Tasks that are already completed or cancelled are left unchanged."
+        confirmLabel="Cancel tasks"
+        loading={isCancelling}
+      />
+
+      <ConfirmDialog
+        open={pending === 'delete'}
+        onClose={() => setPending(null)}
+        onConfirm={runDelete}
+        title={`Delete ${count} task${count === 1 ? '' : 's'}?`}
+        message="Deleted tasks are removed from all lists and reports. This can't be undone from here."
+        confirmLabel="Delete"
+        loading={isDeleting}
+      />
+    </>
   );
 };

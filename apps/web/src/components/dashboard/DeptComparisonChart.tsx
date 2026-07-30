@@ -24,7 +24,8 @@ const getBarColor = (rate: number) => {
   return '#EF4444';
 };
 
-export const DeptComparisonChart = ({ data }: Props) => (
+export const DeptComparisonChart = React.memo(function DeptComparisonChart({ data }: Props) {
+  return (
   <ResponsiveContainer width="100%" height={200}>
     <BarChart
       data={data}
@@ -60,4 +61,5 @@ export const DeptComparisonChart = ({ data }: Props) => (
       </Bar>
     </BarChart>
   </ResponsiveContainer>
-);
+  );
+});

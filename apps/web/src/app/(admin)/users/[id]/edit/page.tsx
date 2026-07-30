@@ -1,16 +1,19 @@
 'use client';
 
-import React from 'react';
+import React, { useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Camera } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { AvatarWithFallback } from '@/components/shared/AvatarWithFallback';
 import { useUser, useUpdateUser } from '@/hooks/useUsers';
+import { useChangeAvatar } from '@/hooks/useAvatar';
 import { useDepartments } from '@/hooks/useDepartments';
+import { useAuthStore } from '@/stores/auth.store';
 import { z } from 'zod';
 
 const updateUserSchema = z.object({
@@ -37,6 +40,18 @@ export default function EditUserPage() {
   const { data: user, isLoading } = useUser(id);
   const { data: departments } = useDepartments();
   const { mutate: updateUser, isPending } = useUpdateUser();
+
+  // The avatar endpoint only changes the caller's OWN photo, so the control is
+  // shown just for the signed-in user editing themselves.
+  const authUser = useAuthStore((s) => s.user);
+  const isSelf = id === authUser?.id;
+  const { mutate: changeAvatar, isPending: isAvatarUploading } = useChangeAvatar();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const onPickAvatar = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-picking the same file
+    if (file) changeAvatar(file);
+  };
 
   const u = user as typeof user & {
     phone?: string;
@@ -100,6 +115,40 @@ export default function EditUserPage() {
           <p className="text-xs text-slate-500">Update profile information and role</p>
         </div>
       </div>
+
+      {isSelf && (
+        <div className="flex items-center gap-4 rounded-lg border border-surface-border bg-white p-6 shadow-card">
+          <div className="relative">
+            <AvatarWithFallback name={authUser?.name ?? user.name} src={authUser?.avatarUrl} size={64} />
+            {isAvatarUploading && (
+              <div className="absolute inset-0 flex items-center justify-center rounded-full bg-slate-900/50">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              </div>
+            )}
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-slate-700">Profile photo</h2>
+            <p className="mb-2 text-xs text-slate-500">JPG or PNG. Cropped to a square and resized automatically.</p>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              leftIcon={<Camera className="h-3.5 w-3.5" />}
+              disabled={isAvatarUploading}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {isAvatarUploading ? 'Uploading…' : 'Change photo'}
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png"
+              className="hidden"
+              onChange={onPickAvatar}
+            />
+          </div>
+        </div>
+      )}
 
       <form
         onSubmit={handleSubmit((data) =>

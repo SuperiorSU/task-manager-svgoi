@@ -153,6 +153,33 @@ export const usersRoutes = async (app: FastifyInstance): Promise<void> => {
     },
   });
 
+  // ─── Bulk activate / deactivate ────────────────────────────────────
+  app.post('/bulk', {
+    preHandler: [requireAuth, requirePermission(PERMISSIONS.USER_DEACTIVATE)],
+    schema: {
+      body: {
+        type: 'object',
+        required: ['ids', 'action'],
+        additionalProperties: false,
+        properties: {
+          ids: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 100 },
+          action: { type: 'string', enum: ['deactivate', 'reactivate'] },
+        },
+      },
+    },
+    handler: async (req, reply) => {
+      const { ids, action } = req.body as { ids: string[]; action: 'deactivate' | 'reactivate' };
+      const result = await usersService.bulkSetActive(
+        ids,
+        action === 'reactivate',
+        req.user.id,
+        req.user.role,
+        req.user.departmentId
+      );
+      return sendSuccess(reply, result);
+    },
+  });
+
   // ─── Admin-triggered password reset ────────────────────────────────
   app.patch('/:id/reset-password', {
     config: { rateLimit: { max: 3, timeWindow: '1 hour' } },

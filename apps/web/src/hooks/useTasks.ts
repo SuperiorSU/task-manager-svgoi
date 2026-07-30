@@ -67,12 +67,13 @@ export const useCreateTask = () => {
 export const useUpdateTaskStatus = () => {
   const qc = useQueryClient();
   return useApiMutation({
-    mutationFn: ({ id, dto }: { id: string; dto: { status: TaskStatus; note?: string } }) =>
-      tasksService.updateStatus(id, dto.status),
+    mutationFn: ({ id, dto }: { id: string; dto: { status: TaskStatus; comment?: string } }) =>
+      tasksService.updateStatus(id, dto.status, dto.comment),
     successMessage: 'Status updated',
     onSuccess: (_, { id }) => {
       void qc.invalidateQueries({ queryKey: queryKeys.tasks.all() });
       void qc.invalidateQueries({ queryKey: queryKeys.tasks.detail(id) });
+      void qc.invalidateQueries({ queryKey: queryKeys.tasks.activity(id) });
       void qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats('week') });
     },
   });
@@ -95,6 +96,17 @@ export const useDeleteTask = () => {
   return useApiMutation({
     mutationFn: (id: string) => tasksService.delete(id),
     successMessage: 'Task deleted',
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.tasks.all() });
+    },
+  });
+};
+
+export const useBulkDeleteTasks = () => {
+  const qc = useQueryClient();
+  return useApiMutation({
+    mutationFn: (taskIds: string[]) => tasksService.bulkDelete(taskIds),
+    successMessage: 'Tasks deleted',
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.tasks.all() });
     },

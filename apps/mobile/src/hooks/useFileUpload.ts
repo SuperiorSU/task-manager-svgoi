@@ -17,12 +17,58 @@ export type PendingFile = {
   isImage: boolean;
 };
 
+// Only bother re-encoding images larger than this — small images/screenshots
+// gain nothing and re-encoding could even grow them.
+const COMPRESS_ABOVE = 700 * 1024; // 700 KB
+const COMPRESS_QUALITY = 0.6;
+
+/**
+ * Best-effort image compression before upload. Re-encodes the picked image at a
+ * lower JPEG quality so a multi-MB phone photo transfers in a fraction of the
+ * bytes (faster upload, less storage, smaller download for reviewers).
+ *
+ * Deliberately defensive: expo-image-manipulator is a native module, so it's
+ * imported lazily and every failure path (module absent from the current native
+ * build, unexpected API, larger result) falls back to the ORIGINAL file. The
+ * upload therefore never breaks because of compression — it just skips it.
+ */
+async function compressImage(file: PendingFile): Promise<PendingFile> {
+  if (!file.isImage) return file;
+  if (file.size > 0 && file.size <= COMPRESS_ABOVE) return file;
+  try {
+    const ImageManipulator = await import('expo-image-manipulator');
+    const manipulateAsync = (ImageManipulator as { manipulateAsync?: unknown }).manipulateAsync;
+    if (typeof manipulateAsync !== 'function') return file;
+    const SaveFormat = (ImageManipulator as { SaveFormat?: { JPEG?: unknown } }).SaveFormat;
+
+    const result = (await (manipulateAsync as (
+      uri: string,
+      actions: unknown[],
+      options: { compress: number; format?: unknown }
+    ) => Promise<{ uri: string }>)(file.uri, [], {
+      compress: COMPRESS_QUALITY,
+      format: SaveFormat?.JPEG ?? 'jpeg',
+    }));
+
+    const blob = await (await fetch(result.uri)).blob();
+    // Keep the compressed copy only when it's actually smaller.
+    if (file.size > 0 && blob.size >= file.size) return file;
+
+    const name = file.name.replace(/\.(png|jpe?g|heic|heif|webp)$/i, '') + '.jpg';
+    return { uri: result.uri, name, size: blob.size, mimeType: 'image/jpeg', isImage: true };
+  } catch (e) {
+    console.warn('[useFileUpload] image compression skipped:', e);
+    return file;
+  }
+}
+
 /**
  * Two-phase attachment upload so the user gets a preview + explicit confirm
  * before anything transfers, and a real 0–100% progress bar during it.
  *
- * Phase 1 `pickFile()` only opens the picker + validates; nothing uploads.
- * Phase 2 `confirmUpload()` runs presign → PUT → confirm. The PUT uses
+ * Phase 1 `pickFile()` opens the picker, validates, and compresses images
+ * (best-effort) — nothing uploads yet. Phase 2 `confirmUpload()` runs presign →
+ * PUT → confirm on the (possibly compressed) file. The PUT uses
  * XMLHttpRequest (not fetch) because only XHR exposes `upload.onprogress` in
  * React Native. `confirm` is the DB commit point, so an aborted/crashed
  * transfer only ever leaves an orphaned storage object with no DB row (benign,
@@ -74,8 +120,12 @@ export const useFileUpload = (taskId: string) => {
       mimeType,
       isImage: mimeType.startsWith('image/'),
     };
-    setPendingFile(picked);
-    return picked;
+    // Compress images up-front so the preview shows the real (smaller) size and
+    // the confirmed upload transfers the compressed bytes. Non-images and any
+    // failure fall through to the original untouched.
+    const finalFile = await compressImage(picked);
+    setPendingFile(finalFile);
+    return finalFile;
   }, []);
 
   const putWithProgress = (uploadUrl: string, blob: Blob, mimeType: string): Promise<void> =>

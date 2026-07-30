@@ -17,7 +17,7 @@ type Props = {
   data: TrendDataPoint[];
 };
 
-export const TaskTrendChart = ({ data }: Props) => {
+export const TaskTrendChart = React.memo(function TaskTrendChart({ data }: Props) {
   // Show last 14 days for readability
   const visible = data.slice(-14);
 
@@ -68,4 +68,4 @@ export const TaskTrendChart = ({ data }: Props) => {
       </LineChart>
     </ResponsiveContainer>
   );
-};
+});

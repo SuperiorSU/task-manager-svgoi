@@ -18,7 +18,7 @@ import { useTaskReviewActions } from '../../../../../../src/hooks/useTaskReviewA
 import { useColors } from '../../../../../../src/constants/colors';
 import { Typography } from '../../../../../../src/constants/typography';
 import { Spacing, Layout } from '../../../../../../src/constants/spacing';
-import { QUICK_REVISION_REASONS } from '../../../../../../src/constants/reviewReasons';
+import { QUICK_REVISION_REASONS } from '@godigitify/utils';
 
 import { Avatar } from '../../../../../../src/components/ui/Avatar';
 import { Skeleton } from '../../../../../../src/components/ui/Skeleton';

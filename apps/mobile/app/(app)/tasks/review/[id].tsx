@@ -20,7 +20,7 @@ import { useTaskReviewActions } from '../../../../src/hooks/useTaskReviewActions
 import { useColors } from '../../../../src/constants/colors';
 import { Typography } from '../../../../src/constants/typography';
 import { Spacing, Layout } from '../../../../src/constants/spacing';
-import { QUICK_REVISION_REASONS } from '../../../../src/constants/reviewReasons';
+import { QUICK_REVISION_REASONS } from '@godigitify/utils';
 
 import { TaskStatusBadge } from '../../../../src/components/task/TaskStatusBadge';
 import { TaskPriorityIndicator } from '../../../../src/components/task/TaskPriorityIndicator';

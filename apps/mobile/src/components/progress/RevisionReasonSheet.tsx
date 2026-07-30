@@ -21,7 +21,7 @@ import { ProgressNote } from './ProgressNote';
 import { useColors } from '../../constants/colors';
 import { Typography } from '../../constants/typography';
 import { Spacing } from '../../constants/spacing';
-import { REVISION_NOTE_MAX_LENGTH } from '../../constants/reviewReasons';
+import { REVISION_NOTE_MAX_LENGTH } from '@godigitify/utils';
 
 type Props = {
   visible: boolean;

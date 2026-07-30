@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import {
   CheckSquare,
   Clock,
@@ -16,10 +17,26 @@ import {
 import { StatCard } from '@/components/dashboard/StatCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { OverdueAlert } from '@/components/dashboard/OverdueAlert';
-import { CompletionRingChart } from '@/components/dashboard/CompletionRingChart';
-import { TaskTrendChart } from '@/components/dashboard/TaskTrendChart';
-import { DeptComparisonChart } from '@/components/dashboard/DeptComparisonChart';
 import { WorkloadBar, WorkloadBarSkeleton } from '@/components/dashboard/WorkloadBar';
+
+// recharts is heavy (~hundreds of KB). Keep it out of the dashboard's initial
+// bundle: each chart loads as its own client-only chunk once data is ready.
+// ssr:false because recharts' ResponsiveContainer needs a real DOM to measure.
+const chartFallback = (h: string) => () => (
+  <div className={`w-full animate-pulse rounded-lg bg-slate-100 ${h}`} />
+);
+const CompletionRingChart = dynamic(
+  () => import('@/components/dashboard/CompletionRingChart').then((m) => m.CompletionRingChart),
+  { ssr: false, loading: chartFallback('h-36') }
+);
+const TaskTrendChart = dynamic(
+  () => import('@/components/dashboard/TaskTrendChart').then((m) => m.TaskTrendChart),
+  { ssr: false, loading: chartFallback('h-[200px]') }
+);
+const DeptComparisonChart = dynamic(
+  () => import('@/components/dashboard/DeptComparisonChart').then((m) => m.DeptComparisonChart),
+  { ssr: false, loading: chartFallback('h-[200px]') }
+);
 import { ActivityTimeline } from '@/components/task/ActivityTimeline';
 import { StatCardSkeleton } from '@/components/ui/Skeleton';
 import { Button } from '@/components/ui/Button';

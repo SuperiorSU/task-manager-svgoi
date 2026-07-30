@@ -10,7 +10,7 @@ type Props = {
   className?: string;
 };
 
-export const CompletionRingChart = ({ completed, total, className }: Props) => {
+export const CompletionRingChart = React.memo(function CompletionRingChart({ completed, total, className }: Props) {
   const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
   const remaining = 100 - rate;
 
@@ -55,4 +55,4 @@ export const CompletionRingChart = ({ completed, total, className }: Props) => {
       </p>
     </div>
   );
-};
+});

@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
 import { useDebounce } from '@/hooks/useDebounce';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 const STATUS_OPTIONS = [
   { value: 'PENDING', label: 'Pending' },
@@ -40,7 +40,15 @@ export const TaskFilters = () => {
     router.replace(`${pathname}?${params.toString()}`);
   };
 
+  // Only push the search into the URL when the user actually changes it.
+  // Without this guard the effect fires on mount with the initial value,
+  // rewriting the URL and forcing page=1 — clobbering deep links like ?page=2.
+  const didMount = useRef(false);
   useEffect(() => {
+    if (!didMount.current) {
+      didMount.current = true;
+      return;
+    }
     setParam('q', debouncedSearch || undefined);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch]);

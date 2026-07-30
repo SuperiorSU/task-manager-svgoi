@@ -9,7 +9,7 @@ type Props = {
   className?: string;
 };
 
-export const AvatarWithFallback = ({ name, src, size = 32, className }: Props) => {
+export const AvatarWithFallback = React.memo(function AvatarWithFallback({ name, src, size = 32, className }: Props) {
   const initials = name
     .split(' ')
     .slice(0, 2)
@@ -39,4 +39,4 @@ export const AvatarWithFallback = ({ name, src, size = 32, className }: Props) =
       {initials}
     </div>
   );
-};
+});

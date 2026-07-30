@@ -14,8 +14,10 @@ const ROLE_LABELS: Record<Role, string> = {
   EMPLOYEE: 'Employee',
 };
 
-export const RoleChip = ({ role }: { role: Role }) => (
-  <span className={cn('inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold', ROLE_STYLES[role])}>
-    {ROLE_LABELS[role]}
-  </span>
-);
+export const RoleChip = React.memo(function RoleChip({ role }: { role: Role }) {
+  return (
+    <span className={cn('inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold', ROLE_STYLES[role])}>
+      {ROLE_LABELS[role]}
+    </span>
+  );
+});

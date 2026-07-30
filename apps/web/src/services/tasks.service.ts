@@ -56,8 +56,14 @@ export const tasksService = {
     return res.data.data;
   },
 
-  async updateStatus(id: string, status: TaskStatus) {
-    const res = await api.patch<Envelope<TaskWithRelations>>(`/tasks/${id}/status`, { status });
+  // `comment` carries the reviewer's revision reason (or any status note). The
+  // API records it on the task activity and surfaces it to the assignee — this
+  // is what closes the review loop for the mobile employee.
+  async updateStatus(id: string, status: TaskStatus, comment?: string) {
+    const res = await api.patch<Envelope<TaskWithRelations>>(`/tasks/${id}/status`, {
+      status,
+      ...(comment ? { comment } : {}),
+    });
     return res.data.data;
   },
 
@@ -81,5 +87,11 @@ export const tasksService = {
   // status: CANCELLED). `ids` is the field name on the API.
   async bulkUpdateStatus(taskIds: string[], status: TaskStatus): Promise<void> {
     await api.post('/tasks/bulk/status', { ids: taskIds, status });
+  },
+
+  // Soft-delete many tasks in one call (SUPER_ADMIN / TASK_DELETE only).
+  async bulkDelete(taskIds: string[]): Promise<{ count: number }> {
+    const res = await api.post<{ data: { count: number } }>('/tasks/bulk/delete', { ids: taskIds });
+    return res.data.data;
   },
 };

@@ -53,14 +53,18 @@ export const useResendOtp = () =>
 export const useLogout = () => {
   const { setUser } = useAuthStore();
   const qc = useQueryClient();
-  const router = useRouter();
 
   return useMutation({
     mutationFn: () => api.post('/auth/logout'),
     onSettled: () => {
       setUser(null);
       qc.clear();
-      router.push('/login');
+      // Hard redirect, NOT router.push: a full reload guarantees the cleared
+      // cookies take effect and no stale client/RSC state survives. A soft nav
+      // left the app half-logged-out — sidebar options gone (client user
+      // cleared) but the server session still lingering after a middleware
+      // bounce. `replace` also keeps the logged-out app out of history.
+      if (typeof window !== 'undefined') window.location.replace('/login');
     },
   });
 };

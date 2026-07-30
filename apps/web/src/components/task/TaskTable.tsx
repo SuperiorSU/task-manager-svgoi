@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import {
@@ -50,7 +50,10 @@ export const TaskTable = ({ data, isLoading, total = 0, page = 1 }: Props) => {
     router.replace(`${pathname}?${params.toString()}`);
   };
 
-  const columns = [
+  // Column defs are static (no props/state clos: cell handlers come from
+  // react-table's row/table context) — memoize so the table model isn't
+  // rebuilt on every render / selection change.
+  const columns = useMemo(() => [
     col.display({
       id: 'select',
       header: ({ table }) => (
@@ -85,6 +88,7 @@ export const TaskTable = ({ data, isLoading, total = 0, page = 1 }: Props) => {
             href={`/tasks/${row.original.id}`}
             className="max-w-[240px] truncate font-medium text-slate-900 hover:text-brand-500"
             title={row.original.title}
+            onClick={(e) => e.stopPropagation()}
           >
             {row.original.title}
           </Link>
@@ -153,7 +157,7 @@ export const TaskTable = ({ data, isLoading, total = 0, page = 1 }: Props) => {
         </Link>
       ),
     }),
-  ];
+  ], []);
 
   const table = useReactTable({
     data,
@@ -214,10 +218,12 @@ export const TaskTable = ({ data, isLoading, total = 0, page = 1 }: Props) => {
                   <tr
                     key={row.id}
                     className={cn(
-                      'border-b border-surface-border transition-colors hover:bg-surface-muted cursor-pointer',
+                      'border-b border-surface-border transition-colors hover:bg-surface-muted cursor-pointer select-none',
                       row.getIsSelected() && 'bg-brand-50'
                     )}
-                    onClick={() => router.push(`/tasks/${row.original.id}`)}
+                    // Clicking a row toggles selection (drives the bulk bar).
+                    // Open a task via its title link or the ⋮ action button.
+                    onClick={row.getToggleSelectedHandler()}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <td key={cell.id} className="px-4 py-3">

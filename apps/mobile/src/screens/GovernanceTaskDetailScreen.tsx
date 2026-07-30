@@ -22,7 +22,7 @@ import { useGovernanceReviewActions } from '../hooks/useGovernanceReviewActions'
 import { useTaskActivity, useTaskAttachments, useTaskComments } from '../hooks/useTasks';
 import { useColors } from '../constants/colors';
 import { Spacing } from '../constants/spacing';
-import { QUICK_REVISION_REASONS } from '../constants/reviewReasons';
+import { QUICK_REVISION_REASONS } from '@godigitify/utils';
 import { getInitials } from '../utils/initial';
 
 import { LifecycleStepper } from '../components/task/oversight/LifecycleStepper';

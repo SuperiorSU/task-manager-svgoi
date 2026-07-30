@@ -51,7 +51,7 @@ export default function LoginPage() {
         </div>
         <div>
           <p className="text-sm font-semibold text-slate-900">SVGOI</p>
-          <p className="text-xs text-slate-500">Sri Vishwakarma Group of Institutions</p>
+          <p className="text-xs text-slate-500">Swami Vivekanand Group of Institutes</p>
         </div>
       </div>
 

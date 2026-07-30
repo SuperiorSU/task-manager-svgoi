@@ -14,8 +14,8 @@ type Props = {
 };
 
 export const AdminShell = ({ user, children }: Props) => {
-  const { sidebarOpen } = useUIStore();
-  const { setUser } = useAuthStore();
+  const sidebarOpen = useUIStore((s) => s.sidebarOpen);
+  const setUser = useAuthStore((s) => s.setUser);
 
   useEffect(() => {
     setUser(user);

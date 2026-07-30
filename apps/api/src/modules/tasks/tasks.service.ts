@@ -574,6 +574,22 @@ export const tasksService = {
     });
   },
 
+  /** Bulk soft-delete. Gated by TASK_DELETE (SUPER_ADMIN) at the route. */
+  async bulkSoftDelete(ids: string[], actorId: string) {
+    const res = await prisma.task.updateMany({
+      where: { id: { in: ids }, isDeleted: false },
+      data: { isDeleted: true },
+    });
+    await writeAuditLog({
+      action: 'DELETE',
+      entityType: 'Task',
+      entityId: ids.join(','),
+      description: `Bulk soft-deleted ${res.count} task(s)`,
+      actorId,
+    });
+    return { count: res.count };
+  },
+
   // Schema restricts `status` to 'CANCELLED' only (bulkStatusBodySchema) — this
   // is the bulk equivalent of updateStatus's cancel path, so it uses the same
   // creator-or-SUPER_ADMIN rule rather than trusting whatever ids the client sent.
