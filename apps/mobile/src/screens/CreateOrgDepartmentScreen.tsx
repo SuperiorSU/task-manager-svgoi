@@ -86,7 +86,12 @@ function FieldInput({
             backgroundColor: colors.surface.card,
             borderColor: error ? colors.semantic.error : focused ? colors.brand.primary : colors.surface.border,
           },
-          focused && fi.focused,
+          // No dynamic shadow/elevation on focus: on Android, toggling
+          // `elevation` forces the view onto a new render layer and can
+          // force a re-layout right as the IME attaches to this field,
+          // visibly flickering the keyboard closed-then-open (see the same
+          // fix in FormTextField for Create User). Border color alone is
+          // enough of a focus affordance.
         ]}
       >
         <TextInput
@@ -111,7 +116,6 @@ function FieldInput({
 }
 const fi = StyleSheet.create({
   input: { height: 50, borderRadius: Layout.inputRadius, borderWidth: 1.5, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14 },
-  focused: { shadowColor: '#1A5CF8', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.12, shadowRadius: 4, elevation: 2 },
   textInput: { flex: 1, fontSize: 14, letterSpacing: 0 },
   error: { fontSize: 12, fontFamily: 'Inter-Regular', marginTop: 4, marginLeft: 2 },
 });

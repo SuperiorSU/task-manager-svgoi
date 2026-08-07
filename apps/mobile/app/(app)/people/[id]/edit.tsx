@@ -142,6 +142,7 @@ export default function EditMemberScreen() {
               style={[s.textInput, { color: colors.text.primary }]}
               returnKeyType="next"
               onSubmitEditing={() => phoneRef.current?.focus()}
+              submitBehavior="submit"
             />
           </View>
 
@@ -168,6 +169,7 @@ export default function EditMemberScreen() {
               style={[s.textInput, { color: colors.text.primary }]}
               returnKeyType="next"
               onSubmitEditing={() => designationRef.current?.focus()}
+              submitBehavior="submit"
             />
           </View>
 

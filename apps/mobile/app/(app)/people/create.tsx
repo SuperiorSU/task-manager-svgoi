@@ -113,7 +113,11 @@ function FieldInput({
               : colors.surface.border,
             borderWidth: 1.5,
           },
-          focused && fi.focused,
+          // No dynamic shadow/elevation on focus: on Android, toggling
+          // `elevation` forces the view onto a new render layer and can
+          // force a re-layout right as the IME attaches to this field,
+          // visibly flickering the keyboard closed-then-open. Border color
+          // alone is enough of a focus affordance.
         ]}
       >
         <TextInput
@@ -129,6 +133,7 @@ function FieldInput({
           autoCorrect={false}
           returnKeyType={returnKeyType}
           onSubmitEditing={onSubmit}
+          submitBehavior="submit"
           editable={editable}
           style={[
             fi.textInput,
@@ -150,13 +155,6 @@ const fi = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
-  },
-  focused: {
-    shadowColor: '#1A5CF8',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    elevation: 2,
   },
   textInput: {
     flex: 1,

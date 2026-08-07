@@ -56,6 +56,22 @@ export class ApiClient {
       this.config.onUnauthorized();
     }
 
+    // The server is expected to always respond with JSON, but proxies, tunnels,
+    // captive portals, or a dead/misconfigured baseUrl can hand back an HTML
+    // error page instead. Parsing that as JSON throws an opaque "Unexpected
+    // token '<'" — check content-type first and surface a clear ApiError.
+    const contentType = response.headers.get('content-type') ?? '';
+    if (!contentType.includes('application/json')) {
+      const bodyPreview = (await response.text()).slice(0, 200);
+      throw {
+        success: false,
+        error: {
+          code: 'INVALID_RESPONSE',
+          message: `Expected JSON from ${path} but got "${contentType || 'unknown content-type'}" (HTTP ${response.status}). Check that the API base URL is reachable: ${bodyPreview}`,
+        },
+      } as ApiError;
+    }
+
     const data = (await response.json()) as ApiResponse<T> | ApiError;
 
     if (!response.ok || !data.success) {

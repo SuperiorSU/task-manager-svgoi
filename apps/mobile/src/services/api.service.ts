@@ -12,14 +12,14 @@ export function getApiBaseUrl(): string {
     const hostUri = Constants.expoConfig?.hostUri;
     if (hostUri) {
       const host = hostUri.split(':')[0];
-      return `http://${host}:3001`;
+      return `http://${host}:4001`;
     }
   }
   return (
     (Constants.expoConfig?.extra as Record<string, unknown>)?.apiUrl as string |
     undefined ??
     process.env['EXPO_PUBLIC_API_URL'] ??
-    'http://localhost:3001'
+    'http://localhost:4001'
   );
 }
 

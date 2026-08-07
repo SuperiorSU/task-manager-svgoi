@@ -6,7 +6,7 @@ config({ path: '.env.local', override: true });
 
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'staging', 'production']).default('development'),
-  PORT: z.coerce.number().default(3001),
+  PORT: z.coerce.number().default(4001),
   DATABASE_URL: z.string().url(),
   DIRECT_URL: z.string().url(),
   REDIS_URL: z.string().url(),
@@ -22,7 +22,7 @@ const schema = z.object({
   SMTP_USER: z.string(),
   SMTP_PASS: z.string(),
   FROM_EMAIL: z.string().email(),
-  FRONTEND_URL: z.string().url().default('http://localhost:3000'),
+  FRONTEND_URL: z.string().url().default('http://localhost:3010'),
   AUDIT_HASH_SECRET: z.string().min(1),
 });
 

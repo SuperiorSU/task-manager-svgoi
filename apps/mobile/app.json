@@ -30,7 +30,8 @@
         "WRITE_EXTERNAL_STORAGE",
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE"
-      ]
+      ],
+      "softwareKeyboardLayoutMode": "pan"
     },
     "router": {
       "root": "app"

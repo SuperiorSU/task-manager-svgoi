@@ -8,6 +8,18 @@
  * Admin role reveals a multi-select "Departments managed" chip field;
  * Employee keeps the single-department field (Prisma `departmentId` is a
  * singular FK).
+ *
+ * Each text field (name, staff ID, phone, email, department) is its own
+ * full-width block stacked vertically — none share a flex row with another
+ * field, so resizing or an error on one never touches its neighbors.
+ *
+ * Field focus state is owned locally by FormTextField, not lifted into this
+ * screen — a single shared `focused: string | null` here would re-render
+ * every field on any one field's focus/blur. The name -> staffId -> phone ->
+ * email tab order is driven by an explicit ref chain, guarded so a ref is
+ * only focused when it isn't already (see focusIfNeeded below) — belt and
+ * suspenders alongside FormTextField's `submitBehavior="submit"` against the
+ * focus-stealing loop that pattern is prone to.
  */
 
 import React, { useCallback, useRef, useState } from 'react';
@@ -34,6 +46,7 @@ import { useColors } from '../constants/colors';
 import { Layout, Spacing } from '../constants/spacing';
 
 import { DepartmentChipPicker } from '../components/people/DepartmentChipPicker';
+import { FormTextField } from '../components/people/FormTextField';
 import { SettingsPickerSheet } from '../components/profile/SettingsPickerSheet';
 import { InviteCreatedModal } from '../components/people/InviteCreatedModal';
 
@@ -48,89 +61,17 @@ type FormErrors = {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// ─── Field helpers (mirrors the local convention in people/create.tsx) ────────
-
-function FieldLabel({ children, hint }: { children: string; hint?: string }) {
-  const colors = useColors();
-  return (
-    <View style={fl.row}>
-      <Text style={[fl.label, { color: colors.text.secondary }]}>{children}</Text>
-      {hint && <Text style={[fl.hint, { color: colors.text.tertiary }]}> · {hint}</Text>}
-    </View>
-  );
+/**
+ * Focuses `ref` only if it isn't already the focused input. Guards the
+ * onSubmitEditing -> ref.focus() tab-order chain below against redundant
+ * re-entrant focus() calls, which is the shape the reported focus loop took.
+ */
+function focusIfNeeded(ref: React.RefObject<TextInput | null>) {
+  const node = ref.current;
+  if (node && !node.isFocused()) {
+    node.focus();
+  }
 }
-const fl = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'baseline', marginBottom: 8 },
-  label: { fontSize: 12, fontFamily: 'Inter-SemiBold' },
-  hint: { fontSize: 12, fontFamily: 'Inter-Regular' },
-});
-
-function FieldInput({
-  value,
-  onChangeText,
-  placeholder,
-  error,
-  focused,
-  onFocus,
-  onBlur,
-  inputRef,
-  keyboardType,
-  autoCapitalize = 'words',
-  returnKeyType = 'next',
-  onSubmit,
-}: {
-  value: string;
-  onChangeText: (v: string) => void;
-  placeholder: string;
-  error?: string;
-  focused?: boolean;
-  onFocus?: () => void;
-  onBlur?: () => void;
-  inputRef?: React.RefObject<TextInput | null>;
-  keyboardType?: TextInput['props']['keyboardType'];
-  autoCapitalize?: TextInput['props']['autoCapitalize'];
-  returnKeyType?: TextInput['props']['returnKeyType'];
-  onSubmit?: () => void;
-}) {
-  const colors = useColors();
-  return (
-    <>
-      <View
-        style={[
-          fi.input,
-          {
-            backgroundColor: colors.surface.card,
-            borderColor: error ? colors.semantic.error : focused ? colors.brand.primary : colors.surface.border,
-          },
-          focused && fi.focused,
-        ]}
-      >
-        <TextInput
-          ref={inputRef}
-          value={value}
-          onChangeText={onChangeText}
-          placeholder={placeholder}
-          placeholderTextColor={colors.text.tertiary}
-          onFocus={onFocus}
-          onBlur={onBlur}
-          keyboardType={keyboardType}
-          autoCapitalize={autoCapitalize}
-          autoCorrect={false}
-          returnKeyType={returnKeyType}
-          onSubmitEditing={onSubmit}
-          style={[fi.textInput, { color: colors.text.primary }, Platform.select({ android: { padding: 0 } })]}
-        />
-      </View>
-      {error ? <Text style={[fi.error, { color: colors.semantic.error }]}>{error}</Text> : null}
-    </>
-  );
-}
-const fi = StyleSheet.create({
-  input: { height: 50, borderRadius: Layout.inputRadius, borderWidth: 1.5, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14 },
-  focused: { shadowColor: '#1A5CF8', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.12, shadowRadius: 4, elevation: 2 },
-  textInput: { flex: 1, fontSize: 14, letterSpacing: 0 },
-  error: { fontSize: 12, fontFamily: 'Inter-Regular', marginTop: 4, marginLeft: 2 },
-});
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
@@ -154,7 +95,6 @@ export function CreateOrgUserScreen() {
   const [departmentIds, setDepartmentIds] = useState<string[]>(prefillDepartmentId ? [prefillDepartmentId] : []);
   const [deptSheetVisible, setDeptSheetVisible] = useState(false);
 
-  const [focused, setFocused] = useState<string | null>('name');
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [invite, setInvite] = useState<{ name: string; link: string } | null>(null);
@@ -162,6 +102,15 @@ export function CreateOrgUserScreen() {
   const staffIdRef = useRef<TextInput>(null);
   const phoneRef = useRef<TextInput>(null);
   const emailRef = useRef<TextInput>(null);
+
+  // Stable across renders (refs never change identity), so FormTextField's
+  // memo isn't invalidated by these — unlike inline `() => x.focus()` arrows,
+  // which would be a new function every render.
+  const focusStaffId = useCallback(() => focusIfNeeded(staffIdRef), []);
+  const focusPhone = useCallback(() => focusIfNeeded(phoneRef), []);
+  const focusEmail = useCallback(() => focusIfNeeded(emailRef), []);
+
+  const handleStaffIdChange = useCallback((v: string) => setStaffId(v.toUpperCase()), []);
 
   const handleRoleChange = useCallback((next: OrgRole) => {
     setRole(next);
@@ -240,9 +189,9 @@ export function CreateOrgUserScreen() {
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={[s.form, { paddingBottom: insets.bottom + 100 }]}
         >
-          {/* Role selector */}
-          <View>
-            <FieldLabel>Role</FieldLabel>
+          {/* Role selector block (not a text field — kept as a row of pills) */}
+          <View style={s.section}>
+            <Text style={[s.sectionLabel, { color: colors.text.secondary }]}>Role</Text>
             <View style={s.roleRow}>
               <Pressable
                 onPress={() => handleRoleChange('EMPLOYEE')}
@@ -278,76 +227,60 @@ export function CreateOrgUserScreen() {
             </Text>
           </View>
 
-          {/* Full name */}
-          <View>
-            <FieldLabel>Full name</FieldLabel>
-            <FieldInput
-              value={name}
-              onChangeText={setName}
-              placeholder="Anjali Sharma"
-              {...(errors.name ? { error: errors.name } : {})}
-              focused={focused === 'name'}
-              onFocus={() => setFocused('name')}
-              onBlur={() => setFocused(null)}
-              onSubmit={() => staffIdRef.current?.focus()}
-            />
-          </View>
+          {/* Full name — standalone block */}
+          <FormTextField
+            label="Full name"
+            value={name}
+            onChangeText={setName}
+            placeholder="Anjali Sharma"
+            {...(errors.name ? { error: errors.name } : {})}
+            onSubmitEditing={focusStaffId}
+          />
 
-          {/* Staff ID + Phone */}
-          <View style={s.twoUp}>
-            <View style={{ flex: 1 }}>
-              <FieldLabel>Staff ID</FieldLabel>
-              <FieldInput
-                value={staffId}
-                onChangeText={(v) => setStaffId(v.toUpperCase())}
-                placeholder="SVGOI-0012"
-                {...(errors.staffId ? { error: errors.staffId } : {})}
-                focused={focused === 'staffId'}
-                onFocus={() => setFocused('staffId')}
-                onBlur={() => setFocused(null)}
-                inputRef={staffIdRef}
-                autoCapitalize="characters"
-                onSubmit={() => phoneRef.current?.focus()}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <FieldLabel hint="opt.">Phone</FieldLabel>
-              <FieldInput
-                value={phone}
-                onChangeText={setPhone}
-                placeholder="+91…"
-                focused={focused === 'phone'}
-                onFocus={() => setFocused('phone')}
-                onBlur={() => setFocused(null)}
-                inputRef={phoneRef}
-                keyboardType="phone-pad"
-                autoCapitalize="none"
-                onSubmit={() => emailRef.current?.focus()}
-              />
-            </View>
-          </View>
+          {/* Staff ID — standalone block, no longer shares a row with Phone */}
+          <FormTextField
+            label="Staff ID"
+            value={staffId}
+            onChangeText={handleStaffIdChange}
+            placeholder="SVGOI-0012"
+            {...(errors.staffId ? { error: errors.staffId } : {})}
+            inputRef={staffIdRef}
+            autoCapitalize="characters"
+            onSubmitEditing={focusPhone}
+          />
 
-          {/* Email */}
-          <View>
-            <FieldLabel hint="for password setup">Email</FieldLabel>
-            <FieldInput
-              value={email}
-              onChangeText={setEmail}
-              placeholder="anjali.sharma@svgoi.ac.in"
-              {...(errors.email ? { error: errors.email } : {})}
-              focused={focused === 'email'}
-              onFocus={() => setFocused('email')}
-              onBlur={() => setFocused(null)}
-              inputRef={emailRef}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              returnKeyType="done"
-            />
-          </View>
+          {/* Phone — standalone block */}
+          <FormTextField
+            label="Phone"
+            hint="opt."
+            value={phone}
+            onChangeText={setPhone}
+            placeholder="+91…"
+            inputRef={phoneRef}
+            keyboardType="phone-pad"
+            autoCapitalize="none"
+            onSubmitEditing={focusEmail}
+          />
 
-          {/* Departments managed (Admin: multi-select) / Department (Employee: single-select) */}
-          <View>
-            <FieldLabel>{role === 'ADMIN' ? 'Departments managed' : 'Department'}</FieldLabel>
+          {/* Email — standalone block */}
+          <FormTextField
+            label="Email"
+            hint="for password setup"
+            value={email}
+            onChangeText={setEmail}
+            placeholder="anjali.sharma@svgoi.ac.in"
+            {...(errors.email ? { error: errors.email } : {})}
+            inputRef={emailRef}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            returnKeyType="done"
+          />
+
+          {/* Departments managed (Admin: multi-select) / Department (Employee: single-select) — standalone block */}
+          <View style={s.section}>
+            <Text style={[s.sectionLabel, { color: colors.text.secondary }]}>
+              {role === 'ADMIN' ? 'Departments managed' : 'Department'}
+            </Text>
             {role === 'ADMIN' ? (
               <DepartmentChipPicker
                 allDepartments={allDepartments}
@@ -359,7 +292,7 @@ export function CreateOrgUserScreen() {
                 {...(errors.departments ? { error: errors.departments } : {})}
               />
             ) : (
-              <>
+              <View>
                 <Pressable
                   onPress={() => setDeptSheetVisible(true)}
                   style={[
@@ -384,7 +317,7 @@ export function CreateOrgUserScreen() {
                   }}
                   onClose={() => setDeptSheetVisible(false)}
                 />
-              </>
+              </View>
             )}
           </View>
 
@@ -443,13 +376,16 @@ const s = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingBottom: 12, borderBottomWidth: 1 },
   headerBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 9 },
   headerTitle: { flex: 1, fontSize: 16, fontFamily: 'Inter-SemiBold', letterSpacing: 0 },
-  form: { paddingHorizontal: Spacing[5], paddingTop: 18, gap: 18 },
+  // Fields stack vertically by document order + margin — nothing here forces
+  // two fields to share a row.
+  form: { paddingHorizontal: Spacing[5], paddingTop: 18 },
+  section: { marginBottom: 18 },
+  sectionLabel: { fontSize: 12, fontFamily: 'Inter-SemiBold', marginBottom: 8 },
   roleRow: { flexDirection: 'row', gap: 10 },
   rolePillBtn: { flex: 1, height: 56, borderRadius: 11, borderWidth: 1.5, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   roleActiveShadow: { shadowColor: '#0D2270', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.24, shadowRadius: 14, elevation: 4 },
   rolePillText: { fontSize: 13.5, fontFamily: 'Inter-SemiBold', letterSpacing: 0 },
   roleHint: { fontSize: 11.5, fontFamily: 'Inter-Regular', marginTop: 8 },
-  twoUp: { flexDirection: 'row', gap: 12 },
   deptDropdown: { height: 50, borderRadius: Layout.inputRadius, borderWidth: 1.5, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14 },
   deptDropdownText: { fontSize: 14, fontFamily: 'Inter-Regular', letterSpacing: 0 },
   deptError: { fontSize: 12, fontFamily: 'Inter-Regular', marginTop: 4, marginLeft: 2 },
